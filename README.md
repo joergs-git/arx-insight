@@ -48,7 +48,11 @@ and shows you what actually happened — and what to do next.
 <p align="center"><i>Example report (anonymized):</i></p>
 <p align="center">
   <!-- Add a real screenshot here after your first run, e.g. docs/example-report.png -->
-  <img src="docs/hero.svg" alt="Example report preview" width="80%">
+  <img src="docs/arx-insight1.png" alt="Overview with AI Analysis" width="80%">
+  <img src="docs/arx-insight2.png" alt="Strongest session" width="80%">
+  <img src="docs/arx-insight3.png" alt="History, Average and Outlook" width="80%">
+  <img src="docs/arx-insight4.png" alt="Wholebody-Factor" width="80%">
+  <img src="docs/arx-insight5.png" alt="Sport scientific based plan recommendation" width="80%">
 </p>
 
 ## Install on Windows (plug and play)
