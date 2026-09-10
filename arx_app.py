@@ -26,14 +26,36 @@ import os, sys, json, argparse, threading, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
+import urllib.request
 import arx_report as core   # reuse the read-only engine
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = os.path.join(HERE, "config.json")
-GOALS = os.path.join(HERE, "goals.json")          # per-user goals: {user_id: {...}}
+CONFIG = os.path.join(core.data_dir(), "config.json")   # stable, survives re-download
+GOALS = os.path.join(core.data_dir(), "goals.json")     # per-user: {user_id: {...}}
 WEB = os.path.join(HERE, "web", "index.html")
 
-STATE = {"db": None, "catalog": {}}
+REPO_URL = "https://github.com/joergs-git/arx-insight"
+RAW_VERSION_URL = "https://raw.githubusercontent.com/joergs-git/arx-insight/main/VERSION"
+
+def app_version() -> str:
+    try:
+        with open(os.path.join(HERE, "VERSION"), encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return "0.0.0"
+
+def check_update(current: str) -> dict:
+    """Best-effort: is a newer VERSION on GitHub? Never blocks for long."""
+    try:
+        with urllib.request.urlopen(RAW_VERSION_URL, timeout=3) as r:
+            latest = r.read().decode("utf-8").strip()
+        def parts(v): return [int(x) for x in v.split(".") if x.isdigit()]
+        newer = parts(latest) > parts(current)
+        return {"latest": latest, "update_available": newer, "url": REPO_URL}
+    except Exception:
+        return {"latest": current, "update_available": False, "url": REPO_URL}
+
+STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}}
 
 
 # ---- small JSON file helpers -------------------------------------------------
@@ -135,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                 "sessions_per_week": cfg.get("sessions_per_week", 2),
                 "has_key": bool(cfg.get("anthropic_api_key")),
                 "catalog": STATE["catalog"],
+                "version": STATE["version"],
+                "update": STATE["update"],
             })
         if u.path == "/api/users":
             return self._send(search_users(q.get("q", [""])[0]))
@@ -162,11 +186,14 @@ class Handler(BaseHTTPRequestHandler):
                     cfg[k] = data[k]
             write_json(CONFIG, cfg)
             return self._send({"ok": True})
-        if u.path == "/api/goal":                          # per-user goal screen
+        if u.path == "/api/goal":                          # per-user profile / goal screen
             goals = read_json(GOALS, {})
             rec = goals.get(str(data["user_id"]), {})
             rec["goal"] = data.get("goal", {})
             rec["sessions_per_week"] = data.get("sessions_per_week", 2)
+            for opt in ("height_cm", "weight_kg", "language", "notes"):  # optional profile fields
+                if opt in data and data[opt] not in ("", None):
+                    rec[opt] = data[opt]
             goals[str(data["user_id"])] = rec              # keep any restrictions
             write_json(GOALS, goals)
             return self._send({"ok": True})
@@ -192,10 +219,34 @@ def main():
         sys.exit("No database path. Use --db, set ARX_DB, or add 'db' to config.json.")
     STATE["db"] = db
     STATE["catalog"] = core.load_catalog(args.catalog)
+    STATE["version"] = app_version()
+    STATE["update"] = check_update(STATE["version"])   # one-off, 3 s cap
 
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    url = f"http://localhost:{args.port}"
-    print(f"ARX Insight running at {url}  (Ctrl+C to stop)")
+    # Single instance: if ARX Insight already runs on this port, just open the
+    # browser and exit (a stray second double-click must not start a 2nd server).
+    def is_ours(port):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/bootstrap", timeout=1.5) as r:
+                return b'"catalog"' in r.read()
+        except Exception:
+            return False
+
+    srv, port = None, args.port
+    for p in range(args.port, args.port + 6):
+        try:
+            srv = ThreadingHTTPServer(("127.0.0.1", p), Handler); port = p; break
+        except OSError:
+            if is_ours(p):
+                print(f"ARX Insight is already running at http://localhost:{p} - opening it.")
+                if not args.no_browser:
+                    webbrowser.open(f"http://localhost:{p}")
+                return
+            # a different program holds this port -> try the next one
+    if srv is None:
+        sys.exit("Could not find a free port for ARX Insight.")
+
+    url = f"http://localhost:{port}"
+    print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
     if not args.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

@@ -109,8 +109,27 @@
   ol.plan li::before{content:counter(p);font-family:var(--disp);font-weight:700;font-size:32px;color:var(--accent);text-align:center}
   ol.plan .ex{font-family:var(--disp);font-size:22px;font-weight:600;text-transform:uppercase}
   ol.plan .cue{font-size:15px;color:var(--ink2)}ol.plan .tgt{font-family:var(--disp);font-weight:600;font-size:16px;color:var(--ink3);white-space:nowrap}
-  .ai{background:var(--panel2);border:2px dashed var(--rule2);border-radius:6px;padding:20px 22px;white-space:pre-wrap;font-size:18px}
-  .ai h3{font-size:22px;color:var(--accent);margin-bottom:8px}
+  /* two-column report: main sections left, AI panel right (sticky) */
+  .report-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:30px;align-items:start}
+  #r_side{position:sticky;top:88px}
+  @media(max-width:1040px){.report-grid{grid-template-columns:1fr}#r_side{position:static}}
+  .who{font-family:var(--disp);font-size:26px;font-weight:700;text-transform:uppercase;background:none;border:0;color:var(--ink);padding:0;text-align:left;border-bottom:2px dashed transparent;cursor:pointer}
+  .who:hover{border-bottom-color:var(--accent);color:var(--accent)}
+  .banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--good-bg);border:2px solid var(--good);border-radius:8px;padding:14px 18px;margin:16px 0;font-size:17px}
+  .banner b{color:var(--good)}
+  /* AI panel — rich, readable, not a wall of text */
+  .ai{background:linear-gradient(180deg,var(--panel2),var(--panel));border:2px solid var(--rule2);border-radius:12px;padding:22px 24px;font-size:20px;line-height:1.6}
+  .ai .aihdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .ai .aihdr h3{font-size:24px;text-transform:uppercase;color:var(--accent);margin:0}
+  .ai .aihdr .badge{font-size:12px;color:var(--ink3);border:1px solid var(--rule2);border-radius:20px;padding:3px 10px}
+  .ai h4{font-family:var(--disp);font-weight:700;font-size:21px;margin:20px 0 6px;display:flex;align-items:center;gap:9px}
+  .ai h4:first-of-type{margin-top:4px}
+  .ai p{margin:0 0 10px}
+  .ai ul{margin:0 0 12px;padding-left:0;list-style:none}
+  .ai li{position:relative;padding-left:26px;margin-bottom:8px}
+  .ai li::before{content:"›";position:absolute;left:6px;color:var(--accent);font-weight:700}
+  .ai b{color:var(--ink);font-weight:600}
+  .ai .placeholder,.ai .spin{color:var(--ink3);font-size:18px}
   .foot{font-size:15px;color:var(--ink3)}footer{border-top:2px solid var(--rule);margin-top:40px;padding-block:24px 60px}
   .spin{display:inline-block;color:var(--ink3)}
 
@@ -120,6 +139,10 @@
     body{background:#fff;color:#111}
     .panel,.excard,.ai,.kpi{border-color:#ccc}
     section{padding-block:18px}
+    /* print in one column so the AI analysis is included after the report */
+    .report-grid{grid-template-columns:1fr}
+    #r_side{position:static;break-inside:avoid}
+    .ai{background:#fff}
   }
 </style>
 </head>
@@ -165,6 +188,10 @@
     </div>
     <div class="field"><label id="g_freq">Trainings pro Woche</label>
       <input type="number" id="gFreq" min="1" max="7" value="2"></div>
+    <div class="field" style="display:flex;gap:14px">
+      <div style="flex:1"><label id="g_height">Größe (cm)</label><input type="number" id="gHeight" min="0" max="260" placeholder="–"></div>
+      <div style="flex:1"><label id="g_weight">Gewicht (kg)</label><input type="number" id="gWeight" min="0" max="400" placeholder="–"></div>
+    </div>
     <div class="mix" id="gMix"></div>
     <button class="btn" id="goalSave" style="width:100%;margin-top:22px">Ziel speichern & Report</button>
   </div>
@@ -186,11 +213,12 @@
 <!-- REPORT -->
 <div class="screen" id="report">
   <div class="topbar">
-    <div><div class="who" id="r_name"></div><div class="meta" id="r_meta"></div></div>
+    <button class="who" id="r_name" title="Edit profile"></button>
+    <div class="meta" id="r_meta"></div>
     <div class="spacer"></div>
-    <button class="btn ghost" id="r_limits">⚠ Limits</button>
-    <button class="btn ghost" id="r_ai">KI-Auswertung</button>
-    <button class="btn ghost" id="r_pdf">Als PDF</button>
+    <button class="btn ghost" id="r_settings" title="Settings">⚙</button>
+    <button class="btn ghost" id="r_limits" title="Restrictions">⚠</button>
+    <button class="btn ghost" id="r_pdf">PDF</button>
     <button class="btn" id="r_exit">Exit</button>
   </div>
   <main class="wrap" id="r_body"></main>
@@ -201,6 +229,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const api=(p)=>fetch(p).then(r=>r.json());
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
+let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 // unit helpers (engine returns kg/cm; convert for display if imperial)
@@ -224,20 +253,38 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 // ---------- boot ----------
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;
-  if(!b.configured){show("setup");} else {show("search");$("#q").focus();}
+  HAS_KEY=!!b.has_key; UPDATE=b.update||{};
+  if(!b.configured){openSettings("search");} else {show("search");$("#q").focus();}
 });
 
 // ---------- setup ----------
 $$("#setLang button, #setUnits button").forEach(()=>{});
 function segClick(sel,cb){$(sel).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;[...$(sel).children].forEach(x=>x.setAttribute("aria-pressed",x===b));cb(b.dataset.v);});}
 segClick("#setLang",v=>{});segClick("#setUnits",v=>{});
+function openSettings(origin){
+  SETTINGS_ORIGIN=origin||"search";
+  const de=CFG.language==="de";
+  $("#s_setup_h").textContent=de?"Einstellungen":"Settings";
+  $("#s_setup_sub").textContent=de?"Gilt für dieses Gerät. Jederzeit änderbar.":"Applies to this device. Changeable anytime.";
+  $("#s_lang").textContent=de?"Sprache":"Language";
+  $("#s_units").textContent=de?"Einheiten":"Units";
+  $("#s_freq").textContent=de?"Trainings pro Woche (Standard)":"Sessions per week (default)";
+  $("#s_key").textContent=de?"Anthropic API-Schlüssel (für KI-Analyse)":"Anthropic API key (for AI analysis)";
+  $("#setupSave").textContent=de?"Speichern":"Save";
+  [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
+  [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
+  $("#setFreq").value=CFG.sessions_per_week||2;
+  $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
+  show("setup");
+}
 $("#setupSave").addEventListener("click",async()=>{
   const lang=$("#setLang [aria-pressed=true]").dataset.v, units=$("#setUnits [aria-pressed=true]").dataset.v;
   const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value};
-  const key=$("#setKey").value.trim(); if(key) body.anthropic_api_key=key;
+  const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
   CFG.language=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
-  show("search");$("#q").focus();
+  if(SETTINGS_ORIGIN==="report" && CUR){ if(REPORT) REPORT.ai_narrative=null; loadReport(); }
+  else { show("search");$("#q").focus(); }
 });
 
 // ---------- search ----------
@@ -265,15 +312,48 @@ function goalMix(){
   return {muscle:muscle/100,strength:strength/100,conditioning:cond/100};
 }
 function renderMix(){
-  const m=goalMix();
-  $("#gMix").innerHTML=[["Kraft",m.strength],["Muskel",m.muscle],["Kondition",m.conditioning]]
+  const de=CFG.language==="de", m=goalMix();
+  $("#gMix").innerHTML=[[de?"Kraft":"Strength",m.strength],[de?"Muskel":"Muscle",m.muscle],[de?"Kondition":"Cond.",m.conditioning]]
     .map(([k,v])=>`<div class="mixv"><div class="k">${k}</div><div class="v">${Math.round(v*100)}<small style="font-size:.4em">%</small></div></div>`).join("");
 }
 ["#gMain","#gCond"].forEach(s=>$(s).addEventListener("input",renderMix));
-function openGoal(){renderMix();show("goal");}
+function goalLabels(edit){
+  const de=CFG.language==="de";
+  $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Trainingsziel":"Training goal");
+  $("#g_sub").textContent=de?"Keine exakte Wissenschaft, nur die Richtung.":"Not exact science, just the direction.";
+  $("#g_pole_str").textContent=de?"Kraft":"Strength"; $("#g_pole_mus").textContent=de?"Muskelaufbau":"Muscle";
+  $("#g_cond").textContent=de?"Ausdauer / Kondition beimischen":"Blend in endurance / conditioning";
+  $("#g_freq").textContent=de?"Trainings pro Woche":"Sessions per week";
+  $("#g_height").textContent=de?"Größe (cm)":"Height (cm)"; $("#g_weight").textContent=de?"Gewicht (kg)":"Weight (kg)";
+  $("#goalSave").textContent=edit?(de?"Speichern & Report":"Save & report"):(de?"Ziel speichern & Report":"Save goal & report");
+}
+function setSlidersFromGoal(g){
+  const cond=Math.round((g.conditioning||0)*100), rest=100-cond;
+  const main=rest>0?Math.round((g.muscle||0)/(rest/100)):60;
+  $("#gCond").value=Math.min(60,cond); $("#gMain").value=Math.max(0,Math.min(100,main));
+}
+function openGoal(){                       // new user: pick a goal for the first time
+  GOAL_MODE="new"; goalLabels(false);
+  $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
+  $("#gHeight").value="";$("#gWeight").value="";
+  renderMix(); show("goal");
+}
+async function openProfile(){              // edit an existing person's profile/goal
+  if(!CUR) return;
+  GOAL_MODE="edit"; goalLabels(true);
+  const g=await api("/api/goal?user_id="+CUR.id);
+  setSlidersFromGoal((g&&g.goal)||{muscle:0.6,strength:0.3,conditioning:0.1});
+  $("#gFreq").value=(g&&g.sessions_per_week)||CFG.sessions_per_week||2;
+  $("#gHeight").value=(g&&g.height_cm)||""; $("#gWeight").value=(g&&g.weight_kg)||"";
+  renderMix(); show("goal");
+}
 $("#goalSave").addEventListener("click",async()=>{
-  await post("/api/goal",{user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value});
-  openLimits();          // new users set restrictions once, then report
+  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value};
+  if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
+  if($("#gWeight").value) body.weight_kg=+$("#gWeight").value;
+  await post("/api/goal",body);
+  if(GOAL_MODE==="new"){ openLimits(); }        // new users set restrictions once
+  else { if(REPORT) REPORT.ai_narrative=null; loadReport(); }
 });
 
 // ---------- restrictions (injury-aware) ----------
@@ -312,66 +392,62 @@ $("#r_limits").addEventListener("click",openLimits);
 // ---------- report ----------
 $("#r_exit").addEventListener("click",()=>{show("search");$("#q").value="";$("#results").innerHTML="";$("#q").focus();});
 $("#r_pdf").addEventListener("click",()=>window.print());
-$("#r_ai").addEventListener("click",async()=>{
-  $("#r_ai").textContent=T().loading;
-  const r=await api("/api/report?user_id="+CUR.id+"&ai=1");
-  REPORT.ai_narrative=r.ai_narrative; renderReport(); $("#r_ai").textContent=T().aih;
-});
+$("#r_settings").addEventListener("click",()=>openSettings("report"));
+$("#r_name").addEventListener("click",openProfile);
+
 async function loadReport(){
-  show("report");$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+T().loading+'</p>';
+  show("report");$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+T().loading+' …</p>';
   REPORT=await api("/api/report?user_id="+CUR.id);
   renderReport();
 }
 
+function updateBannerHtml(){
+  if(!UPDATE||!UPDATE.update_available) return "";
+  const de=CFG.language==="de";
+  return `<div class="banner"><b>${de?'Neue Version verfügbar':'New version available'}: v${UPDATE.latest}</b>
+    <span class="foot">(${de?'installiert':'installed'}: v${CURVER})</span><span style="flex:1"></span>
+    <button class="btn" onclick="window.open('${UPDATE.url}','_blank')">${de?'Herunterladen':'Download'}</button></div>`;
+}
+
 function renderReport(){
-  const r=REPORT,t=T();
-  if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">Fehler: '+r.error+'</p>';return;}
-  $("#r_name").textContent=r.athlete_alias;
-  $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${t.sessions} · ${r.generated.replace('T',' ').slice(0,16)}`;
-  const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100);
-  const k=r.kpi, F=r.featured;
+  const r=REPORT,t=T(),de0=CFG.language==="de";
+  if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+r.error+'</p>';return;}
+  $("#r_name").textContent=r.athlete_alias; $("#r_name").title=de0?"Profil bearbeiten":"Edit profile";
+  $("#r_settings").title=de0?"Einstellungen":"Settings"; $("#r_limits").title=de0?"Einschränkungen":"Restrictions";
+  $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${de0?'Tage':'days'} · ${r.generated.replace('T',' ').slice(0,16)}`;
+  const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100),k=r.kpi,F=r.featured;
   const kpiHtml=`<div class="kpis">
     <div class="kpi"><div class="label">${t.sessions}</div><div class="val">${r.sets_working}<small> /${r.sets_total}</small></div></div>
-    <div class="kpi"><div class="label">Tage</div><div class="val">${r.training_days.length}</div></div>
+    <div class="kpi"><div class="label">${de0?'Tage':'Days'}</div><div class="val">${r.training_days.length}</div></div>
     <div class="kpi hot"><div class="label">Top</div><div class="val">${uKg(k.top_force)}<small> ${LKg()}</small></div></div>
-    <div class="kpi"><div class="label">Exz./Konz.</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
-  const goalLine=`<p class="lead" style="margin-top:14px">Ziel: <b>Muskel ${pc('muscle')}%</b>, Kraft ${pc('strength')}%, Kondition ${pc('conditioning')}%.</p>`;
+    <div class="kpi"><div class="label">${de0?'Exz./Konz.':'Ecc./Con.'}</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
+  const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
 
-  // localize topbar buttons
-  const de0=CFG.language==="de";
-  $("#r_ai").textContent=de0?"KI-Auswertung":"AI analysis";
-  $("#r_pdf").textContent=de0?"Als PDF":"Save PDF";
-  $("#r_exit").textContent="Exit";
-  $("#r_limits").textContent=de0?"⚠ Einschränkungen":"⚠ Limits";
-
-  let html=kpiHtml+goalLine+restrHtml(r.restrictions)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
-  // curve
-  html+=`<section><div class="eyebrow">${t.curve}</div><h2 class="sec">${F.meta.name} · ${uKg(F.meta.max_kg)} ${LKg()}</h2>
-    <p class="lead">${F.meta.date} · ${F.meta.reps} Reps · ROM ${uCm(F.meta.rom_cm)} ${LCm()} · konz. ${uKg(F.meta.concentric_kg)}, exz. <b>${uKg(F.meta.eccentric_kg)} ${LKg()}</b>.</p>
+  let main=kpiHtml+goalLine+restrHtml(r.restrictions)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
+  main+=`<section><div class="eyebrow">${t.curve}</div><h2 class="sec">${F.meta.name} · ${uKg(F.meta.max_kg)} ${LKg()}</h2>
+    <p class="lead">${F.meta.date} · ${F.meta.reps} ${de0?'Wdh.':'reps'} · ROM ${uCm(F.meta.rom_cm)} ${LCm()} · ${de0?'konz.':'con.'} ${uKg(F.meta.concentric_kg)}, ${de0?'exz.':'ecc.'} <b>${uKg(F.meta.eccentric_kg)} ${LKg()}</b>.</p>
     <div class="panel chartwrap"><svg id="curveSvg" viewBox="0 0 1000 420"></svg></div>
-    <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>${t.curve}</span></div>
     <div class="verdict" id="verdict"></div></section>`;
-  // progress
-  html+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
+  main+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
-    <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>Verlauf</span><span><i class="dot" style="background:var(--good)"></i>Trend</span><span><i class="dot" style="background:var(--fc)"></i>Prognose</span></div></section>`;
-  // whole body
-  html+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
+    <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>${de0?'Verlauf':'History'}</span><span><i class="dot" style="background:var(--good)"></i>${de0?'Trend':'Trend'}</span><span><i class="dot" style="background:var(--fc)"></i>${de0?'Prognose':'Forecast'}</span></div></section>`;
+  main+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
     <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
-    <p class="foot" style="margin-top:8px">Abdeckung max ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} Übungen.</p></section>`;
-  // plan
-  html+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${t.planh}</h2><ol class="plan" id="plan"></ol></section>`;
-  // ai
-  html+=`<section><div class="eyebrow">${t.aih}</div><div class="ai" id="aibox"></div></section>`;
-  const disc=de0
-    ? "Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Es wird keinerlei Haftung übernommen. Alles, was du daraus ableitest, geschieht auf eigene Verantwortung. Bei Beschwerden oder Verletzungen ärztlichen oder therapeutischen Rat einholen."
-    : "Experimental aid, not medical or therapeutic advice. No liability is accepted. Anything you derive from it is at your own risk. In case of pain or injury, consult a physician or therapist.";
-  html+=`<footer><p class="foot">ARX Insight · local · ${LKg()}/${LCm()}</p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
-  $("#r_body").innerHTML=html;
+    <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
+  main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${t.planh}</h2>
+    <p class="foot" style="margin:-2px 0 4px">${de0?'Schnelle Grundempfehlung (regelbasiert). Die personalisierte KI-Empfehlung steht rechts.':'Quick rule-based baseline. The personalized AI recommendation is on the right.'}</p>
+    <ol class="plan" id="plan"></ol></section>`;
 
-  drawCurve();drawWB();renderProg();renderPlan();renderAI();
+  const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
+  const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()}</p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
+
+  $("#r_body").innerHTML = updateBannerHtml() +
+    `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;
+
+  drawCurve();drawWB();renderProg();renderPlan();
   $("#xseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;XMODE=b.dataset.x;[...$("#xseg").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===XMODE));renderProg();});
+  renderAISide(); autoLoadAI();
 }
 
 function restrHtml(rest){
@@ -501,9 +577,55 @@ function renderPlan(){const de=CFG.language==="de";
     const rb=careful?` <span class="grp" style="background:var(--warn)">${rlabel('careful')}</span>`:"";
     return `<li><div class="ex"><span class="grp ${o.group}">${o.group}</span> ${o.name}${rb}</div><div class="cue">${cue}</div><div class="tgt">${tgt}</div></li>`;}).join("");
 }
-function renderAI(){const box=$("#aibox");if(!box)return;
-  box.innerHTML=REPORT.ai_narrative?`<h3>${T().aih}</h3><div class="foot" style="margin-bottom:10px">${T().aitag}</div>${REPORT.ai_narrative.replace(/</g,'&lt;')}`
-    :`<h3>${T().aih}</h3><div class="foot">${T().aitag} — oben „KI-Auswertung" tippen.</div>`;
+// playful loading lines while the AI thinks
+const SPIN_DE=["🤖💪 Die KI lässt die Muskeln spielen und studiert deine Kraftdaten …",
+  "🧠🔥 Neuronen wärmen sich auf, Inroad wird vermessen … kurz durchatmen.",
+  "📈 Zahlen werden gestemmt, Empfehlungen geschmiedet … ein paar Sekunden noch."];
+const SPIN_EN=["🤖💪 The AI is flexing its neurons and studying your force data …",
+  "🧠🔥 Warming up the synapses, measuring inroad … hold that pose.",
+  "📈 Repping out the numbers, forging your recommendation … a few seconds."];
+let SPIN_T=null;
+function aiHeader(){const de=CFG.language==="de";return `<div class="aihdr"><span style="font-size:24px">🤖</span><h3>${T().aih}</h3><span class="badge">${de?'automatisch':'auto'}</span></div>`;}
+function mdEmoji(s){s=s.toLowerCase();
+  if(/erhol|recover|belast|load|pause|rest/.test(s))return'🛌';
+  if(/ausbelast|inroad|effort|satz|quality|kurve|force/.test(s))return'🔥';
+  if(/fortschritt|progress|kraft|strength|entwicklung/.test(s))return'📈';
+  if(/gesamt|overall|index|körper|body/.test(s))return'🧍';
+  if(/session|vorschlag|plan|next|einheit|empfehl/.test(s))return'🗓️';
+  if(/schulter|knie|einschränk|restrict|shoulder|knee|note|safety|sicher/.test(s))return'⚠️';
+  return'✨';}
+function mdToHtml(md){
+  const esc=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const bold=x=>esc(x).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  let html="",inList=false; const closeList=()=>{if(inList){html+="</ul>";inList=false;}};
+  for(const raw of md.split(/\r?\n/)){
+    const line=raw.trim(); if(!line){closeList();continue;} let m;
+    if(m=line.match(/^#{1,6}\s+(.*)/)){closeList();html+=`<h4>${mdEmoji(m[1])} ${bold(m[1])}</h4>`;}
+    else if(m=line.match(/^[-*•]\s+(.*)/)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${bold(m[1])}</li>`;}
+    else if(m=line.match(/^\d+[.)]\s+(.*)/)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${bold(m[1])}</li>`;}
+    else{closeList();html+=`<p>${bold(line)}</p>`;}
+  }
+  closeList(); return html;
+}
+function renderAISide(loading){
+  const box=$("#aibox"); if(!box) return; const de=CFG.language==="de";
+  if(SPIN_T){clearInterval(SPIN_T);SPIN_T=null;}
+  if(loading){
+    const lines=de?SPIN_DE:SPIN_EN; let i=0;
+    const paint=()=>{box.innerHTML=aiHeader()+`<div class="spin">${lines[i%lines.length]}</div>`;i++;};
+    paint(); SPIN_T=setInterval(paint,2600);
+    return;
+  }
+  if(REPORT.ai_narrative){ box.innerHTML=aiHeader()+`<div class="badge" style="margin-bottom:12px">${T().aitag}</div>`+mdToHtml(REPORT.ai_narrative); return; }
+  box.innerHTML=aiHeader()+`<div class="placeholder">${de?'Trage deinen Claude API-Schlüssel unter ⚙ ein, um automatisch eine KI-Analyse und eine Empfehlung für die nächste Einheit zu erhalten.':'Add your Claude API key under ⚙ to automatically get an AI analysis and a recommendation for your next session.'}</div>`;
+}
+async function autoLoadAI(){
+  if(REPORT.ai_narrative){ renderAISide(); return; }
+  if(!HAS_KEY){ renderAISide(); return; }
+  renderAISide(true);
+  try{ const r=await api("/api/report?user_id="+CUR.id+"&ai=1"); REPORT.ai_narrative=r.ai_narrative||null; }
+  catch(e){ REPORT.ai_narrative=null; }
+  renderAISide();
 }
 </script>
 </body>

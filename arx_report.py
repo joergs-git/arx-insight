@@ -20,6 +20,23 @@ from __future__ import annotations
 import os, sys, json, gzip, shutil, tempfile, argparse, statistics as st
 from datetime import datetime
 
+
+def data_dir() -> str:
+    """Stable per-user location for settings, goals and caches.
+
+    Kept OUTSIDE the program folder so re-downloading the app (a fresh ZIP)
+    never overwrites the user's settings, goals, venv or Firebird client.
+    Override with the ARX_DATA_DIR environment variable (the Windows launcher
+    sets it to %LOCALAPPDATA%\\ARXInsight)."""
+    d = os.environ.get("ARX_DATA_DIR")
+    if not d:
+        if os.name == "nt":
+            d = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ARXInsight")
+        else:
+            d = os.path.join(os.path.expanduser("~"), ".arx-insight")
+    os.makedirs(d, exist_ok=True)
+    return d
+
 # --- unit conversions (ARX stores imperial internally) -----------------------
 LB_TO_KG = 0.45359237          # pounds  -> kilograms
 IN_TO_CM = 2.54                # inches  -> centimeters
@@ -401,6 +418,18 @@ def _load_analysis(work: list[dict]) -> dict:
             "insufficient_recovery": events,
         }
 
+    # When should the next session start? Rest scales with the LAST day's real
+    # effort (per the effort-conditioned rule above), taken across the groups
+    # trained that day. Sub-maximal last day -> train again soon; deep -> wait.
+    next_rest, next_earliest = None, None
+    if days:
+        last_day = days[-1]
+        last_ranks = [RANK.get(s.get("effort"), 0) for s in work if s["date"][:10] == last_day]
+        r = max(last_ranks) if last_ranks else 0
+        next_rest = REQUIRED_REST[r]
+        from datetime import timedelta
+        next_earliest = (datetime.fromisoformat(last_day) + timedelta(days=next_rest)).date().isoformat()
+
     hard_total = sum(pg["hard_days"] for pg in per_group.values())
     submax_total = sum(pg["submax_days"] for pg in per_group.values())
     # Flag is now effort-conditioned, not frequency alone.
@@ -423,6 +452,8 @@ def _load_analysis(work: list[dict]) -> dict:
         "hard_sessions": hard_total,
         "submax_sessions": submax_total,
         "insufficient_recovery_after_hard": insufficient_after_hard,
+        "recommended_rest_days": next_rest,      # days to wait before the next session
+        "next_earliest": next_earliest,          # earliest sensible next training date
         "per_group": per_group,
         "flag": flag,
     }
@@ -483,7 +514,7 @@ def _session_plan(exercises: list[dict], restrictions: dict) -> list[dict]:
     return plan
 
 
-EFFORT_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".effort_cache.json")
+EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
 
 
 def set_effort(con, set_id: int, cache: dict) -> dict:
@@ -692,9 +723,11 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "inroad on those. Avoiding aggravation always outranks progress. This is "
         "not medical or rehabilitation advice.\n"
         "Give short, concrete, scientifically defensible observations and ONE "
-        "session suggestion (exercise order, large muscle groups first, ~15 min "
-        "budget, matched to the stated goal and weekly frequency, and respecting "
-        "the restrictions above). Never give "
+        "session suggestion. It MUST include WHEN to train next (how many rest "
+        "days / the earliest sensible date — use load_and_recovery."
+        "recommended_rest_days and next_earliest) AND WHICH exercises, in what "
+        "order (large muscle groups first, ~15 min, matched to the goal and "
+        "weekly frequency, respecting the restrictions above). Never give "
         f"medical advice. Use the units given in the data ({FU} and {LU}). "
         f"Answer in {'German' if cfg.get('language','en')=='de' else 'English'}, "
         "in a few short sentences with clear headings."

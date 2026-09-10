@@ -10,7 +10,10 @@
 # Nothing here touches the ARX app itself; the database is only ever read.
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path $PSScriptRoot -Parent          # repo root (parent of \windows)
+$Root = Split-Path $PSScriptRoot -Parent          # program folder (parent of \windows)
+# Everything that must SURVIVE a re-download lives here, outside the program folder:
+$App  = Join-Path $env:LOCALAPPDATA "ARXInsight"  # venv, Firebird client, settings, goals
+New-Item -ItemType Directory -Force -Path $App | Out-Null
 function Say($m){ Write-Host "  $m" -ForegroundColor Cyan }
 function Warn($m){ Write-Host "  $m" -ForegroundColor Yellow }
 
@@ -48,21 +51,25 @@ Say "Python found: $py"
 
 # --- 2. virtual environment + packages ------------------------------------
 $pyExe = $py.Split(" ")[0]; $pyArg = ($py.Split(" ") | Select-Object -Skip 1)
-$venv = Join-Path $Root ".venv"
-if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
-    Say "Creating a private environment..."
-    & $pyExe @pyArg -m venv "$venv"
-}
+$venv = Join-Path $App ".venv"                     # persistent, survives re-download
 $vpy = Join-Path $venv "Scripts\python.exe"
-Say "Installing required packages (anthropic, firebird-driver)..."
-& $vpy -m pip install --upgrade pip --quiet
-& $vpy -m pip install -r (Join-Path $Root "requirements.txt") --quiet
-Say "Packages ready."
+if (-not (Test-Path $vpy)) {
+    Say "Creating a private environment (one time)..."
+    & $pyExe @pyArg -m venv "$venv"
+    Say "Installing required packages (anthropic, firebird-driver)..."
+    & $vpy -m pip install --upgrade pip --quiet
+    & $vpy -m pip install -r (Join-Path $Root "requirements.txt") --quiet
+    Say "Packages ready."
+} else {
+    Say "Private environment already present - reusing it."
+}
 
 # --- 3. Firebird client library -------------------------------------------
-$fbDir = Join-Path $Root "firebird"
+$fbDir = Join-Path $App "firebird"                 # persistent, survives re-download
 $fbDll = Join-Path $fbDir "fbclient.dll"
-if (-not (Test-Path $fbDll)) {
+if (Test-Path $fbDll) {
+    Say "Firebird client already present - reusing it."
+} else {
     Say "Setting up the Firebird database client..."
     # Try to reuse the one that ships with the ARX app first.
     $found = Get-ChildItem "$env:LOCALAPPDATA\Packages\Arx.App*" -Recurse -Filter fbclient.dll -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -124,7 +131,7 @@ if ($db) {
 }
 
 # --- 5. write config.json (db path) ---------------------------------------
-$cfgPath = Join-Path $Root "config.json"
+$cfgPath = Join-Path $App "config.json"            # persistent settings (survive re-download)
 # Preserve any existing settings (e.g. an API key the user set in the app).
 if (Test-Path $cfgPath) {
     try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { $cfg = [PSCustomObject]@{} }
@@ -149,6 +156,7 @@ try {
 Write-Host ""
 Write-Host "===== Setup complete - starting ARX Insight =====" -ForegroundColor Green
 Write-Host ""
+$env:ARX_DATA_DIR = $App
 $env:ARX_FBCLIENT = $fbDll
 $env:FIREBIRD = $fbDir
 & $vpy (Join-Path $Root "arx_app.py")
