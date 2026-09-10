@@ -17,7 +17,7 @@ Public domain / CC0. No warranty. Not medical advice.
 """
 
 from __future__ import annotations
-import os, sys, json, gzip, shutil, tempfile, argparse, statistics as st
+import os, sys, json, gzip, shutil, tempfile, argparse, random, statistics as st
 from datetime import datetime
 
 
@@ -604,6 +604,46 @@ def _blob_to_bytes(v) -> bytes:
     return v.encode("latin1") if isinstance(v, str) else bytes(v)
 
 
+def _pick_featured(work: list[dict]):
+    """Choose the set to feature in the big curve - NOT simply the strongest one
+    (that is always the leg press / Belt Squat and gets boring). Prefer a set
+    with a story: a fresh personal best, a deeply fatiguing set (well executed),
+    or a notably sub-maximal one (actionable). Among the interesting candidates
+    pick at random so the highlight varies each visit. Returns (set, reason)."""
+    if not work:
+        return None, None
+    days = sorted({s["date"][:10] for s in work})
+    recent_days = set(days[-2:])                      # last two training days
+    pb = {}
+    for s in work:
+        pb[s["exercise"]] = max(pb.get(s["exercise"], 0), s["max_kg"])
+
+    scored = []
+    for s in work:
+        ir = s.get("inroad")
+        is_pb = s["max_kg"] >= pb[s["exercise"]] - 0.01
+        recent = s["date"][:10] in recent_days
+        score, reason = 0.0, None
+        if is_pb and recent:
+            score += 3; reason = "pb"
+        if ir is not None and ir >= 25:
+            score += 2; reason = reason or "deep"
+        if ir is not None and ir < 8:
+            score += 1.8; reason = reason or "submax"
+        if recent:
+            score += 1
+        if reason:
+            scored.append((score, s, reason))
+    if not scored:                                    # nothing notable -> a recent set
+        pool = [(1.0, s, "recent") for s in work if s["date"][:10] in recent_days] \
+               or [(1.0, s, "recent") for s in work]
+    else:
+        pool = scored
+    pool.sort(key=lambda x: x[0], reverse=True)
+    _, s, reason = random.choice(pool[:6])            # variety among the top candidates
+    return s, reason
+
+
 def build_report(con, cfg: dict) -> dict:
     """Assemble the full analysis payload for one athlete."""
     catalog = cfg.get("_catalog", {})
@@ -637,8 +677,8 @@ def build_report(con, cfg: dict) -> dict:
 
     featured = None
     if work:
-        top = max(work, key=lambda s: s["max_kg"])
-        featured = {"meta": top, **decode_force_curve(con, top["id"])}
+        top, reason = _pick_featured(work)
+        featured = {"meta": top, "reason": reason, **decode_force_curve(con, top["id"])}
 
     load = _load_analysis(work)
 
@@ -728,6 +768,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "featured_set": {
             "exercise": f["meta"].get("name") if f else None,
             "group": f["meta"].get("group") if f else None,
+            "why_featured": f.get("reason") if f else None,   # pb | deep | submax | recent
             "peak": kg(f["meta"]["max_kg"]) if f else None,
             "rep_peaks": [kg(v) for v in f["rep_peaks"]] if f else None,
             "inroad_pct": f["inroad_pct"] if f else None,

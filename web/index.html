@@ -266,12 +266,12 @@ function uCm(v){return CFG.units==="imperial"?+(v/2.54).toFixed(1):v;}
 const LKg=()=>CFG.units==="imperial"?"lb":"kg", LCm=()=>CFG.units==="imperial"?"in":"cm";
 
 const STR={de:{setup:"Ersteinrichtung",save:"Speichern & Starten",searchph:"Name suchen…",created:"angelegt",
-  sessions:"Sessions",curve:"Kraftkurve · stärkster Satz",progress:"Fortschritt je Übung",ht:"Verlauf, Trend & Prognose",
+  sessions:"Sessions",curve:"Kraftkurve · Highlight",progress:"Fortschritt je Übung",ht:"Verlauf, Trend & Prognose",
   lastS:"Letzte Sessions",lastD:"Letzte Tage",wb:"Gesamtkörper-Faktor",planh:"Vorschlag nächste Einheit",aih:"KI-Auswertung",
   aitag:"Erzeugt mit deinem Schlüssel aus den Kennzahlen dieser Person.",loading:"lädt…",
   rise:"Anstieg",inroad:"Inroad"},
  en:{setup:"First-time setup",save:"Save & start",searchph:"Search name…",created:"created",
-  sessions:"sessions",curve:"Force curve · strongest set",progress:"Progress per exercise",ht:"History, trend & forecast",
+  sessions:"sessions",curve:"Force curve · highlight",progress:"Progress per exercise",ht:"History, trend & forecast",
   lastS:"Last sessions",lastD:"Last days",wb:"Whole-body factor",planh:"Next session suggestion",aih:"AI analysis",
   aitag:"Generated with your key from this person's metrics.",loading:"loading…",rise:"Rise",inroad:"Inroad"}};
 const T=()=>STR[CFG.language];
@@ -474,7 +474,9 @@ function renderReport(){
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
 
   let main=kpiHtml+goalLine+restrHtml(r.restrictions)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
-  main+=`<section><div class="eyebrow">${t.curve}</div><h2 class="sec">${F.meta.name} · ${uKg(F.meta.max_kg)} ${LKg()}</h2>
+  const rmap={pb:['🏅',de0?'Neuer Bestwert!':'New personal best!'],deep:['🔥',de0?'Tiefe Ausbelastung':'Deep fatigue reached'],submax:['💤',de0?'Submaximal — Luft nach oben':'Sub-maximal — room to push'],recent:['🆕',de0?'Aktueller Satz':'Recent set']};
+  const rr2=rmap[F.reason]||rmap.recent;
+  main+=`<section><div class="eyebrow">${t.curve}</div><h2 class="sec">${F.meta.name} · ${uKg(F.meta.max_kg)} ${LKg()} <span class="chip up" style="font-size:14px;vertical-align:middle">${rr2[0]} ${rr2[1]}</span></h2>
     <p class="lead">${F.meta.date} · ${F.meta.reps} ${de0?'Wdh.':'reps'} · ROM ${uCm(F.meta.rom_cm)} ${LCm()} · ${de0?'konz.':'con.'} ${uKg(F.meta.concentric_kg)}, ${de0?'exz.':'ecc.'} <b>${uKg(F.meta.eccentric_kg)} ${LKg()}</b>.</p>
     <div class="panel chartwrap"><svg id="curveSvg" viewBox="0 0 1000 420"></svg></div>
     <div class="verdict" id="verdict"></div></section>`;
