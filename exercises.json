@@ -1,0 +1,12 @@
+{
+  "_comment": "ARX Omni exercise catalog. code = ExerciseSet.EXERCISE in DB. Mapping derived by joining the ARX cloud CSV export on date+max+intensity (68/68 matched). group per ARX Push/Pull/Drive.",
+  "3":  { "name": "Row",                 "group": "Pull",  "kind": "compound"  },
+  "4":  { "name": "Pull Down",           "group": "Pull",  "kind": "compound"  },
+  "10": { "name": "Dead Lift",           "group": "Drive", "kind": "compound"  },
+  "11": { "name": "Biceps Curl",         "group": "Pull",  "kind": "isolation" },
+  "12": { "name": "Triceps Pressdown",   "group": "Push",  "kind": "isolation" },
+  "19": { "name": "Belt Squat",          "group": "Drive", "kind": "compound"  },
+  "20": { "name": "Romanian Dead Lift",  "group": "Drive", "kind": "compound"  },
+  "23": { "name": "Horizontal Press",    "group": "Push",  "kind": "compound"  },
+  "26": { "name": "Decline Press",       "group": "Push",  "kind": "compound"  }
+}

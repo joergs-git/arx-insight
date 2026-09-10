@@ -1,0 +1,13 @@
+{
+  "db": "C:/Users/you/AppData/.../Resources/DB.FDB4",
+  "user_id": 1,
+  "alias": "Athlet A",
+  "sessions_per_week": 2,
+  "goal": { "muscle": 0.6, "strength": 0.3, "conditioning": 0.1 },
+  "exercise_names": {
+    "3": "Übung 3 (bitte benennen)", "4": "Übung 4 (bitte benennen)",
+    "19": "Übung 19 (bitte benennen)"
+  },
+  "model": "claude-opus-5",
+  "anthropic_api_key": "sk-ant-... (optional, oder per Umgebungsvariable)"
+}

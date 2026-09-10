@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B1E24"/><stop offset="1" stop-color="#0F1115"/>
+    </linearGradient>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF6A52" stop-opacity="0.30"/><stop offset="1" stop-color="#FF6A52" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="460" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="6" fill="#FF6A52"/>
+
+  <!-- wordmark -->
+  <text x="64" y="118" fill="#FF7A64" font-size="20" font-weight="700" letter-spacing="8">ARX INSIGHT</text>
+  <text x="62" y="196" fill="#F0EEE9" font-size="76" font-weight="800" letter-spacing="-1">Your ARX data,</text>
+  <text x="62" y="270" fill="#F0EEE9" font-size="76" font-weight="800" letter-spacing="-1">finally readable.</text>
+  <text x="64" y="322" fill="#B3B8C1" font-size="24">Local, private strength analytics for the ARX adaptive-resistance machine.</text>
+
+  <!-- group chips -->
+  <g font-size="17" font-weight="700" letter-spacing="1">
+    <rect x="64" y="356" width="92" height="38" rx="6" fill="#C9552F"/><text x="110" y="381" fill="#fff" text-anchor="middle">DRIVE</text>
+    <rect x="166" y="356" width="82" height="38" rx="6" fill="#3E86A8"/><text x="207" y="381" fill="#fff" text-anchor="middle">PUSH</text>
+    <rect x="258" y="356" width="82" height="38" rx="6" fill="#5E9138"/><text x="299" y="381" fill="#fff" text-anchor="middle">PULL</text>
+  </g>
+
+  <!-- stylized force curve -->
+  <g transform="translate(690,150)">
+    <rect x="-20" y="-40" width="500" height="250" rx="10" fill="#14161B" stroke="#2B2F38" stroke-width="2"/>
+    <text x="0" y="-8" fill="#7D828C" font-size="15" font-weight="700" letter-spacing="2">FORCE CURVE  ·  PEAK 167 kg</text>
+    <!-- gridlines -->
+    <line x1="0" y1="30" x2="460" y2="30" stroke="#23272F" stroke-width="1.5"/>
+    <line x1="0" y1="90" x2="460" y2="90" stroke="#23272F" stroke-width="1.5"/>
+    <line x1="0" y1="150" x2="460" y2="150" stroke="#23272F" stroke-width="1.5"/>
+    <!-- area + line: a rising then working curve -->
+    <path d="M0,150 L40,120 L80,70 L120,95 L160,55 L200,80 L240,45 L280,70 L320,40 L360,62 L400,35 L440,58 L440,150 L0,150 Z" fill="url(#fill)"/>
+    <path d="M0,150 L40,120 L80,70 L120,95 L160,55 L200,80 L240,45 L280,70 L320,40 L360,62 L400,35 L440,58" fill="none" stroke="#FF6A52" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- rep peak dots -->
+    <g fill="#14161B" stroke="#B3B8C1" stroke-width="2.5">
+      <circle cx="80" cy="70" r="5"/><circle cx="160" cy="55" r="5"/><circle cx="240" cy="45" r="5"/><circle cx="320" cy="40" r="5"/><circle cx="400" cy="35" r="5"/>
+    </g>
+  </g>
+</svg>

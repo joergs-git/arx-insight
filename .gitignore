@@ -1,0 +1,14 @@
+# never commit private training data or secrets
+*.fdb
+*.FDB4
+config.json
+arx_report_data.json
+arx_report.html
+.venv/
+goals.json
+__pycache__/
+.DS_Store
+.effort_cache.json
+firebird/
+CLAUDE.md
+tasks/
