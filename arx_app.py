@@ -140,11 +140,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, obj, code=200, ctype="application/json"):
         body = obj if isinstance(obj, bytes) else json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype + ("; charset=utf-8" if "json" in ctype or "html" in ctype else ""))
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype + ("; charset=utf-8" if "json" in ctype or "html" in ctype else ""))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionError, OSError):
+            # the browser navigated away / closed the tab mid-response (common while
+            # the multi-second AI request is in flight) - harmless, ignore quietly
+            pass
 
     def do_GET(self):
         u = urlparse(self.path)
@@ -221,6 +226,16 @@ class Handler(BaseHTTPRequestHandler):
         return self._send({"error": "not found"}, code=404)
 
 
+class Server(ThreadingHTTPServer):
+    daemon_threads = True                    # don't let worker threads block shutdown
+    def handle_error(self, request, client_address):
+        # a browser closing the tab mid-response raises ConnectionAborted/Reset -
+        # that's normal and not worth a scary traceback; only log real errors
+        if issubclass(sys.exc_info()[0] or Exception, (ConnectionError, OSError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def main():
     ap = argparse.ArgumentParser(description="ARX Insight - local touch app")
     ap.add_argument("--db", default=os.environ.get("ARX_DB"), help="Path to DB.FDB4")
@@ -251,7 +266,7 @@ def main():
 
     def try_bind(port):
         try:
-            return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            return Server(("127.0.0.1", port), Handler)
         except OSError:
             return None
 
