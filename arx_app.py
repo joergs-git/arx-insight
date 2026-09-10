@@ -195,7 +195,10 @@ class Handler(BaseHTTPRequestHandler):
             rec["sessions_per_week"] = data.get("sessions_per_week", 2)
             if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off
             if "approach" in data: rec["approach"] = data["approach"] # full | split | auto
-            for opt in ("height_cm", "weight_kg", "language", "notes"):  # optional profile fields
+            if "language" in data:                                     # "" clears -> device default
+                if data["language"]: rec["language"] = data["language"]
+                else: rec.pop("language", None)
+            for opt in ("height_cm", "weight_kg", "notes"):            # optional profile fields
                 if opt in data and data[opt] not in ("", None):
                     rec[opt] = data[opt]
             goals[str(data["user_id"])] = rec              # keep any restrictions

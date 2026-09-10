@@ -109,10 +109,10 @@
   ol.plan li::before{content:counter(p);font-family:var(--disp);font-weight:700;font-size:32px;color:var(--accent);text-align:center}
   ol.plan .ex{font-family:var(--disp);font-size:22px;font-weight:600;text-transform:uppercase}
   ol.plan .cue{font-size:15px;color:var(--ink2)}ol.plan .tgt{font-family:var(--disp);font-weight:600;font-size:16px;color:var(--ink3);white-space:nowrap}
-  /* two-column report: main sections left, AI panel right (sticky) */
-  .report-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:30px;align-items:start}
-  #r_side{position:sticky;top:88px}
-  @media(max-width:1040px){.report-grid{grid-template-columns:1fr}#r_side{position:static}}
+  /* two-column report: main sections left, AI panel right; both scroll together */
+  #r_body{max-width:min(1500px,92vw)}
+  .report-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(400px,34%);gap:34px;align-items:start}
+  @media(max-width:1040px){.report-grid{grid-template-columns:1fr}}
   .who{font-family:var(--disp);font-size:26px;font-weight:700;text-transform:uppercase;background:none;border:0;color:var(--ink);padding:0;text-align:left;border-bottom:2px dashed transparent;cursor:pointer}
   .who:hover{border-bottom-color:var(--accent);color:var(--accent)}
   .banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--good-bg);border:2px solid var(--good);border-radius:8px;padding:14px 18px;margin:16px 0;font-size:17px}
@@ -199,6 +199,11 @@
         <button data-v="auto" aria-pressed="true">Auto</button>
         <button data-v="full" aria-pressed="false">Ganzkörper</button>
         <button data-v="split" aria-pressed="false">Split</button></div></div>
+    <div class="field"><label id="g_lang_l">Sprache dieses Profils</label>
+      <div class="segbig" id="gLang">
+        <button data-v="" aria-pressed="true">Standard</button>
+        <button data-v="en" aria-pressed="false">English</button>
+        <button data-v="de" aria-pressed="false">Deutsch</button></div></div>
     <div class="mix" id="gMix"></div>
     <button class="btn" id="goalSave" style="width:100%;margin-top:22px">Ziel speichern & Report</button>
   </div>
@@ -221,10 +226,11 @@
 <div class="screen" id="report">
   <div class="topbar">
     <button class="who" id="r_name" title="Edit profile"></button>
+    <button class="btn ghost" id="r_profile" title="Edit this athlete">✎</button>
     <div class="meta" id="r_meta"></div>
     <div class="spacer"></div>
-    <button class="btn ghost" id="r_settings" title="Settings">⚙</button>
-    <button class="btn ghost" id="r_limits" title="Restrictions">⚠</button>
+    <button class="btn ghost" id="r_settings">⚙</button>
+    <button class="btn ghost" id="r_limits">⚠</button>
     <button class="btn ghost" id="r_pdf">PDF</button>
     <button class="btn" id="r_exit">Exit</button>
   </div>
@@ -237,8 +243,10 @@ const api=(p)=>fetch(p).then(r=>r.json());
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
+let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS={}, APPROACH="auto";
 const KEY_URL="https://console.anthropic.com/settings/keys";
+const REPO="https://github.com/joergs-git/arx-insight";
 const FGROUPS=["Push","Pull","Drive"];
 const FCYCLE=["normal","more","less","off"];
 function flabel(s){const de=CFG.language==="de";return {normal:de?"normal":"normal",more:de?"mehr":"more",less:de?"weniger":"less",off:de?"aus":"off"}[s];}
@@ -273,7 +281,7 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 // ---------- boot ----------
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;
-  HAS_KEY=!!b.has_key; UPDATE=b.update||{};
+  GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
   if(!b.configured){openSettings("search");} else {show("search");$("#q").focus();}
 });
 
@@ -302,7 +310,7 @@ $("#setupSave").addEventListener("click",async()=>{
   const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value};
   const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
-  CFG.language=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
+  CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
   if(SETTINGS_ORIGIN==="report" && CUR){ if(REPORT) REPORT.ai_narrative=null; loadReport(); }
   else { show("search");$("#q").focus(); }
 });
@@ -321,7 +329,7 @@ $("#results").addEventListener("click",async e=>{
   const b=e.target.closest(".urow");if(!b)return;
   CUR={id:+b.dataset.id,name:b.dataset.name};
   const g=await api("/api/goal?user_id="+CUR.id);
-  CUR.restrictions=(g&&g.restrictions)||{};
+  CUR.restrictions=(g&&g.restrictions)||{}; CUR.language=(g&&g.language)||null;
   if(!g||!g.goal){openGoal();} else {loadReport();}
 });
 
@@ -342,6 +350,9 @@ $("#gFocus").addEventListener("click",e=>{const b=e.target.closest("button");if(
   if(nxt==="normal")delete FOCUS[g];else FOCUS[g]=nxt; renderFocusTiles();});
 $("#gAppr").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   APPROACH=b.dataset.v;[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));});
+$("#gLang").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  PLANG=b.dataset.v;[...$("#gLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===PLANG));});
+function setLangSeg(){[...$("#gLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===(PLANG||"")));}
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Trainingsziel":"Training goal");
@@ -354,6 +365,8 @@ function goalLabels(edit){
   $("#g_appr_l").textContent=de?"Vorgehensweise":"Approach";
   const ab={auto:de?"Auto (empfohlen)":"Auto (recommended)",full:de?"Ganzkörper":"Full body",split:de?"Split":"Split"};
   $("#g_appr_l").textContent=de?"Vorgehensweise — Auto passt sich mit mehr Daten intelligent an":"Approach — Auto adapts intelligently as data grows";
+  $("#g_lang_l").textContent=de?"Sprache dieses Profils":"Language for this profile";
+  $("#gLang").children[0].textContent=de?"Standard":"Default";
   [...$("#gAppr").children].forEach(x=>x.textContent=ab[x.dataset.v]);
   $("#goalSave").textContent=edit?(de?"Speichern & Report":"Save & report"):(de?"Ziel speichern & Report":"Save goal & report");
 }
@@ -364,10 +377,10 @@ function setSlidersFromGoal(g){
   $("#gCond").value=Math.min(60,cond); $("#gMain").value=Math.max(0,Math.min(100,main));
 }
 function openGoal(){                       // new user: pick a goal for the first time
-  GOAL_MODE="new"; FOCUS={}; APPROACH="full"; goalLabels(false);
+  GOAL_MODE="new"; FOCUS={}; APPROACH="auto"; PLANG=""; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
-  renderMix(); renderFocusTiles(); setApprSeg(); show("goal");
+  renderMix(); renderFocusTiles(); setApprSeg(); setLangSeg(); show("goal");
 }
 async function openProfile(){              // edit an existing person's profile/goal
   if(!CUR) return;
@@ -376,16 +389,16 @@ async function openProfile(){              // edit an existing person's profile/
   setSlidersFromGoal((g&&g.goal)||{muscle:0.6,strength:0.3,conditioning:0.1});
   $("#gFreq").value=(g&&g.sessions_per_week)||CFG.sessions_per_week||2;
   $("#gHeight").value=(g&&g.height_cm)||""; $("#gWeight").value=(g&&g.weight_kg)||"";
-  FOCUS=(g&&g.focus)||{}; APPROACH=(g&&g.approach)||"full";
-  renderMix(); renderFocusTiles(); setApprSeg(); show("goal");
+  FOCUS=(g&&g.focus)||{}; APPROACH=(g&&g.approach)||"auto"; PLANG=(g&&g.language)||"";
+  renderMix(); renderFocusTiles(); setApprSeg(); setLangSeg(); show("goal");
 }
 $("#goalSave").addEventListener("click",async()=>{
-  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:FOCUS,approach:APPROACH};
+  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:FOCUS,approach:APPROACH,language:PLANG};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
   if($("#gWeight").value) body.weight_kg=+$("#gWeight").value;
   await post("/api/goal",body);
   if(GOAL_MODE==="new"){ openLimits(); }        // new users set restrictions once
-  else { if(REPORT) REPORT.ai_narrative=null; loadReport(); }
+  else { CUR.language=PLANG||null; if(REPORT) REPORT.ai_narrative=null; loadReport(); }
 });
 
 // ---------- restrictions (injury-aware) ----------
@@ -422,12 +435,14 @@ $("#limNone").addEventListener("click",async()=>{RESTR={};await post("/api/restr
 $("#r_limits").addEventListener("click",openLimits);
 
 // ---------- report ----------
-$("#r_exit").addEventListener("click",()=>{show("search");$("#q").value="";$("#results").innerHTML="";$("#q").focus();});
+$("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;show("search");$("#q").value="";$("#results").innerHTML="";$("#q").focus();});
 $("#r_pdf").addEventListener("click",()=>window.print());
 $("#r_settings").addEventListener("click",()=>openSettings("report"));
 $("#r_name").addEventListener("click",openProfile);
+$("#r_profile").addEventListener("click",openProfile);
 
 async function loadReport(){
+  CFG.language=(CUR&&CUR.language)||GLOBAL_LANG;   // per-profile language, else device default
   show("report");$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+T().loading+' …</p>';
   REPORT=await api("/api/report?user_id="+CUR.id);
   renderReport();
@@ -444,8 +459,11 @@ function updateBannerHtml(){
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
   if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+r.error+'</p>';return;}
-  $("#r_name").textContent=r.athlete_alias; $("#r_name").title=de0?"Profil bearbeiten":"Edit profile";
-  $("#r_settings").title=de0?"Einstellungen":"Settings"; $("#r_limits").title=de0?"Einschränkungen":"Restrictions";
+  $("#r_name").textContent=r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
+  $("#r_profile").innerHTML="✎ "+(de0?"Profil":"Profile");
+  $("#r_settings").innerHTML="⚙ "+(de0?"Einstellungen":"Settings");
+  $("#r_limits").innerHTML="⚠ "+(de0?"Grenzen":"Limits");
+  $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit";
   $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${de0?'Tage':'days'} · ${r.generated.replace('T',' ').slice(0,16)}`;
   const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100),k=r.kpi,F=r.featured;
   const kpiHtml=`<div class="kpis">
@@ -467,13 +485,18 @@ function renderReport(){
   main+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
     <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
-  const apprName={full:de0?'Ganzkörper':'Full body',split:de0?'Split':'Split',auto:de0?'Auto (Belastung)':'Auto (readiness)'}[r.approach||'full'];
+  const apprName={full:de0?'Ganzkörper':'Full body',split:de0?'Split':'Split',auto:de0?'Auto (Belastung)':'Auto (readiness)'}[r.approach||'auto'];
+  const rr=(r.load&&r.load.recommended_rest_days)||0, nx=(r.load&&r.load.next_earliest)||null;
+  const timing = rr>0
+    ? `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn);margin:0 0 12px"><b style="color:var(--warn)">🛌 ${de0?'Heute Ruhetag empfohlen':'Rest day recommended'}</b> — ${de0?'nächste Einheit ab':'next session from'} <b>${nx||'—'}</b>. ${de0?'Vorschau, was dann sinnvoll ist:':'A preview of what makes sense then:'}</div>`
+    : `<div class="banner" style="background:var(--good-bg);border-color:var(--good);margin:0 0 12px"><b style="color:var(--good)">✅ ${de0?'Heute trainierbar':'Good to train today'}</b></div>`;
   main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${de0?'Standardplan · klassische Methodik':'Standard plan · classic method'}</h2>
+    ${timing}
     <p class="foot" style="margin:-2px 0 4px">${de0?'Regelbasiert nach anerkannter Methodik':'Rule-based, established methodology'} · ${apprName}. ${de0?'Die individualisierte, verlaufsbasierte KI-Empfehlung steht rechts →':'The individualized, history-based AI recommendation is on the right →'}</p>
     <ol class="plan" id="plan"></ol></section>`;
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
-  const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()}</p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
+  const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
 
   $("#r_body").innerHTML = updateBannerHtml() +
     `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;

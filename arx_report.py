@@ -533,24 +533,27 @@ def _session_plan(exercises: list[dict], restrictions: dict,
         feature = groups[0] if groups else None
         chosen = [e for e in avail if e["group"] == feature][:4]
     else:
+        # 'full' and 'auto' both produce a classic, always-usable balanced plan
+        # (never gated to empty). For 'auto' we put the most-recovered groups
+        # first; the readiness/timing itself is shown separately and handled by
+        # the AI. This way the standard plan is always visible - e.g. as a
+        # preview of what to do when a rest day ends.
         used = set()
-        order = sorted(["Drive", "Push", "Pull"], key=lambda g: frank[fstate(g)])
-        # one compound per group, emphasized groups first; 'auto' skips unrecovered
+        def gkey(g):
+            pg = load.get("per_group", {}).get(g, {}) or {}
+            not_ready = 0 if pg.get("ready", True) else 1
+            return (not_ready if approach == "auto" else 0, frank[fstate(g)])
+        order = sorted(["Drive", "Push", "Pull"], key=gkey)
         for g in order:
             if fstate(g) == "off":
-                continue
-            if approach == "auto" and not ready.get(g, True):
                 continue
             cand = [e for e in avail if e["group"] == g and e["ex"] not in used]
             if cand:
                 used.add(cand[0]["ex"]); chosen.append(cand[0])
-        # fill up to 5, skipping de-emphasized groups and (in auto) unrecovered ones
-        for e in avail:
+        for e in avail:                       # fill up to 5, de-emphasized groups last
             if len(chosen) >= 5:
                 break
             if e["ex"] in used or fstate(e["group"]) == "less":
-                continue
-            if approach == "auto" and not ready.get(e["group"], True):
                 continue
             used.add(e["ex"]); chosen.append(e)
 
