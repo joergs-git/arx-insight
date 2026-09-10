@@ -22,7 +22,7 @@ Run:  python arx_app.py --db "<path to DB.FDB4>"   then open http://localhost:87
 Public domain / CC0. Not medical advice.
 """
 from __future__ import annotations
-import os, sys, json, argparse, threading, webbrowser
+import os, sys, json, time, argparse, threading, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -55,7 +55,7 @@ def check_update(current: str) -> dict:
     except Exception:
         return {"latest": current, "update_available": False, "url": REPO_URL}
 
-STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}}
+STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None}
 
 
 # ---- small JSON file helpers -------------------------------------------------
@@ -206,6 +206,11 @@ class Handler(BaseHTTPRequestHandler):
             goals[str(data["user_id"])] = rec              # keep any restrictions
             write_json(GOALS, goals)
             return self._send({"ok": True})
+        if u.path == "/api/shutdown":                      # a newer instance asks us to quit
+            srv = STATE.get("server")
+            if srv:
+                threading.Thread(target=srv.shutdown, daemon=True).start()
+            return self._send({"ok": True})
         if u.path == "/api/restrictions":                  # injury / limitation screen
             goals = read_json(GOALS, {})
             rec = goals.get(str(data["user_id"]), {})
@@ -231,28 +236,57 @@ def main():
     STATE["version"] = app_version()
     STATE["update"] = check_update(STATE["version"])   # one-off, 3 s cap
 
-    # Single instance: if ARX Insight already runs on this port, just open the
-    # browser and exit (a stray second double-click must not start a 2nd server).
-    def is_ours(port):
+    # Single instance with update-takeover:
+    #  * same version already running  -> just open the browser (stray double-click)
+    #  * a DIFFERENT/older version running (e.g. right after an update) -> tell it to
+    #    quit and take over the port, so the old process never lingers
+    #  * some other program on the port -> try the next port
+    def ours_version(port):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/bootstrap", timeout=1.5) as r:
-                return b'"catalog"' in r.read()
+                d = json.loads(r.read())
+                return d.get("version", "?") if "catalog" in d else None
         except Exception:
-            return False
+            return None
+
+    def try_bind(port):
+        try:
+            return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        except OSError:
+            return None
 
     srv, port = None, args.port
     for p in range(args.port, args.port + 6):
+        s = try_bind(p)
+        if s:
+            srv, port = s, p; break
+        ver = ours_version(p)
+        if ver is None:
+            continue                                   # not us -> next port
+        if ver == STATE["version"]:
+            print(f"ARX Insight is already running at http://localhost:{p} - opening it.")
+            if not args.no_browser:
+                webbrowser.open(f"http://localhost:{p}")
+            return
+        print(f"Replacing a running ARX Insight (v{ver}) on port {p} ...")
         try:
-            srv = ThreadingHTTPServer(("127.0.0.1", p), Handler); port = p; break
-        except OSError:
-            if is_ours(p):
-                print(f"ARX Insight is already running at http://localhost:{p} - opening it.")
-                if not args.no_browser:
-                    webbrowser.open(f"http://localhost:{p}")
-                return
-            # a different program holds this port -> try the next one
+            urllib.request.urlopen(urllib.request.Request(
+                f"http://127.0.0.1:{p}/api/shutdown", method="POST"), timeout=2).read()
+        except Exception:
+            pass
+        for _ in range(24):                            # wait up to ~6 s for the port to free
+            time.sleep(0.25)
+            s = try_bind(p)
+            if s:
+                srv, port = s, p; break
+        if srv:
+            break
+        if not args.no_browser:                        # couldn't take over -> open the old one
+            webbrowser.open(f"http://localhost:{p}")
+        return
     if srv is None:
         sys.exit("Could not find a free port for ARX Insight.")
+    STATE["server"] = srv                              # so /api/shutdown can stop us
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")

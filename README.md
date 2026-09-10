@@ -113,6 +113,16 @@ suspect an injury, consult a physician or qualified trainer.
 
 ## FAQ
 
+**How exactly do I install it on Windows? (step by step)**
+1. Open your web browser and go to this GitHub page: `https://github.com/joergs-git/arx-insight`.
+2. Click the green **`< > Code`** button, then **Download ZIP**. Save the file (it lands in your **Downloads** folder).
+3. Open **Downloads**, **right-click** the file `arx-insight-main.zip` → **Extract All…** → **Extract**. A folder `arx-insight-main` opens.
+4. Open that extracted folder and **double-click `Install ARX Insight.bat`**.
+5. If Windows shows a blue *“Windows protected your PC”* box, click **More info → Run anyway** (it's an unsigned script; the source is this repo).
+6. Wait. The installer sets everything up, finds your ARX database, and opens the app in your browser. It also puts an **“ARX Insight”** icon on your Desktop — use that next time.
+
+To **update** later: repeat steps 1–4 (download the ZIP again, extract, run the installer). Your settings and goals are kept, and a running old version is replaced automatically.
+
 **Where do I get a Claude API key?**
 Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys) → *API Keys*.
 Paste it into ⚙ *Settings* in the app. It stays on your machine, and the app sends only
