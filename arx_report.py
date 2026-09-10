@@ -45,6 +45,15 @@ IN_TO_CM = 2.54                # inches  -> centimeters
 MIN_SECONDS = 30.0             # shorter = false start / repositioning
 MIN_REPS = 2                   # fewer   = aborted attempt
 
+# --- scientifically-defensible "textbook" machine settings for hypertrophy/strength
+# ~8 reps, ~5 s per movement direction, a ~3 s hold at the end position, no pause on
+# the return; the end-hold does not suit every exercise type (e.g. some presses).
+IDEAL_SETTINGS = {
+    "reps": 8, "seconds_per_direction": 5,
+    "pause_end_s": 3, "pause_return_s": 0, "pre_timer_s": 5,
+    "note": "The 3 s end-position hold does not suit every exercise type.",
+}
+
 
 # =============================================================================
 # Firebird access
@@ -604,6 +613,27 @@ def _blob_to_bytes(v) -> bytes:
     return v.encode("latin1") if isinstance(v, str) else bytes(v)
 
 
+def featured_settings(con, set_id: int, reps: int) -> dict:
+    """Actual machine settings of one set (from REPSCHEMEDATA), so the report and
+    the AI can compare them with IDEAL_SETTINGS."""
+    try:
+        cur = con.cursor()
+        cur.execute('select repschemedata from "ExerciseSet" where id = ?', (set_id,))
+        cfg = json.loads(blob_bytes(cur.fetchone()[0]).decode("latin1"))
+        rom_in = abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0))
+        spd = (cfg.get("StartToEndSpeed") or {}).get("InchesPerSecond") or 0
+        sec_per_dir = round(rom_in / spd, 1) if spd else None
+        return {
+            "reps": reps,
+            "seconds_per_direction": sec_per_dir,
+            "pause_end_s": round(cfg.get("PauseAfterEndPosition", 0), 1),
+            "pause_return_s": round(cfg.get("PauseAfterStartPosition", 0), 1),
+            "pre_timer_s": cfg.get("PreExerciseTimer"),
+        }
+    except Exception:
+        return {"reps": reps}
+
+
 def _pick_featured(work: list[dict]):
     """Choose the set to feature in the big curve - NOT simply the strongest one
     (that is always the leg press / Belt Squat and gets boring). Prefer a set
@@ -678,7 +708,9 @@ def build_report(con, cfg: dict) -> dict:
     featured = None
     if work:
         top, reason = _pick_featured(work)
-        featured = {"meta": top, "reason": reason, **decode_force_curve(con, top["id"])}
+        featured = {"meta": top, "reason": reason,
+                    "settings": featured_settings(con, top["id"], top.get("reps", 0)),
+                    **decode_force_curve(con, top["id"])}
 
     load = _load_analysis(work)
 
@@ -704,6 +736,7 @@ def build_report(con, cfg: dict) -> dict:
         "whole_body": _whole_body(work, exercises),
         "load": load,
         "totals": _totals(work, load.get("weekly_rate")),
+        "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,
         "focus": cfg.get("focus", {}) or {},
         "approach": cfg.get("approach", "auto"),
@@ -750,6 +783,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "restrictions": report.get("restrictions", {}),   # body part -> ok/careful/avoid
         "focus": report.get("focus", {}),                 # group -> more/normal/less/off
         "approach": report.get("approach", "auto"),       # full | split | auto
+        "ideal_settings": report.get("ideal_settings"),   # textbook machine settings
         "sessions_per_week_target": report.get("sessions_per_week"),
         "training_days": report["training_days"],
         "exercises": [{
@@ -772,6 +806,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
             "peak": kg(f["meta"]["max_kg"]) if f else None,
             "rep_peaks": [kg(v) for v in f["rep_peaks"]] if f else None,
             "inroad_pct": f["inroad_pct"] if f else None,
+            "settings": f.get("settings") if f else None,   # actual machine settings of this set
         },
     }
 
@@ -830,7 +865,11 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "recommended_rest_days and next_earliest) AND WHICH exercises, in what "
         "order (large muscle groups first unless focus says otherwise, ~15 min, "
         "matched to the goal, weekly frequency, focus, approach and the "
-        "restrictions above). Never give "
+        "restrictions above). Also state the recommended machine SETTINGS from "
+        "ideal_settings (~8 reps, ~5 s per movement direction, ~3 s hold at the "
+        "end position, no pause on the return; note the end-hold does not suit "
+        "every exercise type) and, if the featured set's actual settings deviate "
+        "from these, point it out. Never give "
         f"medical advice. Use the units given in the data ({FU} and {LU}). "
         f"Answer in {'German' if cfg.get('language','en')=='de' else 'English'}, "
         "in a few short sentences with clear headings."

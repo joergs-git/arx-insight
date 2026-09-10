@@ -77,6 +77,8 @@
   h2.sec{font-size:clamp(25px,4vw,38px);margin-bottom:8px}
   .lead{font-size:19px;color:var(--ink2);max-width:66ch;margin:0 0 16px}.lead b{color:var(--ink)}
   .panel{background:var(--panel);border:2px solid var(--rule);border-radius:8px;padding:18px}
+  .panel table td{padding:7px 8px;border-bottom:1px solid var(--rule)}
+  .panel table td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--disp);font-weight:600}
   .chartwrap{overflow-x:auto}
   svg{display:block;width:100%;height:auto;font-family:var(--disp)}svg text{font-variant-numeric:tabular-nums}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:var(--rule);border:2px solid var(--ink)}
@@ -372,9 +374,11 @@ function goalLabels(edit){
 }
 function setApprSeg(){[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));}
 function setSlidersFromGoal(g){
-  const cond=Math.round((g.conditioning||0)*100), rest=100-cond;
-  const main=rest>0?Math.round((g.muscle||0)/(rest/100)):60;
-  $("#gCond").value=Math.min(60,cond); $("#gMain").value=Math.max(0,Math.min(100,main));
+  const condFrac=g.conditioning||0;
+  const restFrac=Math.max(1e-6, 1-condFrac);
+  const main=Math.round((g.muscle||0)/restFrac*100);   // 0 = all Strength, 100 = all Muscle
+  $("#gCond").value=Math.min(60,Math.round(condFrac*100));
+  $("#gMain").value=Math.max(0,Math.min(100,main));
 }
 function openGoal(){                       // new user: pick a goal for the first time
   GOAL_MODE="new"; FOCUS={}; APPROACH="auto"; PLANG=""; goalLabels(false);
@@ -496,6 +500,7 @@ function renderReport(){
     ${timing}
     <p class="foot" style="margin:-2px 0 4px">${de0?'Regelbasiert nach anerkannter Methodik':'Rule-based, established methodology'} · ${apprName}. ${de0?'Die individualisierte, verlaufsbasierte KI-Empfehlung steht rechts →':'The individualized, history-based AI recommendation is on the right →'}</p>
     <ol class="plan" id="plan"></ol></section>`;
+  main+=settingsHtml(r);
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
   const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
@@ -520,6 +525,24 @@ function restrHtml(rest){
     <div class="verdict" style="border-left-color:var(--warn);background:var(--warn-bg)">
       <p style="margin:0">${de?'Betroffene Partien werden nicht voll belastet, betroffene Übungen werden geschont oder ausgelassen.':'Affected areas are not loaded to the max; affected exercises are eased or omitted.'}<br><span style="display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:8px">${chips}</span></p>
     </div></section>`;
+}
+function settingsHtml(r){
+  const de=CFG.language==="de", i=r.ideal_settings||{}, a=(r.featured&&r.featured.settings)||{};
+  const row=(label,ideal,act,unit)=>{
+    const dev=(act!=null && ideal!=null && Math.abs(act-ideal)>(unit==='s'?1:0.6));
+    return `<tr><td>${label}</td><td class="num">${ideal!=null?ideal+(unit||''):'—'}</td><td class="num" style="color:${act==null?'var(--ink3)':dev?'var(--warn)':'var(--good)'}">${act!=null?act+(unit||''):'—'}</td></tr>`;
+  };
+  return `<section><div class="eyebrow">${de?'Optimale Einstellungen':'Recommended settings'}</div>
+   <h2 class="sec">${de?'Wissenschaftlich validierte Maschineneinstellung':'Science-based machine settings'}</h2>
+   <p class="foot" style="margin:-2px 0 8px">${de?'Empfohlen für Muskel- und Kraftaufbau · rechts der zuletzt gezeigte Satz zum Vergleich.':'Recommended for muscle & strength · your featured set on the right for comparison.'}</p>
+   <div class="panel"><table style="width:100%;border-collapse:collapse;font-size:18px">
+     <tr class="foot"><td></td><td class="num">${de?'Empfohlen':'Recommended'}</td><td class="num">${de?'Dein Satz':'Your set'}</td></tr>
+     ${row(de?'Wiederholungen':'Reps',i.reps,a.reps,'')}
+     ${row(de?'Sekunden je Richtung':'Seconds per direction',i.seconds_per_direction,a.seconds_per_direction,'s')}
+     ${row(de?'Pause am Endpunkt':'Pause at end position',i.pause_end_s,a.pause_end_s,'s')}
+     ${row(de?'Pause auf dem Rückweg':'Pause on the return',i.pause_return_s,a.pause_return_s,'s')}
+   </table>
+   <p class="foot" style="margin-top:10px">${de?'Hinweis: Die 3-Sekunden-Halte am Endpunkt passt je nach Übungstyp nicht immer (z. B. manche Pressen).':'Note: the 3 s end-position hold does not suit every exercise type (e.g. some presses).'}</p></div></section>`;
 }
 function totalsHtml(tt){
   if(!tt) return "";
