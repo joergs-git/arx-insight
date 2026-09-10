@@ -192,6 +192,13 @@
       <div style="flex:1"><label id="g_height">Größe (cm)</label><input type="number" id="gHeight" min="0" max="260" placeholder="–"></div>
       <div style="flex:1"><label id="g_weight">Gewicht (kg)</label><input type="number" id="gWeight" min="0" max="400" placeholder="–"></div>
     </div>
+    <div class="field"><label id="g_focus_l">Fokus antippen (optional)</label>
+      <div class="segbig" id="gFocus"></div></div>
+    <div class="field"><label id="g_appr_l">Vorgehensweise</label>
+      <div class="segbig" id="gAppr">
+        <button data-v="auto" aria-pressed="true">Auto</button>
+        <button data-v="full" aria-pressed="false">Ganzkörper</button>
+        <button data-v="split" aria-pressed="false">Split</button></div></div>
     <div class="mix" id="gMix"></div>
     <button class="btn" id="goalSave" style="width:100%;margin-top:22px">Ziel speichern & Report</button>
   </div>
@@ -230,6 +237,19 @@ const api=(p)=>fetch(p).then(r=>r.json());
 const post=(p,b)=>fetch(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
+let FOCUS={}, APPROACH="auto";
+const KEY_URL="https://console.anthropic.com/settings/keys";
+const FGROUPS=["Push","Pull","Drive"];
+const FCYCLE=["normal","more","less","off"];
+function flabel(s){const de=CFG.language==="de";return {normal:de?"normal":"normal",more:de?"mehr":"more",less:de?"weniger":"less",off:de?"aus":"off"}[s];}
+function renderFocusTiles(){
+  $("#gFocus").innerHTML=FGROUPS.map(g=>{
+    const st=FOCUS[g]||"normal";
+    const col=st==="off"?"var(--accent)":st==="less"?"var(--warn)":st==="more"?"var(--good)":"var(--rule2)";
+    const on=st!=="normal";
+    return `<button data-g="${g}" aria-pressed="${on}" style="${on?`border-color:${col};color:${col}`:''}">${g}<br><small style="font-weight:400">${flabel(st)}</small></button>`;
+  }).join("");
+}
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 // unit helpers (engine returns kg/cm; convert for display if imperial)
@@ -269,7 +289,7 @@ function openSettings(origin){
   $("#s_lang").textContent=de?"Sprache":"Language";
   $("#s_units").textContent=de?"Einheiten":"Units";
   $("#s_freq").textContent=de?"Trainings pro Woche (Standard)":"Sessions per week (default)";
-  $("#s_key").textContent=de?"Anthropic API-Schlüssel (für KI-Analyse)":"Anthropic API key (for AI analysis)";
+  $("#s_key").innerHTML=(de?"Anthropic API-Schlüssel (für KI-Analyse) ":"Anthropic API key (for AI analysis) ")+`<a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent);text-transform:none;letter-spacing:0">${de?'Schlüssel holen ↗':'get a key ↗'}</a>`;
   $("#setupSave").textContent=de?"Speichern":"Save";
   [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
   [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
@@ -317,6 +337,11 @@ function renderMix(){
     .map(([k,v])=>`<div class="mixv"><div class="k">${k}</div><div class="v">${Math.round(v*100)}<small style="font-size:.4em">%</small></div></div>`).join("");
 }
 ["#gMain","#gCond"].forEach(s=>$(s).addEventListener("input",renderMix));
+$("#gFocus").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  const g=b.dataset.g, cur=FOCUS[g]||"normal", nxt=FCYCLE[(FCYCLE.indexOf(cur)+1)%FCYCLE.length];
+  if(nxt==="normal")delete FOCUS[g];else FOCUS[g]=nxt; renderFocusTiles();});
+$("#gAppr").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  APPROACH=b.dataset.v;[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));});
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Trainingsziel":"Training goal");
@@ -325,18 +350,24 @@ function goalLabels(edit){
   $("#g_cond").textContent=de?"Ausdauer / Kondition beimischen":"Blend in endurance / conditioning";
   $("#g_freq").textContent=de?"Trainings pro Woche":"Sessions per week";
   $("#g_height").textContent=de?"Größe (cm)":"Height (cm)"; $("#g_weight").textContent=de?"Gewicht (kg)":"Weight (kg)";
+  $("#g_focus_l").textContent=de?"Fokus antippen — mehr / weniger / aus (optional)":"Tap focus — more / less / off (optional)";
+  $("#g_appr_l").textContent=de?"Vorgehensweise":"Approach";
+  const ab={auto:de?"Auto (empfohlen)":"Auto (recommended)",full:de?"Ganzkörper":"Full body",split:de?"Split":"Split"};
+  $("#g_appr_l").textContent=de?"Vorgehensweise — Auto passt sich mit mehr Daten intelligent an":"Approach — Auto adapts intelligently as data grows";
+  [...$("#gAppr").children].forEach(x=>x.textContent=ab[x.dataset.v]);
   $("#goalSave").textContent=edit?(de?"Speichern & Report":"Save & report"):(de?"Ziel speichern & Report":"Save goal & report");
 }
+function setApprSeg(){[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));}
 function setSlidersFromGoal(g){
   const cond=Math.round((g.conditioning||0)*100), rest=100-cond;
   const main=rest>0?Math.round((g.muscle||0)/(rest/100)):60;
   $("#gCond").value=Math.min(60,cond); $("#gMain").value=Math.max(0,Math.min(100,main));
 }
 function openGoal(){                       // new user: pick a goal for the first time
-  GOAL_MODE="new"; goalLabels(false);
+  GOAL_MODE="new"; FOCUS={}; APPROACH="full"; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
-  renderMix(); show("goal");
+  renderMix(); renderFocusTiles(); setApprSeg(); show("goal");
 }
 async function openProfile(){              // edit an existing person's profile/goal
   if(!CUR) return;
@@ -345,10 +376,11 @@ async function openProfile(){              // edit an existing person's profile/
   setSlidersFromGoal((g&&g.goal)||{muscle:0.6,strength:0.3,conditioning:0.1});
   $("#gFreq").value=(g&&g.sessions_per_week)||CFG.sessions_per_week||2;
   $("#gHeight").value=(g&&g.height_cm)||""; $("#gWeight").value=(g&&g.weight_kg)||"";
-  renderMix(); show("goal");
+  FOCUS=(g&&g.focus)||{}; APPROACH=(g&&g.approach)||"full";
+  renderMix(); renderFocusTiles(); setApprSeg(); show("goal");
 }
 $("#goalSave").addEventListener("click",async()=>{
-  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value};
+  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:FOCUS,approach:APPROACH};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
   if($("#gWeight").value) body.weight_kg=+$("#gWeight").value;
   await post("/api/goal",body);
@@ -435,8 +467,9 @@ function renderReport(){
   main+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
     <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
-  main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${t.planh}</h2>
-    <p class="foot" style="margin:-2px 0 4px">${de0?'Schnelle Grundempfehlung (regelbasiert). Die personalisierte KI-Empfehlung steht rechts.':'Quick rule-based baseline. The personalized AI recommendation is on the right.'}</p>
+  const apprName={full:de0?'Ganzkörper':'Full body',split:de0?'Split':'Split',auto:de0?'Auto (Belastung)':'Auto (readiness)'}[r.approach||'full'];
+  main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${de0?'Standardplan · klassische Methodik':'Standard plan · classic method'}</h2>
+    <p class="foot" style="margin:-2px 0 4px">${de0?'Regelbasiert nach anerkannter Methodik':'Rule-based, established methodology'} · ${apprName}. ${de0?'Die individualisierte, verlaufsbasierte KI-Empfehlung steht rechts →':'The individualized, history-based AI recommendation is on the right →'}</p>
     <ol class="plan" id="plan"></ol></section>`;
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
@@ -569,8 +602,15 @@ function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22
   $("#wbSvg").innerHTML=s;
 }
 function renderPlan(){const de=CFG.language==="de";
+  const plan=REPORT.session_plan||[];
+  if(!plan.length){
+    const nx=(REPORT.load&&REPORT.load.next_earliest)||null;
+    $("#plan").innerHTML=`<li style="grid-template-columns:1fr"><div><div class="ex">🛌 ${de?'Heute Ruhetag':'Rest day today'}</div>`+
+      `<div class="cue">${de?'Die Autoregulation erkennt keine ausreichend erholte Muskelgruppe. Frühestens wieder':'Auto-regulation finds no sufficiently recovered muscle group. Earliest next session'} ${nx||'—'}.</div></div></li>`;
+    return;
+  }
   const cues=de?["Große Kette zuerst","Großer Druck","Großer Zug","Hintere Kette","Isolation zum Schluss"]:["Large chain first","Big push","Big pull","Posterior chain","Isolation last"];
-  $("#plan").innerHTML=(REPORT.session_plan||[]).map((o,i)=>{
+  $("#plan").innerHTML=plan.map((o,i)=>{
     const careful=o.restriction==="careful";
     const cue=careful?(de?"Vorsichtig, submaximal, saubere Technik":"Gentle, sub-maximal, clean technique"):(cues[i]||'');
     const tgt=careful?(de?"1 Satz · vorsichtig":"1 set · gentle"):`1 ${de?'Satz':'set'} · ~${[3,3,3,2,2][i]||2} min`;
@@ -617,7 +657,7 @@ function renderAISide(loading){
     return;
   }
   if(REPORT.ai_narrative){ box.innerHTML=aiHeader()+`<div class="badge" style="margin-bottom:12px">${T().aitag}</div>`+mdToHtml(REPORT.ai_narrative); return; }
-  box.innerHTML=aiHeader()+`<div class="placeholder">${de?'Trage deinen Claude API-Schlüssel unter ⚙ ein, um automatisch eine KI-Analyse und eine Empfehlung für die nächste Einheit zu erhalten.':'Add your Claude API key under ⚙ to automatically get an AI analysis and a recommendation for your next session.'}</div>`;
+  box.innerHTML=aiHeader()+`<div class="placeholder">${de?'Für die automatische KI-Analyse und die Empfehlung zur nächsten Einheit fehlt ein Claude API-Schlüssel. Trage ihn unter ⚙ Einstellungen ein.':'An AI analysis and next-session recommendation need a Claude API key. Add it under ⚙ Settings.'}<br><br><a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">${de?'Schlüssel bei Anthropic holen ↗':'Get a key from Anthropic ↗'}</a></div>`;
 }
 async function autoLoadAI(){
   if(REPORT.ai_narrative){ renderAISide(); return; }

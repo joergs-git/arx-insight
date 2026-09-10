@@ -408,13 +408,18 @@ def _load_analysis(work: list[dict]) -> dict:
                 insufficient_after_hard += 1
         last_day = gdays[-1] if gdays else None
         rank_label = {3: "deep", 2: "moderate", 1: "submax", 0: "unknown"}
+        last_rank = by_day[last_day]["rank"] if last_day else 0
+        days_since = (datetime.now().toordinal() - gords[-1]) if gords else None   # vs today
+        ready = (days_since is None) or (days_since >= REQUIRED_REST[last_rank])   # recovered enough
         per_group[grp] = {
             "days": len(gdays),
             "min_gap": min((b - a for a, b in zip(gords, gords[1:])), default=None),
             "hard_days": sum(1 for d in gdays if by_day[d]["rank"] >= 2),
             "submax_days": sum(1 for d in gdays if by_day[d]["rank"] == 1),
-            "last_effort": rank_label[by_day[last_day]["rank"]] if last_day else None,
+            "last_effort": rank_label[last_rank] if last_day else None,
             "last_inroad": by_day[last_day]["inroad"] if last_day else None,
+            "days_since": days_since,
+            "ready": ready,
             "insufficient_recovery": events,
         }
 
@@ -487,31 +492,69 @@ def exercise_restriction(name: str, restrictions: dict) -> str:
     return worst
 
 
-def _session_plan(exercises: list[dict], restrictions: dict) -> list[dict]:
-    """Rule-based ~15 min full-body order: large compound chains first, balanced
-    across Drive / Push / Pull, isolation last. Injury-aware: exercises on a body
-    part marked 'avoid' are excluded; 'careful' ones stay but with a gentle,
-    sub-maximal target instead of an all-out set."""
-    spec = [("Drive", None), ("Push", "compound"), ("Pull", "compound"),
-            ("Drive", None), (None, "isolation")]
-    used, plan = set(), []
-    for group, kind in spec:
-        for e in exercises:  # exercises already sorted by personal best desc
-            if e["ex"] in used:
+def _session_plan(exercises: list[dict], restrictions: dict,
+                  focus: dict, approach: str, load: dict) -> list[dict]:
+    """Rule-based ~15 min session plan (classic methodology).
+
+    Honors:
+      * restrictions: 'avoid' exercises are never programmed; 'careful' stay but
+        with a gentle, sub-maximal target.
+      * focus: per muscle group (Push/Pull/Drive) 'more' | 'normal' | 'less' |
+        'off'. 'off' excludes the group entirely (e.g. an upper-body preference
+        drops Drive / Belt Squat); 'more' comes first and may get an extra slot;
+        'less' only fills leftover slots.
+      * approach: 'full' (balanced full body every session), 'split' (feature the
+        one most due & recovered region this session), or 'auto' (auto-regulate:
+        skip groups that are not recovered yet, per the load model).
+    The AI plan on top of this individualizes further from history."""
+    focus = focus or {}
+    approach = approach or "full"
+    frank = {"more": 0, "normal": 1, "less": 2, "off": 3}
+    fstate = lambda g: focus.get(g, "normal")
+    ready = {g: (load.get("per_group", {}).get(g, {}) or {}).get("ready", True)
+             for g in ("Push", "Pull", "Drive")}
+
+    def restr(e): return exercise_restriction(e["name"], restrictions)
+    avail = [e for e in exercises if restr(e) != "avoid" and fstate(e["group"]) != "off"]
+
+    def mk(e):
+        r = restr(e)
+        return {"name": e["name"], "group": e["group"], "last": e["last"],
+                "restriction": r, "target": "gentle" if r == "careful" else "max"}
+
+    chosen = []
+    if approach == "split":
+        # feature one region: prefer emphasized, then recovered, then most overdue
+        groups = [g for g in ("Drive", "Push", "Pull") if fstate(g) != "off"]
+        def score(g):
+            pg = load.get("per_group", {}).get(g, {}) or {}
+            return (frank[fstate(g)], 0 if pg.get("ready", True) else 1, -(pg.get("days_since") or 0))
+        groups.sort(key=score)
+        feature = groups[0] if groups else None
+        chosen = [e for e in avail if e["group"] == feature][:4]
+    else:
+        used = set()
+        order = sorted(["Drive", "Push", "Pull"], key=lambda g: frank[fstate(g)])
+        # one compound per group, emphasized groups first; 'auto' skips unrecovered
+        for g in order:
+            if fstate(g) == "off":
                 continue
-            if group and e["group"] != group:
+            if approach == "auto" and not ready.get(g, True):
                 continue
-            if kind and e["kind"] != kind:
+            cand = [e for e in avail if e["group"] == g and e["ex"] not in used]
+            if cand:
+                used.add(cand[0]["ex"]); chosen.append(cand[0])
+        # fill up to 5, skipping de-emphasized groups and (in auto) unrecovered ones
+        for e in avail:
+            if len(chosen) >= 5:
+                break
+            if e["ex"] in used or fstate(e["group"]) == "less":
                 continue
-            r = exercise_restriction(e["name"], restrictions)
-            if r == "avoid":
-                continue                     # never program an exercise to avoid
-            used.add(e["ex"])
-            plan.append({"name": e["name"], "group": e["group"], "last": e["last"],
-                         "restriction": r,   # 'ok' or 'careful'
-                         "target": "gentle" if r == "careful" else "max"})
-            break
-    return plan
+            if approach == "auto" and not ready.get(e["group"], True):
+                continue
+            used.add(e["ex"]); chosen.append(e)
+
+    return [mk(e) for e in chosen[:5]]
 
 
 EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
@@ -619,7 +662,11 @@ def build_report(con, cfg: dict) -> dict:
         "load": load,
         "totals": _totals(work, load.get("weekly_rate")),
         "restrictions": restrictions,
-        "session_plan": _session_plan(exercises, restrictions),
+        "focus": cfg.get("focus", {}) or {},
+        "approach": cfg.get("approach", "auto"),
+        "session_plan": _session_plan(exercises, restrictions,
+                                      cfg.get("focus", {}) or {},
+                                      cfg.get("approach", "auto"), load),
         "featured": featured,
     }
 
@@ -658,6 +705,8 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "units": {"force": FU, "length": LU},
         "goal": report["goal"],
         "restrictions": report.get("restrictions", {}),   # body part -> ok/careful/avoid
+        "focus": report.get("focus", {}),                 # group -> more/normal/less/off
+        "approach": report.get("approach", "auto"),       # full | split | auto
         "sessions_per_week_target": report.get("sessions_per_week"),
         "training_days": report["training_days"],
         "exercises": [{
@@ -722,12 +771,22 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "technique focus - never tell the user to go to maximum or to full "
         "inroad on those. Avoiding aggravation always outranks progress. This is "
         "not medical or rehabilitation advice.\n"
+        "FOCUS & APPROACH: honor the user's focus (per group 'more'/'less'/'off' "
+        "- e.g. an upper-body preference means emphasize Push/Pull and drop or "
+        "minimize Drive/legs like Belt Squat) and their chosen approach: 'full' "
+        "= balanced full body each session; 'split' = one region per session so "
+        "each recovers between sessions; 'auto' = auto-regulate by readiness "
+        "(train a group again only when recovered - use per_group.ready, "
+        "days_since, last_effort, and a >~10% drop from a group's recent best as "
+        "the under-recovery signal). Recommend the split rotation or which groups "
+        "are ready today accordingly.\n"
         "Give short, concrete, scientifically defensible observations and ONE "
         "session suggestion. It MUST include WHEN to train next (how many rest "
         "days / the earliest sensible date — use load_and_recovery."
         "recommended_rest_days and next_earliest) AND WHICH exercises, in what "
-        "order (large muscle groups first, ~15 min, matched to the goal and "
-        "weekly frequency, respecting the restrictions above). Never give "
+        "order (large muscle groups first unless focus says otherwise, ~15 min, "
+        "matched to the goal, weekly frequency, focus, approach and the "
+        "restrictions above). Never give "
         f"medical advice. Use the units given in the data ({FU} and {LU}). "
         f"Answer in {'German' if cfg.get('language','en')=='de' else 'English'}, "
         "in a few short sentences with clear headings."

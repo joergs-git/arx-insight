@@ -37,12 +37,13 @@ and shows you what actually happened — and what to do next.
 - 🔥 **Effort / inroad** — did the set reach deep fatigue, or were the early reps sub-maximal?
 - 🧭 **Progress per exercise** — best set per day, with trend and a cautious forecast, on two axes (last sessions / last days).
 - 🧍 **Whole-body index** — a self-referenced score of how close you are to your own bests, across Push / Pull / Drive.
-- 🛌 **Load & recovery** — intelligently *effort-aware*: the 48–72 h rule only applies after a truly maximal session; a sub-maximal day needs far less.
-- 🗓️ **Next-session suggestion** — a ~15-minute, muscle-group-balanced plan matched to your goal.
-- ⏱️ **Training time & work** — motivational totals, per week / month / year.
+- 🛌 **Load & recovery, effort-aware** — the 48–72 h rule only applies after a *truly maximal* session; a sub-maximal day needs far less. It even tells you **when to train next**.
+- 🗓️ **Next-session plan** — a ~15-minute, muscle-group-balanced suggestion (which exercises, in what order, and when).
+- 🎯 **Focus & approach** — prefer upper body or arms and it de-emphasizes or drops legs; choose **Auto** (auto-regulates by readiness, gets smarter with more data), **Full body**, or a **Split**.
 - ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid*, and the plan won't push it.
-- 🤖 **AI analysis** in plain language, using **your own** Claude API key (only aggregated, name-free numbers are sent).
-- 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, one-click **PDF**.
+- ⏱️ **Training time & work** — motivational totals, per week / month / year.
+- 🤖 **AI analysis** in plain language, using **your own** Claude API key (only aggregated, name-free numbers are sent) — loads automatically beside the report and into the PDF.
+- 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, one-click **PDF**, and an **update notice** when a new version ships.
 
 <p align="center"><i>Example report (anonymized):</i></p>
 <p align="center">
@@ -106,6 +107,41 @@ ARX Insight is an **experimental aid**, not medical, therapeutic, or professiona
 **No liability** is accepted; anything you derive from it is at your own risk. If you feel pain or
 suspect an injury, consult a physician or qualified trainer.
 
+## FAQ
+
+**Where do I get a Claude API key?**
+Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys) → *API Keys*.
+Paste it into ⚙ *Settings* in the app. It stays on your machine, and the app sends only
+aggregated, name-free numbers — never a person's name.
+
+**Do I need the key at all?**
+No. Everything except the AI text works without it: force curves, progress, load & recovery,
+the rule-based plan. The key only powers the automatic AI analysis on the right.
+
+**What methodology does it use?**
+Force (kg/lb) is the progress measure on an adaptive-resistance machine, not "weight". Effort is
+judged by **inroad** — the force decline across a set. Progress compares the *best set per day*
+(repeated sets in one session are treated as fatigue, not regression). Recovery is
+**effort-conditioned**: ~48–72 h only after a genuinely maximal session, far less after a
+sub-maximal one. The session plan follows classic ordering (large muscle groups first); the
+**Auto** approach auto-regulates by readiness and gets smarter as your history grows. The AI layer
+adds an individualized, history-based recommendation on top.
+
+**Will it change or damage my ARX data?**
+No. It only ever reads a temporary **copy** of the database.
+
+**How do I update?**
+The app checks GitHub on start and shows a banner when a newer version exists. Download the ZIP
+again and re-run the installer — your settings, goals and environment are kept.
+
+**I have an idea or found a bug — how do I help?**
+Open an [issue or discussion](https://github.com/joergs-git/arx-insight/issues) on GitHub, or send
+a pull request. Feedback on the methodology and the recommendations is very welcome.
+
 ## License
 
 [CC0 1.0](LICENSE) — public domain. Do whatever you like. No warranty.
+
+<p align="center" style="font-size:11px;color:#888">
+  <sub>© <a href="https://github.com/joergs-git" target="_blank" rel="noopener">joergs-git</a> · community project, not affiliated with ARX</sub>
+</p>

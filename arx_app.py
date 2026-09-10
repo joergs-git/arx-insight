@@ -115,6 +115,8 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     cfg["goal"] = urec.get("goal", cfg.get("goal", {}))
     cfg["sessions_per_week"] = urec.get("sessions_per_week", cfg.get("sessions_per_week"))
     cfg["restrictions"] = urec.get("restrictions", {})     # body part -> ok/careful/avoid
+    cfg["focus"] = urec.get("focus", {})                   # group -> more/normal/less/off
+    cfg["approach"] = urec.get("approach", "auto")         # full | split | auto
     cfg["_catalog"] = STATE["catalog"]
     con, tmp = core.open_readonly(STATE["db"])
     try:
@@ -191,6 +193,8 @@ class Handler(BaseHTTPRequestHandler):
             rec = goals.get(str(data["user_id"]), {})
             rec["goal"] = data.get("goal", {})
             rec["sessions_per_week"] = data.get("sessions_per_week", 2)
+            if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off
+            if "approach" in data: rec["approach"] = data["approach"] # full | split | auto
             for opt in ("height_cm", "weight_kg", "language", "notes"):  # optional profile fields
                 if opt in data and data[opt] not in ("", None):
                     rec[opt] = data[opt]
