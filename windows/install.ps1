@@ -93,9 +93,21 @@ if (-not (Test-Path $fbDll)) {
 
 # --- 4. locate the ARX database -------------------------------------------
 function Find-Db {
-    $hits = Get-ChildItem "$env:LOCALAPPDATA\Packages\Arx.App*" -Recurse -Filter "DB.FDB4" -ErrorAction SilentlyContinue
-    if (-not $hits) { $hits = Get-ChildItem "$env:LOCALAPPDATA\Packages" -Recurse -Filter "DB.FDB4" -ErrorAction SilentlyContinue }
-    return ($hits | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
+    # 1) the common ARX data location: Documents\ARX\Resources\DB.FDB4
+    $direct = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "ARX\Resources\DB.FDB4"
+    if (Test-Path $direct) { return (Get-Item $direct) }
+    # 2) search the usual roots (bounded, newest wins)
+    $roots = @(
+        (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "ARX"),
+        "$env:LOCALAPPDATA\Packages\Arx.App*",
+        "$env:APPDATA\ARX", "$env:PROGRAMDATA\ARX",
+        (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "")
+    )
+    foreach ($r in $roots) {
+        $hits = Get-ChildItem $r -Recurse -Filter "DB.FDB4" -ErrorAction SilentlyContinue
+        if ($hits) { return ($hits | Sort-Object LastWriteTime -Descending | Select-Object -First 1) }
+    }
+    return $null
 }
 $db = Find-Db
 if ($db) {
@@ -113,10 +125,13 @@ if ($db) {
 
 # --- 5. write config.json (db path) ---------------------------------------
 $cfgPath = Join-Path $Root "config.json"
-$cfg = @{}
-if (Test-Path $cfgPath) { try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json -AsHashtable } catch { $cfg = @{} } }
-$cfg["db"] = $dbPath
-($cfg | ConvertTo-Json -Depth 6) | Set-Content -Path $cfgPath -Encoding UTF8
+# Preserve any existing settings (e.g. an API key the user set in the app).
+if (Test-Path $cfgPath) {
+    try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { $cfg = [PSCustomObject]@{} }
+} else { $cfg = [PSCustomObject]@{} }
+$cfg | Add-Member -NotePropertyName db -NotePropertyValue $dbPath -Force
+# Write UTF-8 WITHOUT a BOM (Python's json reader chokes on a BOM otherwise).
+[System.IO.File]::WriteAllText($cfgPath, ($cfg | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
 Say "Saved settings."
 
 # --- 6. Desktop shortcut ---------------------------------------------------

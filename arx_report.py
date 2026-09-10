@@ -716,7 +716,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
 def load_config(path: str) -> dict:
     """Load persisted settings so nothing has to be re-entered each run."""
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:   # tolerate a BOM (PowerShell writes one)
             return json.load(f)
     return {}
 

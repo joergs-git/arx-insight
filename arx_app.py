@@ -39,7 +39,8 @@ STATE = {"db": None, "catalog": {}}
 # ---- small JSON file helpers -------------------------------------------------
 def read_json(path, default):
     try:
-        with open(path, encoding="utf-8") as f:
+        # utf-8-sig tolerates a BOM (Windows PowerShell writes config.json with one)
+        with open(path, encoding="utf-8-sig") as f:
             return json.load(f)
     except Exception:
         return default
