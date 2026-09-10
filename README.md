@@ -3,6 +3,8 @@
   <img src="docs/hero.svg" alt="ARX Insight" width="100%">
 </p>
 
+   <img src="docs/spin-omni-3.webp" alt="ARX Insight" width="49%">    <img src="docs/spin-alpha-3.webp" alt="ARX Insight" width="49%">
+
 <h1 align="center">ARX Insight</h1>
 
 <p align="center">
@@ -47,9 +49,6 @@ and shows you what actually happened — and what to do next.
   <!-- Add a real screenshot here after your first run, e.g. docs/example-report.png -->
   <img src="docs/hero.svg" alt="Example report preview" width="80%">
 </p>
-
-> 📷 **Make it yours:** drop a photo of your ARX machine into `docs/` and a screenshot of your
-> first report, then reference them here. (We ship no ARX photo — those belong to their owners.)
 
 ## Install on Windows (plug and play)
 
