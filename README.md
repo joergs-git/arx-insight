@@ -3,6 +3,8 @@
   <img src="docs/hero.svg" alt="ARX Insight" width="100%">
 </p>
 
+   <img src="docs/spin-omni-3.webp" alt="ARX Insight" width="49%">    <img src="docs/spin-alpha-3.webp" alt="ARX Insight" width="49%">
+
 <h1 align="center">ARX Insight</h1>
 
 <p align="center">
