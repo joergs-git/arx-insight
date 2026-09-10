@@ -50,9 +50,6 @@ and shows you what actually happened — and what to do next.
   <img src="docs/hero.svg" alt="Example report preview" width="80%">
 </p>
 
-> 📷 **Make it yours:** drop a photo of your ARX machine into `docs/` and a screenshot of your
-> first report, then reference them here. (We ship no ARX photo — those belong to their owners.)
-
 ## Install on Windows (plug and play)
 
 No IT knowledge needed.
