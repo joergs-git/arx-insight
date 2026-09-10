@@ -117,6 +117,8 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     cfg["restrictions"] = urec.get("restrictions", {})     # body part -> ok/careful/avoid
     cfg["focus"] = urec.get("focus", {})                   # group -> more/normal/less/off
     cfg["approach"] = urec.get("approach", "auto")         # full | split | auto
+    # per-user language override wins for the AI narrative (falls back to device default)
+    cfg["language"] = urec.get("language") or cfg.get("language", "en")
     cfg["_catalog"] = STATE["catalog"]
     con, tmp = core.open_readonly(STATE["db"])
     try:
