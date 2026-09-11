@@ -382,6 +382,8 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
             "name": meta.get("name", f"Übung {ex}"),
             "group": meta.get("group", "?"),
             "kind": meta.get("kind", "?"),
+            "targets": list(meta.get("targets") or []),     # muscles the exercise is for
+            "limiters": list(meta.get("limiters") or []),   # what gives out first (a means, not the goal)
             "pb": max(o["kg"] for o in occ),
             "n": len(occ),                              # number of training DAYS
             "total_sets": len(ss),                      # all sets across all days
@@ -714,11 +716,15 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
             if r["repeat_of_earlier_set"] and m is not None and m < INTRA_REST_MIN:
                 flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
                               "minutes_rest": m, "detail": f"{r['exercise']} repeated after only {m} min rest"})
-            for l, m2 in r["minutes_since_limiter_loaded"].items():
-                if m2 < INTRA_REST_MIN and not (r["repeat_of_earlier_set"] and r["minutes_since_same_exercise"] == m2):
-                    flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
-                                  "limiter": l, "after": r["limiters_pre_fatigued_by"][l], "minutes_rest": m2,
-                                  "detail": f"{r['exercise']} loads '{l}' only {m2} min after {r['limiters_pre_fatigued_by'][l]}"})
+            # same limiter loaded again too soon (one flag per set, all limiters listed)
+            soon = {l: m2 for l, m2 in r["minutes_since_limiter_loaded"].items()
+                    if m2 < INTRA_REST_MIN and not (r["repeat_of_earlier_set"] and r["minutes_since_same_exercise"] == m2)}
+            if soon:
+                m2 = min(soon.values())
+                after = sorted({r["limiters_pre_fatigued_by"][l] for l in soon})
+                flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
+                              "limiters": sorted(soon), "after": after, "minutes_rest": m2,
+                              "detail": f"{r['exercise']} loads {', '.join(sorted(soon))} only {m2} min after {', '.join(after)}"})
         prev3 = [d["work_density_per_min"] for d in out[-3:] if d["work_density_per_min"]]
         if work_density and prev3:
             ref = st.mean(prev3)
@@ -738,6 +744,51 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
             "flags": flags,
         })
     return out[-SEQ_DAYS:]
+
+
+def _limiter_conflicts(sequences: list[dict]) -> list[dict]:
+    """Compact list of the days on which a set loaded a limiter (e.g. the grip)
+    that an earlier set of the same day had already fatigued - which exercise,
+    after which, and how many minutes later."""
+    out = []
+    for d in sequences:
+        rows = []
+        for s in d["sets"]:
+            if not s["limiters_pre_fatigued"]:
+                continue
+            mins = [m for m in s["minutes_since_limiter_loaded"].values() if m is not None]
+            rows.append({"order": s["order"], "exercise": s["exercise"],
+                         "limiters": s["limiters_pre_fatigued"],
+                         "after": s["limiters_pre_fatigued_by"],          # limiter -> earlier exercise
+                         "minutes_after": min(mins) if mins else None,     # shortest of those gaps
+                         "effort": s["effort"], "inroad": s["inroad"]})
+        if rows:
+            out.append({"date": d["date"], "sets_affected": len(rows), "conflicts": rows})
+    return out
+
+
+def _order_by_limiters(plan: list[dict]) -> list[dict]:
+    """Planner rule on top of 'large muscle groups first': an exercise whose
+    TARGET is another planned exercise's LIMITER goes after that exercise. The
+    grip is only a means on a Dead Lift or Row (legs/back could still go on
+    when it fails) but the elbow flexors are the goal of a Biceps Curl - so the
+    curl must not pre-fatigue what the Row still needs. Stable: the existing
+    order is kept wherever no such conflict exists."""
+    items = list(plan)
+    for _ in range(len(items)):                    # bounded number of passes
+        moved = False
+        for i in range(len(items)):
+            a = items[i]
+            later_users = [j for j in range(i + 1, len(items))
+                           if set(a.get("targets") or []) & set(items[j].get("limiters") or [])]
+            if later_users:
+                j = max(later_users)
+                items.insert(j + 1, items.pop(i))  # move a directly after the last exercise that needs it fresh
+                moved = True
+                break
+        if not moved:
+            break
+    return items
 
 
 # Which exercises load which body part (for injury-aware planning).
@@ -796,7 +847,8 @@ def _session_plan(exercises: list[dict], restrictions: dict,
     def mk(e):
         r = restr(e)
         return {"name": e["name"], "group": e["group"], "last": e["last"],
-                "restriction": r, "target": "gentle" if r == "careful" else "max"}
+                "restriction": r, "target": "gentle" if r == "careful" else "max",
+                "targets": e.get("targets", []), "limiters": e.get("limiters", [])}
 
     chosen = []
     if approach == "split":
@@ -833,7 +885,7 @@ def _session_plan(exercises: list[dict], restrictions: dict,
                 continue
             used.add(e["ex"]); chosen.append(e)
 
-    return [mk(e) for e in chosen[:5]]
+    return _order_by_limiters([mk(e) for e in chosen[:5]])
 
 
 EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
@@ -1015,6 +1067,7 @@ def build_report(con, cfg: dict) -> dict:
         "whole_body": _whole_body(work, exercises),
         "load": load,
         "session_sequences": sequences,
+        "limiter_conflicts": _limiter_conflicts(sequences),
         "totals": _totals(work, load.get("weekly_rate")),
         "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,
@@ -1069,6 +1122,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "training_days": report["training_days"],
         "exercises": [{
             "name": e["name"], "group": e["group"], "kind": e["kind"],
+            "targets": e.get("targets", []), "limiters": e.get("limiters", []),
             "restriction": e.get("restriction", "ok"),
             "personal_best": kg(e["pb"]),
             "latest_day_best": kg(e["last"]),   # best set of the most recent training day
@@ -1114,6 +1168,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
                 "limiters_pre_fatigued_by": x["limiters_pre_fatigued_by"],
             } for x in d["sets"]],
         } for d in report.get("session_sequences", [])],
+        "limiter_conflicts": report.get("limiter_conflicts", []),
         "totals": report["totals"],
         "session_plan": report["session_plan"],
         "featured_set": {
