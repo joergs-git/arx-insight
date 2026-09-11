@@ -36,13 +36,16 @@ and shows you what actually happened — and what to do next.
 - 📈 **Force curve of your strongest set** — the full ~20 Hz curve, with the peak of every rep.
 - 🔥 **Effort / inroad** — did the set reach deep fatigue, or were the early reps sub-maximal?
 - 🧭 **Progress per exercise** — best set per day, with trend and a cautious forecast, on two axes (last sessions / last days).
+- 📏 **Range-of-motion validity** — force is only compared between days that used the same ROM (within 5 % of the exercise's reference). Days with a different ROM are shown but excluded from trend and forecast, and the exercise gets a visible ROM warning instead of a fake trend.
+- 🧾 **Session sequence** — the order of your sets within each day, the rest before each one, machine pauses, work density, and rule-based flags: too many sets, a scattered full-body day on a split plan, the same exercise or muscle hit again within 5 minutes, and a density shift that betrays changed pause/tempo settings.
+- 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
 - 🧍 **Whole-body index** — a self-referenced score of how close you are to your own bests, across Push / Pull / Drive.
 - 🛌 **Load & recovery, effort-aware** — the 48–72 h rule only applies after a *truly maximal* session; a sub-maximal day needs far less. It even tells you **when to train next**.
 - 🗓️ **Next-session plan** — a ~15-minute, muscle-group-balanced suggestion (which exercises, in what order, and when).
 - 🎯 **Focus & approach** — prefer upper body or arms and it de-emphasizes or drops legs; choose **Auto** (auto-regulates by readiness, gets smarter with more data), **Full body**, or a **Split**.
 - ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid*, and the plan won't push it.
 - ⏱️ **Training time & work** — motivational totals, per week / month / year.
-- 🤖 **AI analysis** in plain language, using **your own** Claude API key (only aggregated, name-free numbers are sent) — loads automatically beside the report and into the PDF.
+- 🤖 **AI analysis** in plain language, using **your own** Claude API key (only aggregated, name-free numbers are sent) — loads automatically beside the report and into the PDF. It also receives the ordered session sequences and may point out patterns the rules don't cover; the computed metrics stay the ground truth. Cost is tunable via `ai_effort` (low … max, default medium) in `config.json`.
 - 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, one-click **PDF**, and an **update notice** when a new version ships.
 
 <p align="center"><i>Example report (anonymized):</i></p>
@@ -135,11 +138,29 @@ the rule-based plan. The key only powers the automatic AI analysis on the right.
 **What methodology does it use?**
 Force (kg/lb) is the progress measure on an adaptive-resistance machine, not "weight". Effort is
 judged by **inroad** — the force decline across a set. Progress compares the *best set per day*
-(repeated sets in one session are treated as fatigue, not regression). Recovery is
-**effort-conditioned**: ~48–72 h only after a genuinely maximal session, far less after a
-sub-maximal one. The session plan follows classic ordering (large muscle groups first); the
-**Auto** approach auto-regulates by readiness and gets smarter as your history grows. The AI layer
-adds an individualized, history-based recommendation on top.
+(repeated sets in one session are treated as fatigue, not regression) — and only between days
+with the **same range of motion**: on an adaptive-resistance machine a shorter ROM stays in the
+strong part of the movement and yields a higher peak, so force values from differing ROMs are not
+comparable and are excluded from trend and forecast (fewer than 3 comparable days → no trend).
+Effort is measured per rep (BeginRep/EndRep segmentation), the same definition the force curve
+shows. Recovery is **effort-conditioned**: ~48–72 h only after a genuinely maximal session, far
+less after a sub-maximal one. Within a day the **sequence** is analysed too: rest between sets,
+work density per wall-clock minute, repeats of the same exercise or of the same limiting muscle
+(grip, elbow flexors, triceps, lower back …) within a few minutes. The session plan follows
+classic ordering (large muscle groups first, and an exercise that merely *uses* a limiter before
+one that *targets* it); the **Auto** approach auto-regulates by readiness and gets smarter as your
+history grows. The AI layer adds an individualized, history-based recommendation on top.
+
+**Why does an exercise say "no trend · ROM"?**
+Its range of motion changed between sessions by more than 5 %, so the force values of those days
+cannot be compared. Set fixed start and end positions for that exercise on the machine; once three
+comparable days exist, the trend returns.
+
+**What is a "limiter"?**
+The structure that gives out first even though it is not what the exercise is for — the grip on
+a Dead Lift or Row, the triceps on a press. Several exercises sharing a limiter fatigue it
+cumulatively within one session. `exercises.json` carries `targets` and `limiters` per exercise;
+you can extend the vocabulary there.
 
 **Will it change or damage my ARX data?**
 No. It only ever reads a temporary **copy** of the database.
