@@ -190,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
         data = json.loads(self.rfile.read(length) or b"{}")
         if u.path == "/api/config":                        # global setup screen
             cfg = read_json(CONFIG, {})
-            for k in ("language", "units", "sessions_per_week", "model", "anthropic_api_key"):
+            for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
                 if k in data and data[k] != "":
                     cfg[k] = data[k]
             write_json(CONFIG, cfg)

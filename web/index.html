@@ -612,7 +612,7 @@ function drawCurve(){
 }
 function exChart(e){
   const W=460,H=190,L=44,R=14,Tp=14,B=30, occ=e.occ, useDay=XMODE==="day";
-  const xs=occ.map((o,i)=>useDay?o.day:i), showFc=!useDay&&e.n>=3;
+  const xs=occ.map((o,i)=>useDay?o.day:i), hasTrend=e.trend_per_session!=null, showFc=!useDay&&hasTrend&&e.forecast.length>0;
   const fc=showFc?e.forecast.map((v,k)=>({x:(occ.length-1)+(k+1),kg:v})):[];
   const allK=[...occ.map(o=>o.kg),...fc.map(p=>p.kg),e.pb];
   const xmax=Math.max(...xs,...fc.map(p=>p.x),1),xmin=Math.min(...xs,0);
@@ -623,20 +623,30 @@ function exChart(e){
   for(let i=0;i<=3;i++){const kv=kmin+(kmax-kmin)*i/3,yy=Y(kv);s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${g}" stroke-width="1.3"/><text x="${L-8}" y="${yy+5}" text-anchor="end" font-size="14" fill="${i3}">${Math.round(uKg(kv))}</text>`;}
   const hp=occ.map((o,i)=>`${i?'L':'M'}${X(xs[i]).toFixed(1)},${Y(o.kg).toFixed(1)}`).join(" ");
   s+=`<path d="${hp}" fill="none" stroke="${acc}" stroke-width="3"/>`;
-  occ.forEach((o,i)=>s+=`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(o.kg).toFixed(1)}" r="3.5" fill="${acc}"/>`);
-  if(e.n>=3){const b=e.trend_per_session,a=e.last-b*(occ.length-1);const i0=0,i1=occ.length-1;const x0=useDay?occ[0].day:0,x1=useDay?occ[occ.length-1].day:i1;
-    s+=`<line x1="${X(x0).toFixed(1)}" y1="${Y(a+b*i0).toFixed(1)}" x2="${X(x1).toFixed(1)}" y2="${Y(a+b*i1).toFixed(1)}" stroke="${good}" stroke-width="2.5"/>`;}
-  if(showFc){let fp=`M${X(occ.length-1).toFixed(1)},${Y(e.last).toFixed(1)}`;fc.forEach(p=>fp+=`L${X(p.x).toFixed(1)},${Y(p.kg).toFixed(1)}`);s+=`<path d="${fp}" fill="none" stroke="${fcc}" stroke-width="2.5" stroke-dasharray="6 5"/>`;}
+  // days whose ROM differs from the reference are drawn hollow: shown, but not comparable
+  occ.forEach((o,i)=>s+=o.rom_valid===false
+    ?`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(o.kg).toFixed(1)}" r="4" fill="${css('--panel')}" stroke="${css('--warn')}" stroke-width="2"/>`
+    :`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(o.kg).toFixed(1)}" r="3.5" fill="${acc}"/>`);
+  if(hasTrend){const v=occ.filter(o=>o.rom_valid!==false), b=useDay?e.trend_per_day:e.trend_per_session;
+    const xv=v.map(o=>useDay?o.day:o.i), mx=xv.reduce((a,c)=>a+c,0)/xv.length, my=v.reduce((a,o)=>a+o.kg,0)/v.length, a=my-b*mx;
+    const x0=Math.min(...xv),x1=Math.max(...xv);
+    s+=`<line x1="${X(x0).toFixed(1)}" y1="${Y(a+b*x0).toFixed(1)}" x2="${X(x1).toFixed(1)}" y2="${Y(a+b*x1).toFixed(1)}" stroke="${good}" stroke-width="2.5"/>`;}
+  if(showFc){const lv=occ.filter(o=>o.rom_valid!==false).pop()||occ[occ.length-1];let fp=`M${X(lv.i).toFixed(1)},${Y(lv.kg).toFixed(1)}`;fc.forEach(p=>fp+=`L${X(p.x).toFixed(1)},${Y(p.kg).toFixed(1)}`);s+=`<path d="${fp}" fill="none" stroke="${fcc}" stroke-width="2.5" stroke-dasharray="6 5"/>`;}
   return `<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
 }
 function renderProg(){const t=T();
   $("#prog").innerHTML=REPORT.exercises.map(e=>{
-    let chip=e.n<3?`<span class="chip low">n=${e.n}</span>`:(e.trend_per_session>1?`<span class="chip up">▲ +${uKg(e.trend_per_session)}</span>`:(Math.abs(e.trend_per_session)<=1?`<span class="chip flat">≈ Plateau</span>`:`<span class="chip">${uKg(e.trend_per_session)}</span>`));
+    const de=CFG.language==="de", tr=e.trend_per_session;
+    let chip=tr==null?`<span class="chip low">${e.n<3?'n='+e.n:(de?'kein Trend · ROM':'no trend · ROM')}</span>`:(tr>1?`<span class="chip up">▲ +${uKg(tr)}</span>`:(Math.abs(tr)<=1?`<span class="chip flat">≈ Plateau</span>`:`<span class="chip">${uKg(tr)}</span>`));
+    // ROM drifted between days -> force values are not comparable; say so loudly, never silently
+    let rom="";
+    if(e.n>=2&&e.rom_stable===false){const drift=e.rom_drift_pct==null?'':` (${e.rom_drift_pct>0?'+':''}${e.rom_drift_pct}%)`;
+      rom=`<div style="margin:6px 0 4px;padding:6px 10px;border-left:4px solid var(--warn);background:var(--warn-bg);font-size:13px;color:var(--ink2)"><b style="color:var(--warn)">⚠ ROM</b> ${de?'schwankt':'varies'}: ${de?'Referenz':'reference'} ${uCm(e.rom_cm_reference)} ${LCm()}, ${de?'zuletzt':'latest'} ${uCm(e.rom_cm_latest)} ${LCm()}${drift} · ${e.days_excluded_for_rom} ${de?'Tag(e) nicht vergleichbar. Start-/Endposition fixieren.':'day(s) not comparable. Fix the start/end positions.'}</div>`;}
     let rb="";
     if(e.restriction==="careful")rb=`<span class="grp" style="background:var(--warn)">${rlabel('careful')}</span> `;
     else if(e.restriction==="avoid")rb=`<span class="grp" style="background:var(--accent)">${rlabel('avoid')}</span> `;
     return `<div class="excard"><div class="n"><span class="exname">${e.name}</span><span class="cur">${uKg(e.last)} <small>${LKg()}</small></span></div>
-      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${exChart(e)}</div>`;}).join("");
+      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${rom}${exChart(e)}</div>`;}).join("");
 }
 function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22,B=46;
   const X=i=>L+(wb.length<2?0.5:i/(wb.length-1))*(W-L-R),Y=v=>H-B-(v/100)*(H-Tp-B);

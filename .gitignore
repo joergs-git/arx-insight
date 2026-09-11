@@ -12,3 +12,5 @@ __pycache__/
 firebird/
 CLAUDE.md
 tasks/
+# local copy of the ARX app dump / database data - must never be published
+ARX/
