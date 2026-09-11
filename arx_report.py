@@ -18,7 +18,7 @@ Public domain / CC0. No warranty. Not medical advice.
 
 from __future__ import annotations
 import os, sys, json, gzip, shutil, tempfile, argparse, random, statistics as st
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 
 def data_dir() -> str:
@@ -44,6 +44,14 @@ IN_TO_CM = 2.54                # inches  -> centimeters
 # --- a "real" working set must clear this noise filter ------------------------
 MIN_SECONDS = 30.0             # shorter = false start / repositioning
 MIN_REPS = 2                   # fewer   = aborted attempt
+
+# --- effort / inroad classification --------------------------------------------
+# Bump EFFORT_ALGO_VERSION whenever set_effort's logic or these thresholds change:
+# the per-set effort cache is keyed by set id and would otherwise keep stale
+# results forever (a recorded set never changes, but our reading of it may).
+EFFORT_ALGO_VERSION = 2
+INROAD_DEEP = 20               # % force decline across reps -> genuinely deep fatigue
+INROAD_MODERATE = 8            # % ... -> moderate effort (unless the peaks were still rising)
 
 # --- scientifically-defensible "textbook" machine settings for hypertrophy/strength
 # ~8 reps, ~5 s per movement direction, a ~3 s hold at the end position, no pause on
@@ -177,45 +185,82 @@ def load_sets(con, user_id: int) -> list[dict]:
     return out
 
 
-def decode_force_curve(con, set_id: int) -> dict:
-    """Decode the full force/position/speed curve for one set.
+def _ts(s: str):
+    """ISO timestamp string -> epoch seconds (None if unparsable)."""
+    try:
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return None
+
+
+def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
+    """Decode the raw force/position curve and the event stream of one set.
 
     SERIALIZEDDETAILEDDATA is gzip-compressed UTF-16 JSON: an array of ~20 Hz
     samples with Value (force lb), EncoderValue (position inch) and SpeedValue.
-    We also segment per rep (via BeginRep/EndRep events) to compute 'inroad' -
-    the force decline across reps that signals how deeply the set fatigued.
+    EVENTSTREAMDATA is plain JSON with rep/countdown events (BeginRep, EndRep,
+    ...). Returns (curve, events) where curve is a list of
+    {t: seconds since first sample, force_kg, pos_cm}. Shared by the featured
+    curve and the per-set effort so both use ONE definition of the data.
     """
     cur = con.cursor()
     cur.execute('select serializeddetaileddata, eventstreamdata from "ExerciseSet" where id = ?', (set_id,))
     det_raw, ev_raw = cur.fetchone()
     samples = json.loads(gzip.decompress(blob_bytes(det_raw)).decode("utf-16"))
-    events = json.loads(blob_bytes(ev_raw).decode("latin1"))
-
-    def ts(s):
-        try:
-            return datetime.fromisoformat(s).timestamp()
-        except Exception:
-            return None
-
-    t0 = ts(samples[0]["Time"])
+    try:
+        events = json.loads(blob_bytes(ev_raw).decode("latin1"))
+    except Exception:
+        events = []
+    t0 = _ts(samples[0]["Time"]) if samples else 0.0
     curve = [{
-        "t": round(ts(s["Time"]) - t0, 2),
+        "t": round((_ts(s["Time"]) or t0) - t0, 2),
         "force_kg": round(s["Value"] * LB_TO_KG, 1),
         "pos_cm": round((s.get("EncoderValue") or 0) * IN_TO_CM, 1),
-    } for s in samples]
+    } for s in samples if isinstance(s.get("Value"), (int, float))]
+    # event times relative to the same t0 so they line up with the curve
+    for e in events:
+        e["_t"] = (_ts(e.get("Time", "")) or t0) - t0
+    return curve, events
 
-    begins = [ts(e["Time"]) - t0 for e in events if e["Type"] == "BeginRep"]
-    ends = [ts(e["Time"]) - t0 for e in events if e["Type"] == "EndRep"]
+
+def rep_peaks_and_inroad(curve: list[dict], events: list[dict]) -> tuple[list[float], int | None]:
+    """Segment the curve per rep (BeginRep/EndRep pairs) and compute 'inroad'.
+
+    Inroad = decline from the strongest rep's peak to the LAST rep's peak, in %.
+    It is THE effort signal on an adaptive-resistance machine: a set that reached
+    deep fatigue ends well below its strongest rep; a sub-maximal or ramping set
+    ends at or near it. An unmatched trailing BeginRep (aborted last rep) is
+    simply dropped by the pairwise zip. Returns (rep_peaks, inroad_pct) with
+    inroad None when fewer than two complete reps exist.
+    """
+    begins = [e["_t"] for e in events if e.get("Type") == "BeginRep"]
+    ends = [e["_t"] for e in events if e.get("Type") == "EndRep"]
     rep_peaks = []
     for a, b in zip(begins, ends):
         seg = [p["force_kg"] for p in curve if a <= p["t"] <= b]
         if seg:
             rep_peaks.append(round(max(seg), 1))
-
     inroad_pct = None
     if len(rep_peaks) >= 2 and max(rep_peaks) > 0:
         inroad_pct = round((max(rep_peaks) - rep_peaks[-1]) / max(rep_peaks) * 100)
+    return rep_peaks, inroad_pct
 
+
+def classify_effort(inroad: int | None, rising: bool) -> str:
+    """Map inroad % (+ whether force was still rising at the end) to an effort label."""
+    if inroad is None:
+        return "unknown"
+    if inroad >= INROAD_DEEP:
+        return "deep"
+    if inroad >= INROAD_MODERATE and not rising:
+        return "moderate"
+    return "submax"
+
+
+def decode_force_curve(con, set_id: int) -> dict:
+    """Full curve + per-rep peaks + inroad for the featured set (see load_curve)."""
+    curve, events = load_curve(con, set_id)
+    rep_peaks, inroad_pct = rep_peaks_and_inroad(curve, events)
     return {"curve": curve, "rep_peaks": rep_peaks, "inroad_pct": inroad_pct}
 
 
@@ -231,7 +276,10 @@ def load_catalog(path: str) -> dict:
 
 
 def _linfit(xs, ys):
-    """Least-squares slope/intercept; slope is progress per session occurrence."""
+    """Least-squares slope/intercept. The slope's unit follows xs: pass the
+    occurrence index for 'per training day occurrence', the day offset for 'per
+    calendar day' - the two differ by the training frequency (2-3x at 3 sessions
+    a week), so never mix them up."""
     n = len(xs)
     if n < 2:
         return 0.0, (ys[0] if ys else 0.0)
@@ -274,7 +322,10 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
                 "sets": by_day[day]["sets"],           # sets of this exercise that day
                 "sessions": len(by_day[day]["sessions"])}
                for i, day in enumerate(days_sorted)]
+        # Two slopes, two meanings: per training-day occurrence (index) and per
+        # calendar day (ordinal offset). Both are reported; the AI is told which is which.
         slope, _ = _linfit([o["i"] for o in occ], [o["kg"] for o in occ])
+        slope_per_day, _ = _linfit([o["day"] for o in occ], [o["kg"] for o in occ])
         cur, step, fc = occ[-1]["kg"], slope, []
         for _ in range(6):
             step *= 0.85
@@ -290,7 +341,8 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
             "total_sets": len(ss),                      # all sets across all days
             "multi_set_days": sum(1 for o in occ if o["sets"] > 1),
             "first": occ[0]["kg"], "last": occ[-1]["kg"],  # first/last DAY best
-            "trend_per_session": round(slope, 1),
+            "trend_per_session": round(slope, 1),        # kg per training-day occurrence
+            "trend_per_day": round(slope_per_day, 2),    # kg per calendar day
             "occ": occ, "forecast": fc,
         })
     out.sort(key=lambda e: e["pb"], reverse=True)
@@ -441,7 +493,6 @@ def _load_analysis(work: list[dict]) -> dict:
         last_ranks = [RANK.get(s.get("effort"), 0) for s in work if s["date"][:10] == last_day]
         r = max(last_ranks) if last_ranks else 0
         next_rest = REQUIRED_REST[r]
-        from datetime import timedelta
         next_earliest = (datetime.fromisoformat(last_day) + timedelta(days=next_rest)).date().isoformat()
 
     hard_total = sum(pg["hard_days"] for pg in per_group.values())
@@ -572,45 +623,60 @@ def _session_plan(exercises: list[dict], restrictions: dict,
 EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
 
 
+def load_effort_cache() -> dict:
+    """Load the per-set effort cache; discard it if it was written by another
+    algorithm version (see EFFORT_ALGO_VERSION). Returns the 'sets' dict."""
+    try:
+        with open(EFFORT_CACHE, encoding="utf-8") as fh:
+            raw = json.load(fh)
+        if isinstance(raw, dict) and raw.get("_version") == EFFORT_ALGO_VERSION:
+            return dict(raw.get("sets") or {})
+    except Exception:
+        pass
+    return {}
+
+
+def save_effort_cache(sets: dict) -> None:
+    try:
+        with open(EFFORT_CACHE, "w", encoding="utf-8") as fh:
+            json.dump({"_version": EFFORT_ALGO_VERSION, "sets": sets}, fh)
+    except Exception:
+        pass
+
+
 def set_effort(con, set_id: int, cache: dict) -> dict:
     """Per-set effort / true fatigue from the force curve.
 
-    Approximates ARX 'inroad' without segmenting reps: compare the peak force of
-    the first third of the set vs the last third. A set that reached deep fatigue
-    declines toward the end (positive inroad); a warm-up / ramping / sub-maximal
-    set ends at or above its early peak (rising, ~0 inroad). Cached by set id
-    because a recorded set never changes."""
+    Primary method: rep-segmented inroad (BeginRep/EndRep events, same helper
+    as the featured curve), so the recovery model and the displayed curve can
+    never disagree. Fallback when rep events are missing/incomplete: compare
+    the peak of the first third of the raw samples with the last third. Either
+    way a set that reached deep fatigue declines toward the end; a ramping /
+    sub-maximal set ends at or above its early peak (rising, ~0 inroad).
+    Cached by set id because a recorded set never changes."""
     key = str(set_id)
     if key in cache:
         return cache[key]
-    result = {"inroad": None, "effort": "unknown"}
+    result = {"inroad": None, "effort": "unknown", "method": None}
     try:
-        cur = con.cursor()
-        cur.execute('select serializeddetaileddata from "ExerciseSet" where id=?', (set_id,))
-        raw = _blob_to_bytes(cur.fetchone()[0])
-        samples = json.loads(gzip.decompress(raw).decode("utf-16"))
-        f = [s["Value"] for s in samples if isinstance(s.get("Value"), (int, float))]
-        if len(f) >= 20:
-            peak = max(f)
-            third = max(1, len(f) // 3)
-            early_peak = max(f[:third])
-            late_peak = max(f[-third:])
-            inroad = round((peak - late_peak) / peak * 100) if peak else 0
-            rising = late_peak >= early_peak * 0.98
-            effort = "deep" if inroad >= 20 else ("moderate" if inroad >= 8 and not rising else "submax")
-            result = {"inroad": inroad, "effort": effort}
+        curve, events = load_curve(con, set_id)
+        rep_peaks, inroad = rep_peaks_and_inroad(curve, events)
+        if inroad is not None:
+            rising = rep_peaks[-1] >= rep_peaks[0] * 0.98
+            result = {"inroad": inroad, "effort": classify_effort(inroad, rising), "method": "reps"}
+        else:
+            f = [p["force_kg"] for p in curve]
+            if len(f) >= 20:
+                peak = max(f)
+                third = max(1, len(f) // 3)
+                early_peak, late_peak = max(f[:third]), max(f[-third:])
+                inroad = round((peak - late_peak) / peak * 100) if peak else 0
+                rising = late_peak >= early_peak * 0.98
+                result = {"inroad": inroad, "effort": classify_effort(inroad, rising), "method": "thirds"}
     except Exception:
         pass
     cache[key] = result
     return result
-
-
-def _blob_to_bytes(v) -> bytes:
-    if v is None:
-        return b""
-    if hasattr(v, "read"):
-        v = v.read()
-    return v.encode("latin1") if isinstance(v, str) else bytes(v)
 
 
 def featured_settings(con, set_id: int, reps: int) -> dict:
@@ -634,14 +700,17 @@ def featured_settings(con, set_id: int, reps: int) -> dict:
         return {"reps": reps}
 
 
-def _pick_featured(work: list[dict]):
+def _pick_featured(work: list[dict], user_id=None):
     """Choose the set to feature in the big curve - NOT simply the strongest one
     (that is always the leg press / Belt Squat and gets boring). Prefer a set
     with a story: a fresh personal best, a deeply fatiguing set (well executed),
     or a notably sub-maximal one (actionable). Among the interesting candidates
-    pick at random so the highlight varies each visit. Returns (set, reason)."""
+    pick pseudo-randomly, seeded by today's date + user, so the highlight (and
+    the AI narrative built on it) is reproducible within a day yet varies across
+    days. Returns (set, reason)."""
     if not work:
         return None, None
+    rng = random.Random(f"{date.today()}-{user_id}")
     days = sorted({s["date"][:10] for s in work})
     recent_days = set(days[-2:])                      # last two training days
     pb = {}
@@ -670,7 +739,7 @@ def _pick_featured(work: list[dict]):
     else:
         pool = scored
     pool.sort(key=lambda x: x[0], reverse=True)
-    _, s, reason = random.choice(pool[:6])            # variety among the top candidates
+    _, s, reason = rng.choice(pool[:6])               # variety among the top candidates
     return s, reason
 
 
@@ -679,13 +748,8 @@ def build_report(con, cfg: dict) -> dict:
     catalog = cfg.get("_catalog", {})
     sets = load_sets(con, cfg["user_id"])
     work = [s for s in sets if s["working"]]
-    # effort per set (real fatigue reached), cached by set id
-    cache = {}
-    try:
-        with open(EFFORT_CACHE, encoding="utf-8") as fh:
-            cache = json.load(fh)
-    except Exception:
-        pass
+    # effort per set (real fatigue reached), cached by set id + algorithm version
+    cache = load_effort_cache()
     for s in work:                       # attach name/group + effort/inroad
         m = catalog.get(str(s["exercise"]), {})
         s["name"] = m.get("name", f"Übung {s['exercise']}")
@@ -693,11 +757,7 @@ def build_report(con, cfg: dict) -> dict:
         e = set_effort(con, s["id"], cache)
         s["inroad"] = e["inroad"]
         s["effort"] = e["effort"]
-    try:
-        with open(EFFORT_CACHE, "w", encoding="utf-8") as fh:
-            json.dump(cache, fh)
-    except Exception:
-        pass
+    save_effort_cache(cache)
 
     exercises = _exercise_series(work, catalog)
     restrictions = cfg.get("restrictions", {}) or {}
@@ -707,7 +767,7 @@ def build_report(con, cfg: dict) -> dict:
 
     featured = None
     if work:
-        top, reason = _pick_featured(work)
+        top, reason = _pick_featured(work, cfg.get("user_id"))
         featured = {"meta": top, "reason": reason,
                     "settings": featured_settings(con, top["id"], top.get("reps", 0)),
                     **decode_force_curve(con, top["id"])}
@@ -793,7 +853,8 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
             "latest_day_best": kg(e["last"]),   # best set of the most recent training day
             "training_days": e["n"], "total_sets": e["total_sets"],
             "days_with_multiple_sets": e["multi_set_days"],
-            "trend_per_day": kg(e["trend_per_session"]),
+            "trend_per_session": kg(e["trend_per_session"]),   # per training-day occurrence
+            "trend_per_day": kg(e["trend_per_day"]),           # per calendar day
         } for e in report["exercises"]],
         "whole_body_index_per_day": report["whole_body"]["series"],
         "load_and_recovery": report["load"],
@@ -826,7 +887,10 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "days_with_multiple_sets > 0, treat any within-day or later-set drop as "
         "fatigue, and never tell the user to 'work back up' to a value that is "
         "just a fatigued repeat set. Judge progress by the trend of daily bests "
-        "and by whether sets reach real inroad.\n"
+        "and by whether sets reach real inroad. Two trend figures are given per "
+        "exercise: trend_per_session = change per training-day occurrence, "
+        "trend_per_day = change per calendar day (the two differ by the training "
+        "frequency); quote whichever you mean and never swap them.\n"
         "LOAD & RECOVERY (effort-conditioned - important): the 48-72h recovery "
         "window applies ONLY after a session that truly reached deep fatigue "
         "(high inroad, effort 'deep'). A sub-maximal session (effort 'submax', "
