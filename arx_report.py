@@ -53,6 +53,17 @@ EFFORT_ALGO_VERSION = 2
 INROAD_DEEP = 20               # % force decline across reps -> genuinely deep fatigue
 INROAD_MODERATE = 8            # % ... -> moderate effort (unless the peaks were still rising)
 
+# --- range-of-motion validity ---------------------------------------------------
+# Force on an adaptive-resistance machine depends on the position range the set
+# was performed over: a shorter ROM stays in the strong part of the movement and
+# yields a higher peak. So a day's best is only comparable with other days when
+# the ROM matches. Reference = the ROM that most of the last ROM_REF_DAYS
+# training days of that exercise agree on; a day within +-ROM_TOLERANCE of it
+# counts as comparable.
+ROM_TOLERANCE = 0.05           # 5 % relative deviation
+ROM_REF_DAYS = 5               # days that form the reference window
+MIN_TREND_POINTS = 3           # fewer comparable days -> no trend / forecast (None)
+
 # --- scientifically-defensible "textbook" machine settings for hypertrophy/strength
 # ~8 reps, ~5 s per movement direction, a ~3 s hold at the end position, no pause on
 # the return; the end-hold does not suit every exercise type (e.g. some presses).
@@ -298,7 +309,11 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
     regression. So cross-day progress compares the *best set of each day*, and we
     record how many sets / sessions that day contributed so the fatigue context
     is preserved (and handed to the AI). Trend and a diminishing-returns forecast
-    (slope decays 15%/step) are computed on those daily bests."""
+    (slope decays 15%/step) are computed on those daily bests - but ONLY on days
+    whose range of motion matches the exercise's reference ROM (see
+    ROM_TOLERANCE): a different ROM makes the force values incomparable, so such
+    days are kept in the series for display but excluded from trend/forecast,
+    and the trend is None when fewer than MIN_TREND_POINTS comparable days exist."""
     by_ex = {}
     for s in work:
         by_ex.setdefault(s["exercise"], []).append(s)
@@ -307,30 +322,55 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
     out = []
     for ex, ss in by_ex.items():
         meta = catalog.get(str(ex), {})
-        # aggregate to daily best
+        # aggregate to daily best (and carry the ROM of that best set)
         by_day = {}
         for s in ss:
             day = s["date"][:10]
-            d = by_day.setdefault(day, {"kg": 0, "sets": 0, "sessions": set()})
-            d["kg"] = max(d["kg"], s["max_kg"])
+            d = by_day.setdefault(day, {"kg": 0, "rom": None, "sets": 0, "sessions": set()})
+            if s["max_kg"] >= d["kg"]:
+                d["kg"], d["rom"] = s["max_kg"], s.get("rom_cm")
             d["sets"] += 1
             d["sessions"].add(s["session"])
         days_sorted = sorted(by_day)
         occ = [{"i": i,
                 "day": datetime.fromisoformat(day).toordinal() - d0,
                 "date": day, "kg": by_day[day]["kg"],
+                "rom_cm": by_day[day]["rom"],          # ROM of that day's best set
                 "sets": by_day[day]["sets"],           # sets of this exercise that day
                 "sessions": len(by_day[day]["sessions"])}
                for i, day in enumerate(days_sorted)]
+
+        # ROM validity: the reference is the ROM (among the last ROM_REF_DAYS days)
+        # that the most days agree with - i.e. the largest cluster, most recent
+        # on a tie. A plain median would land BETWEEN two clusters when the days
+        # split evenly (e.g. 13.6/21.0/21.0/16.2 -> 18.6) and no day would match it.
+        ref_window = [o["rom_cm"] for o in occ[-ROM_REF_DAYS:] if o["rom_cm"]]
+        rom_ref = None
+        if ref_window:
+            def agree(ref):
+                return sum(1 for r in ref_window if abs(r - ref) / ref <= ROM_TOLERANCE)
+            rom_ref = max(reversed(ref_window), key=agree)   # reversed -> latest wins ties
+        for o in occ:
+            o["rom_valid"] = bool(rom_ref and o["rom_cm"]
+                                  and abs(o["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
+        valid = [o for o in occ if o["rom_valid"]]
+        rom_latest = occ[-1]["rom_cm"]
+        rom_drift = round((rom_latest - rom_ref) / rom_ref * 100, 1) if (rom_ref and rom_latest) else None
+        rom_stable = all(o["rom_valid"] for o in occ[-ROM_REF_DAYS:])
+
         # Two slopes, two meanings: per training-day occurrence (index) and per
-        # calendar day (ordinal offset). Both are reported; the AI is told which is which.
-        slope, _ = _linfit([o["i"] for o in occ], [o["kg"] for o in occ])
-        slope_per_day, _ = _linfit([o["day"] for o in occ], [o["kg"] for o in occ])
-        cur, step, fc = occ[-1]["kg"], slope, []
-        for _ in range(6):
-            step *= 0.85
-            cur += step
-            fc.append(round(cur, 1))
+        # calendar day (ordinal offset). Both are reported; the AI is told which
+        # is which. Computed on ROM-comparable days only; None when too few.
+        slope = slope_per_day = None
+        fc = []
+        if len(valid) >= MIN_TREND_POINTS:
+            slope, _ = _linfit([o["i"] for o in valid], [o["kg"] for o in valid])
+            slope_per_day, _ = _linfit([o["day"] for o in valid], [o["kg"] for o in valid])
+            cur, step = valid[-1]["kg"], slope
+            for _ in range(6):
+                step *= 0.85
+                cur += step
+                fc.append(round(cur, 1))
         out.append({
             "ex": ex,
             "name": meta.get("name", f"Übung {ex}"),
@@ -341,11 +381,38 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
             "total_sets": len(ss),                      # all sets across all days
             "multi_set_days": sum(1 for o in occ if o["sets"] > 1),
             "first": occ[0]["kg"], "last": occ[-1]["kg"],  # first/last DAY best
-            "trend_per_session": round(slope, 1),        # kg per training-day occurrence
-            "trend_per_day": round(slope_per_day, 2),    # kg per calendar day
+            "trend_per_session": round(slope, 1) if slope is not None else None,     # kg per training-day occurrence
+            "trend_per_day": round(slope_per_day, 2) if slope_per_day is not None else None,  # kg per calendar day
+            "trend_n": len(valid),                      # comparable days behind the trend
+            "rom_cm_reference": rom_ref,
+            "rom_cm_latest": rom_latest,
+            "rom_drift_pct": rom_drift,                 # latest vs reference
+            "rom_stable": rom_stable,                   # all days in the reference window comparable
+            "days_excluded_for_rom": len(occ) - len(valid),
             "occ": occ, "forecast": fc,
         })
     out.sort(key=lambda e: e["pb"], reverse=True)
+    return out
+
+
+def _rom_warnings(exercises: list[dict]) -> list[dict]:
+    """Exercises whose range of motion drifted between days, with the observed
+    values, so the UI and the AI can name the problem instead of comparing
+    incomparable force values. Only exercises with >1 training day qualify."""
+    out = []
+    for e in exercises:
+        if e["n"] < 2 or e["rom_stable"]:
+            continue
+        out.append({
+            "name": e["name"], "group": e["group"],
+            "rom_cm_reference": e["rom_cm_reference"],
+            "rom_cm_latest": e["rom_cm_latest"],
+            "rom_drift_pct": e["rom_drift_pct"],
+            "days_excluded_for_rom": e["days_excluded_for_rom"],
+            "trend_available": e["trend_per_session"] is not None,
+            "observed": [{"date": o["date"], "rom_cm": o["rom_cm"], "kg": o["kg"], "valid": o["rom_valid"]}
+                         for o in e["occ"]],
+        })
     return out
 
 
@@ -793,6 +860,7 @@ def build_report(con, cfg: dict) -> dict:
         "training_days": days,
         "kpi": kpi,
         "exercises": exercises,
+        "rom_warnings": _rom_warnings(exercises),
         "whole_body": _whole_body(work, exercises),
         "load": load,
         "totals": _totals(work, load.get("weekly_rate")),
@@ -833,6 +901,7 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
     lf = (1 / 2.54) if imp else 1.0
     FU, LU = ("lb", "in") if imp else ("kg", "cm")
     kg = lambda v: round(v * ff, 1) if v is not None else None
+    cm = lambda v: round(v * lf, 1) if v is not None else None
 
     # Hand the model a compact, name-free metrics summary (numbers are final;
     # the model only phrases them). Exercise names/groups come from the catalog.
@@ -855,7 +924,21 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
             "days_with_multiple_sets": e["multi_set_days"],
             "trend_per_session": kg(e["trend_per_session"]),   # per training-day occurrence
             "trend_per_day": kg(e["trend_per_day"]),           # per calendar day
+            "trend_based_on_days": e["trend_n"],               # ROM-comparable days only
+            "rom_reference": cm(e["rom_cm_reference"]),
+            "rom_latest": cm(e["rom_cm_latest"]),
+            "rom_drift_pct": e["rom_drift_pct"],
+            "rom_stable": e["rom_stable"],
+            "days_excluded_for_rom": e["days_excluded_for_rom"],
         } for e in report["exercises"]],
+        "rom_warnings": [{
+            "name": w["name"], "rom_reference": cm(w["rom_cm_reference"]),
+            "rom_latest": cm(w["rom_cm_latest"]), "rom_drift_pct": w["rom_drift_pct"],
+            "days_excluded_for_rom": w["days_excluded_for_rom"],
+            "trend_available": w["trend_available"],
+            "observed": [{"date": o["date"], "rom": cm(o["rom_cm"]), "best": kg(o["kg"]),
+                          "comparable": o["valid"]} for o in w["observed"]],
+        } for w in report.get("rom_warnings", [])],
         "whole_body_index_per_day": report["whole_body"]["series"],
         "load_and_recovery": report["load"],
         "totals": report["totals"],
@@ -891,6 +974,19 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "exercise: trend_per_session = change per training-day occurrence, "
         "trend_per_day = change per calendar day (the two differ by the training "
         "frequency); quote whichever you mean and never swap them.\n"
+        "RANGE OF MOTION (ROM) VALIDITY: on this machine the force depends on "
+        "the position range the set was performed over - a shorter ROM stays in "
+        "the strong part of the movement and gives a higher peak. A force "
+        "comparison between days is therefore ONLY valid when the ROM matched "
+        "(within ~5% of the exercise's reference ROM). Per exercise you get "
+        "rom_reference, rom_latest, rom_drift_pct, rom_stable, "
+        "days_excluded_for_rom and trend_based_on_days; trend values are already "
+        "computed on comparable days only and are null when too few exist. "
+        "rom_warnings lists exercises whose ROM drifted, with the observed ROM "
+        "and best force per day. For those, do NOT claim progress or a drop from "
+        "the force numbers; say the values are not comparable and ask the user "
+        "to set fixed start and end positions for that exercise so future "
+        "sessions can be compared.\n"
         "LOAD & RECOVERY (effort-conditioned - important): the 48-72h recovery "
         "window applies ONLY after a session that truly reached deep fatigue "
         "(high inroad, effort 'deep'). A sub-maximal session (effort 'submax', "
