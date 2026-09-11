@@ -1,9 +1,10 @@
 {
-  "_comment": "Global settings for ARX Insight. The installer creates the real config.json for you and stores it outside the program folder; you normally edit these in the app under the Settings (gear) screen. Per-user goals live in goals.json. Exercise names come from exercises.json, not from here.",
+  "_comment": "Global settings for ARX Insight. The installer creates the real config.json for you and stores it outside the program folder; you normally edit these in the app under the Settings (gear) screen. Per-user goals live in goals.json. ai_effort (low | medium | high | xhigh | max) steers how much the AI analysis may think and cost. Exercise names come from exercises.json, not from here.",
   "db": "C:/Users/you/Documents/ARX/Resources/DB.FDB4",
   "language": "en",
   "units": "imperial",
   "sessions_per_week": 2,
   "model": "claude-opus-5",
+  "ai_effort": "medium",
   "anthropic_api_key": ""
 }

@@ -1083,11 +1083,21 @@ def build_report(con, cfg: dict) -> dict:
 # =============================================================================
 # Optional AI narrative (uses the user's own Claude API key)
 # =============================================================================
-def ai_narrative(report: dict, cfg: dict) -> str | None:
-    """Ask Claude to phrase findings + a session suggestion. Key stays local.
+AI_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+AI_EFFORT_DEFAULT = "medium"
 
-    The model never sees raw personal data - only the aggregated metrics - and
-    it phrases, it does not compute: the numbers are already final.
+
+def ai_narrative(report: dict, cfg: dict) -> str | None:
+    """Ask Claude to analyse the findings + suggest a session. Key stays local.
+
+    The model never sees raw personal data - only aggregated, name-free
+    metrics. Two kinds of input are handed over and kept apart in the system
+    prompt: the deterministic metrics (trend, load/recovery, ROM validity,
+    flags, limiter conflicts) are FINAL and must not be recomputed or
+    overridden; the ordered session sequences are raw material in which the
+    model may look for patterns the rules do not cover (ordering, pacing,
+    settings changes). Cost is steered by the 'ai_effort' config option
+    (low | medium | high | xhigh | max, default medium).
     """
     key = cfg.get("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -1099,6 +1109,9 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
 
     client = Anthropic(api_key=key)
     model = cfg.get("model", "claude-opus-5")   # override in config if desired
+    effort = str(cfg.get("ai_effort") or AI_EFFORT_DEFAULT).lower()
+    if effort not in AI_EFFORT_LEVELS:
+        effort = AI_EFFORT_DEFAULT
 
     # Units: convert force/length so the model answers in the user's units.
     imp = cfg.get("units", "imperial") == "imperial"
@@ -1108,8 +1121,9 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
     kg = lambda v: round(v * ff, 1) if v is not None else None
     cm = lambda v: round(v * lf, 1) if v is not None else None
 
-    # Hand the model a compact, name-free metrics summary (numbers are final;
-    # the model only phrases them). Exercise names/groups come from the catalog.
+    # Hand the model a compact, name-free summary: precomputed metrics (final)
+    # plus the ordered session sequences (raw material for its own observations).
+    # Exercise names/groups come from the catalog.
     f = report.get("featured")
     summary = {
         "units": {"force": FU, "length": LU},
@@ -1247,6 +1261,40 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "days_since, last_effort, and a >~10% drop from a group's recent best as "
         "the under-recovery signal). Recommend the split rotation or which groups "
         "are ready today accordingly.\n"
+        "TWO KINDS OF INPUT - keep them apart: (1) all precomputed metrics "
+        "(trends, load_and_recovery, ROM validity, session flags, "
+        "limiter_conflicts, session_plan) are FINAL - do not recompute, "
+        "contradict or override them. (2) session_sequences is RAW MATERIAL: for "
+        "each of the last training days the working sets in time order with the "
+        "rest before each set (minutes_since_prev_set = rest since the previous "
+        "set ended), peak and mean force, duration, reps, ROM, inroad/effort, the "
+        "machine pauses (pause_end_s / pause_return_s), whether the set repeats "
+        "an exercise already done that day, and which limiting muscles were "
+        "already fatigued by an earlier set. You MAY and SHOULD look for patterns "
+        "in it that the rules do not cover - e.g. exercise order within a day, "
+        "pacing, repeated sets that add nothing, settings that changed between "
+        "sessions - and report them as your own observations, clearly grounded "
+        "in the listed numbers. Never invent values that are not in the data.\n"
+        "SESSION FLAGS (rule-based, in session_sequences[].flags, each with its "
+        "numbers): too_many_sets (more than 6 working sets, or more than 4 in a "
+        "dense session); scattered_session (Push, Pull and Drive all on one day "
+        "although the approach is 'split'); short_intra_session_rest (the same "
+        "exercise or the same limiting muscle loaded again within 5 min); "
+        "density_shift (work per wall-clock minute deviating > 20 % from the "
+        "previous sessions - usually a pause/tempo/rest change). Explain what "
+        "each raised flag means for the athlete and how to fix it next time.\n"
+        "SHARED LIMITERS: exercises carry 'targets' (what they are for) and "
+        "'limiters' (structures that give out first although they are only a "
+        "means - e.g. the grip on Dead Lift, Row and Pull Down). Several sets "
+        "sharing a limiter fatigue it cumulatively within a session, so a later "
+        "set may end early on the limiter while the target muscles were not "
+        "fully worked. limiter_conflicts lists, per day, the sets whose limiter "
+        "was already loaded by an earlier set (by which exercise, how many "
+        "minutes before). Rule for ordering: an exercise where the limiter is "
+        "only a means (Dead Lift, Row) goes BEFORE an exercise whose target is "
+        "that same structure (Biceps Curl), and the same limiter should not be "
+        "hit twice within a few minutes; session_plan already follows this on "
+        "top of 'large muscle groups first'.\n"
         "Give short, concrete, scientifically defensible observations and ONE "
         "session suggestion. It MUST include WHEN to train next (how many rest "
         "days / the earliest sensible date — use load_and_recovery."
@@ -1264,9 +1312,9 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
     )
     msg = client.messages.create(
         model=model,
-        max_tokens=6000,                         # room for adaptive thinking + answer
+        max_tokens=16000,                        # room for adaptive thinking + a real analysis
         thinking={"type": "adaptive"},           # on by default for Opus 5 / Fable
-        output_config={"effort": "low"},         # simple phrasing task -> keep it cheap/fast
+        output_config={"effort": effort},        # analysis task now; user-tunable via 'ai_effort'
         system=system,
         messages=[{"role": "user", "content": json.dumps(summary, ensure_ascii=False)}],
     )
