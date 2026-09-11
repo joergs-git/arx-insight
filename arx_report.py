@@ -162,10 +162,14 @@ def load_sets(con, user_id: int) -> list[dict]:
         except Exception:
             pass
 
-        rom_cm = None
+        # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
+        # programmed pauses - needed per set for the session-sequence analysis
+        rom_cm = pause_end = pause_return = None
         try:
             cfg = json.loads(rsd.decode("latin1"))
             rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
+            pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
+            pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
         except Exception:
             pass
 
@@ -183,6 +187,8 @@ def load_sets(con, user_id: int) -> list[dict]:
             "protocol": r["PROTOCOL"],
             "reps": reps,
             "rom_cm": rom_cm,
+            "pause_end_s": pause_end,          # programmed hold at the end position
+            "pause_return_s": pause_return,    # programmed pause at the start position
             "max_kg": round(float(r["MAXLOAD"] or 0) * LB_TO_KG, 1),
             "concentric_kg": round(c * LB_TO_KG, 1),
             "eccentric_kg": round(e * LB_TO_KG, 1),
@@ -591,6 +597,149 @@ def _load_analysis(work: list[dict]) -> dict:
     }
 
 
+# --- session sequence analysis --------------------------------------------------
+SEQ_DAYS = 10                  # training days handed to the UI / AI as ordered sequences
+VISIT_GAP_MIN = 60             # a longer gap between sets = a new visit (wall-clock resets)
+INTRA_REST_MIN = 5             # minutes: a repeat of the same exercise sooner than this is flagged
+DENSE_TUL_RATIO = 0.5          # time-under-load / wall-clock >= this = a dense (rushed) session
+MANY_SETS_DENSE = 4            # more working sets than this in a dense session -> flag
+MANY_SETS = 6                  # more working sets than this in any session -> flag
+DENSITY_SHIFT_PCT = 20         # session work density deviating this much from the last 3 -> flag
+
+
+def _session_sequences(work: list[dict], approach: str, catalog: dict | None = None) -> list[dict]:
+    """The ORDER of sets within each training day, plus rule-based flags.
+
+    Cross-day metrics cannot see that six sets were spread over all muscle
+    groups, or that an exercise was repeated four minutes after a set that
+    loaded the same muscle chain. So per training day we list the working sets
+    in time order with the rest before each one, its effort, its machine
+    pauses, and whether it repeats an exercise (or, via the catalog's
+    'limiters', a limiting muscle) already used that day.
+
+    Definitions:
+      minutes_since_prev_set  rest from the END of the previous set to the START
+                              of this one (None for the day's first set).
+      density_kg_per_s        impulse / seconds - by construction equal to the
+                              set's mean force; kept as the per-set density figure.
+      work_density_per_min    session impulse per wall-clock minute - THIS is
+                              what shifts when pause length / tempo settings
+                              change, so density_shift is judged on it.
+      wall_minutes            first start to last end, summed per visit (a gap
+                              longer than VISIT_GAP_MIN starts a new visit).
+
+    Flags (each carries the numbers behind it):
+      too_many_sets            > MANY_SETS working sets, or > MANY_SETS_DENSE in
+                               a dense session (tul_ratio >= DENSE_TUL_RATIO).
+      scattered_session        all three groups on one day although approach='split'.
+      short_intra_session_rest a repeat of the same exercise / same limiter with
+                               < INTRA_REST_MIN minutes rest since that earlier set.
+      density_shift            work_density_per_min off by > DENSITY_SHIFT_PCT %
+                               from the mean of the previous three sessions."""
+    catalog = catalog or {}
+    by_day: dict[str, list[dict]] = {}
+    for s in work:
+        by_day.setdefault(s["date"][:10], []).append(s)
+
+    out = []
+    for day in sorted(by_day):
+        ss = sorted(by_day[day], key=lambda s: s["date"])
+        sets, prev_end, prev_start = [], None, None
+        seen_ex: dict = {}          # exercise -> end time of its last set today
+        seen_lim: dict = {}         # limiter -> (end time, exercise name) of the last set loading it
+        visits, wall = 1, 0.0
+        visit_start = None
+        for i, s in enumerate(ss):
+            t = _ts(s["date"])
+            end = (t + s["seconds"]) if t is not None else None
+            rest = round((t - prev_end) / 60.0, 1) if (t is not None and prev_end is not None) else None
+            # wall-clock per visit: reset when the gap is long
+            if visit_start is None:
+                visit_start = t
+            elif rest is not None and rest > VISIT_GAP_MIN:
+                wall += (prev_end - visit_start) / 60.0
+                visits += 1
+                visit_start = t
+            meta = catalog.get(str(s["exercise"]), {})
+            limiters = list(meta.get("limiters") or [])
+            pre_fatigued = sorted(l for l in limiters if l in seen_lim)
+            repeat = s["exercise"] in seen_ex
+            rec = {
+                "order": i + 1,
+                "exercise": s["name"], "group": s["group"],
+                "minutes_since_prev_set": rest,
+                "max_kg": s["max_kg"], "mean_force_kg": s["mean_force_kg"], "seconds": s["seconds"],
+                "reps": s["reps"],
+                "density_kg_per_s": round(s["impulse_kg_s"] / s["seconds"], 1) if s["seconds"] else None,
+                "rom_cm": s["rom_cm"], "inroad": s.get("inroad"), "effort": s.get("effort"),
+                "pause_end_s": s.get("pause_end_s"), "pause_return_s": s.get("pause_return_s"),
+                "repeat_of_earlier_set": repeat,
+                "minutes_since_same_exercise": (round((t - seen_ex[s["exercise"]]) / 60.0, 1)
+                                                if repeat and t is not None else None),
+                "limiters": limiters,
+                "limiters_pre_fatigued": pre_fatigued,
+                "limiters_pre_fatigued_by": {l: seen_lim[l][1] for l in pre_fatigued},
+                "minutes_since_limiter_loaded": ({l: round((t - seen_lim[l][0]) / 60.0, 1) for l in pre_fatigued}
+                                                 if t is not None else {}),
+            }
+            sets.append(rec)
+            if end is not None:
+                seen_ex[s["exercise"]] = end
+                for l in limiters:
+                    seen_lim[l] = (end, s["name"])
+                prev_end = end
+            prev_start = t
+        if visit_start is not None and prev_end is not None:
+            wall += (prev_end - visit_start) / 60.0
+        wall = round(wall, 1)
+
+        tul = sum(s["seconds"] for s in ss)
+        impulse = sum(s["impulse_kg_s"] for s in ss)
+        tul_ratio = round(tul / (wall * 60), 2) if wall else None
+        work_density = round(impulse / wall, 1) if wall else None
+        groups = sorted({s["group"] for s in ss if s["group"] in ("Push", "Pull", "Drive")})
+        n = len(ss)
+
+        flags = []
+        dense = tul_ratio is not None and tul_ratio >= DENSE_TUL_RATIO
+        if n > MANY_SETS or (dense and n > MANY_SETS_DENSE):
+            flags.append({"type": "too_many_sets", "working_sets": n, "tul_ratio": tul_ratio,
+                          "wall_minutes": wall,
+                          "detail": f"{n} working sets" + (f" in a dense session (time under load {tul_ratio:.0%} of {wall} min)" if dense else "")})
+        if approach == "split" and len(groups) == 3:
+            flags.append({"type": "scattered_session", "groups": groups,
+                          "detail": "Push, Pull and Drive all trained on one day although the approach is 'split'"})
+        for r in sets:
+            m = r["minutes_since_same_exercise"]
+            if r["repeat_of_earlier_set"] and m is not None and m < INTRA_REST_MIN:
+                flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
+                              "minutes_rest": m, "detail": f"{r['exercise']} repeated after only {m} min rest"})
+            for l, m2 in r["minutes_since_limiter_loaded"].items():
+                if m2 < INTRA_REST_MIN and not (r["repeat_of_earlier_set"] and r["minutes_since_same_exercise"] == m2):
+                    flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
+                                  "limiter": l, "after": r["limiters_pre_fatigued_by"][l], "minutes_rest": m2,
+                                  "detail": f"{r['exercise']} loads '{l}' only {m2} min after {r['limiters_pre_fatigued_by'][l]}"})
+        prev3 = [d["work_density_per_min"] for d in out[-3:] if d["work_density_per_min"]]
+        if work_density and prev3:
+            ref = st.mean(prev3)
+            dev = round((work_density - ref) / ref * 100)
+            if abs(dev) > DENSITY_SHIFT_PCT:
+                flags.append({"type": "density_shift", "work_density_per_min": work_density,
+                              "previous_mean": round(ref, 1), "deviation_pct": dev,
+                              "detail": f"work density {work_density} vs {round(ref, 1)} in the previous {len(prev3)} session(s) ({dev:+d} %) - check pause/tempo settings or rest between sets"})
+
+        out.append({
+            "date": day, "sets": sets, "working_sets": n,
+            "groups_touched": groups, "visits": visits, "wall_minutes": wall,
+            "time_under_load_min": round(tul / 60, 1), "tul_ratio": tul_ratio,
+            "work_density_per_min": work_density,
+            "mean_set_density_kg_per_s": round(st.mean([r["density_kg_per_s"] for r in sets if r["density_kg_per_s"]]), 1)
+                                          if any(r["density_kg_per_s"] for r in sets) else None,
+            "flags": flags,
+        })
+    return out[-SEQ_DAYS:]
+
+
 # Which exercises load which body part (for injury-aware planning).
 BODYPART_EXERCISES = {
     "shoulder":   ["Incline Press", "Horizontal Press", "Decline Press", "Overhead Press",
@@ -840,6 +989,8 @@ def build_report(con, cfg: dict) -> dict:
                     **decode_force_curve(con, top["id"])}
 
     load = _load_analysis(work)
+    approach = cfg.get("approach", "auto")
+    sequences = _session_sequences(work, approach, catalog)
 
     # headline KPIs for the UI
     ce = [s["eccentric_kg"] / s["concentric_kg"] for s in work if s["concentric_kg"] > 0]
@@ -863,14 +1014,15 @@ def build_report(con, cfg: dict) -> dict:
         "rom_warnings": _rom_warnings(exercises),
         "whole_body": _whole_body(work, exercises),
         "load": load,
+        "session_sequences": sequences,
         "totals": _totals(work, load.get("weekly_rate")),
         "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,
         "focus": cfg.get("focus", {}) or {},
-        "approach": cfg.get("approach", "auto"),
+        "approach": approach,
         "session_plan": _session_plan(exercises, restrictions,
                                       cfg.get("focus", {}) or {},
-                                      cfg.get("approach", "auto"), load),
+                                      approach, load),
         "featured": featured,
     }
 
@@ -941,6 +1093,27 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         } for w in report.get("rom_warnings", [])],
         "whole_body_index_per_day": report["whole_body"]["series"],
         "load_and_recovery": report["load"],
+        # Raw material for the model's OWN observations (see system prompt):
+        # the ordered sets of the last training days, in the user's units.
+        "session_sequences": [{
+            "date": d["date"], "working_sets": d["working_sets"], "visits": d["visits"],
+            "groups_touched": d["groups_touched"], "wall_minutes": d["wall_minutes"],
+            "time_under_load_min": d["time_under_load_min"], "tul_ratio": d["tul_ratio"],
+            "work_density_per_min": kg(d["work_density_per_min"]),
+            "flags": d["flags"],
+            "sets": [{
+                "order": x["order"], "exercise": x["exercise"], "group": x["group"],
+                "minutes_since_prev_set": x["minutes_since_prev_set"],
+                "peak": kg(x["max_kg"]), "mean_force": kg(x["mean_force_kg"]),
+                "seconds": x["seconds"], "reps": x["reps"], "rom": cm(x["rom_cm"]),
+                "inroad": x["inroad"], "effort": x["effort"],
+                "pause_end_s": x["pause_end_s"], "pause_return_s": x["pause_return_s"],
+                "repeat_of_earlier_set": x["repeat_of_earlier_set"],
+                "minutes_since_same_exercise": x["minutes_since_same_exercise"],
+                "limiters": x["limiters"], "limiters_pre_fatigued": x["limiters_pre_fatigued"],
+                "limiters_pre_fatigued_by": x["limiters_pre_fatigued_by"],
+            } for x in d["sets"]],
+        } for d in report.get("session_sequences", [])],
         "totals": report["totals"],
         "session_plan": report["session_plan"],
         "featured_set": {
