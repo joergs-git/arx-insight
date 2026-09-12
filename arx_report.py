@@ -557,106 +557,296 @@ def _totals(work: list[dict], weekly_rate, sequences: list[dict]) -> dict:
     }
 
 
-def _load_analysis(work: list[dict]) -> dict:
-    """Recovery / load signals from how training is spaced over time.
+# --- recovery model ------------------------------------------------------------
+# Recovery is judged per MUSCLE - not per Push/Pull/Drive group and not by the
+# calendar alone. A set loads its target muscles at the effort the set actually
+# reached and its limiters one rank lower (a limiter works, but only as a means).
+# A muscle is ready again when the rest its hardest recent load required has
+# elapsed. That is what makes two sessions on consecutive days fine when they
+# used different muscles, and what lets one deep isolation set block only the
+# exercises that need that muscle fresh instead of the whole next day.
+EFFORT_RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 2}
+RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
+REQUIRED_REST = {3: 3, 2: 2, 1: 1}     # days a muscle needs after a load of that rank
+RECOVERY_LOOKBACK_DAYS = 14            # older loads cannot still be limiting
+RECENT_WINDOW_DAYS = 7                 # the load flag is judged on this window before today
+DETRAINING_GAP_DAYS = 10               # longer without training -> adaptation is being lost
+# daily check-in: soreness regions -> the muscle vocabulary of exercises.json
+SORENESS_REGIONS = {
+    "legs": ["quads", "glutes", "hamstrings", "calves"],
+    "back": ["lats", "upper_back", "lower_back"],
+    "chest": ["chest"],
+    "arms": ["elbow_flexors", "triceps", "grip"],
+    "shoulders": ["shoulders"],
+}
 
-    Base idea of ARX-style high-intensity training: brief, all-out, and
-    INFREQUENT (often ~1x/week per muscle group). Standard resistance-training
-    recovery is ~48-72h per muscle group. So we look at the gaps between training
-    days overall and per muscle group (Push/Pull/Drive), and the weekly rate.
-    Too-frequent training with short rest points to overreaching / insufficient
-    recovery; very long gaps point to detraining. The final judgement is left to
-    the AI (with these numbers + guidance); we add only a conservative flag."""
-    days = sorted({s["date"][:10] for s in work})
-    ords = [datetime.fromisoformat(d).toordinal() for d in days]
-    gaps = [b - a for a, b in zip(ords, ords[1:])]           # days between sessions
-    span = (ords[-1] - ords[0]) if len(ords) > 1 else 0
-    weekly_rate = round(len(days) / (span / 7), 1) if span else None
-    last = ords[-1] if ords else 0
-    sessions_last7 = sum(1 for o in ords if last - o < 7)
 
-    # Effort-conditioned recovery: the 48-72h window only applies AFTER a session
-    # that actually reached deep fatigue. A sub-maximal session needs far less
-    # (~12-24h). So required rest is a function of the previous day's real effort.
-    RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 0}
-    REQUIRED_REST = {3: 3, 2: 2, 1: 1, 0: 2}   # days of rest a session of this effort needs
+def _today(cfg: dict) -> date:
+    """Today - overridable via cfg['_today'] (ISO date) for reproducible tests."""
+    t = (cfg or {}).get("_today")
+    try:
+        return date.fromisoformat(t) if t else date.today()
+    except Exception:
+        return date.today()
 
+
+def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
+    """Which muscles one set loads and how hard: (muscle, rank, role). Targets
+    at the set's effort rank, limiters one rank lower (min 1). An exercise
+    without catalog targets loads its group name as a pseudo-muscle, so an
+    unknown exercise never silently drops out of the model."""
+    meta = catalog.get(str(s["exercise"]), {})
+    rank = EFFORT_RANK.get(s.get("effort"), 2)
+    targets = list(meta.get("targets") or []) or [s.get("group") or "?"]
+    limiters = [l for l in (meta.get("limiters") or []) if l not in targets]
+    return [(m, rank, "target") for m in targets] + [(m, max(rank - 1, 1), "limiter") for m in limiters]
+
+
+def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: date,
+              checkin: dict | None = None) -> dict:
+    """Muscle-level readiness for TODAY, per muscle, per exercise and per group.
+
+    Per muscle the binding load is the recent load whose rest requirement ends
+    last: ready_on = that day + REQUIRED_REST[rank]. The daily check-in can
+    override the calendar: strong soreness in a region keeps its muscles not
+    ready today, mild soreness marks them 'limited' (train, but sub-max).
+    Per exercise: ready (all targets ready) | limited (targets ready, but a
+    limiter is not fresh or a target is mildly sore) | not_ready (a target
+    is not ready). Groups get a compatibility rollup for the UI / planner."""
+    today_ord = today.toordinal()
+    per_muscle_day: dict = {}          # muscle -> {ordinal: (rank, exercise, role)}
+    for s in work:
+        o = date.fromisoformat(s["date"][:10]).toordinal()
+        if today_ord - o > RECOVERY_LOOKBACK_DAYS:
+            continue
+        for m, rank, role in _set_loads(s, catalog):
+            cell = per_muscle_day.setdefault(m, {})
+            if rank > cell.get(o, (0, "", ""))[0]:
+                cell[o] = (rank, s["name"], role)
+
+    muscles: dict = {}
+    for m, days in per_muscle_day.items():
+        last_ord = max(days)
+        binding = max(days, key=lambda o: (o + REQUIRED_REST[days[o][0]], days[o][0]))
+        rank_b, ex_b, role_b = days[binding]
+        ready_ord = binding + REQUIRED_REST[rank_b]
+        muscles[m] = {
+            "ready_on": date.fromordinal(ready_ord).isoformat(),
+            "ready": today_ord >= ready_ord,
+            "days_since": today_ord - last_ord,
+            "last_date": date.fromordinal(last_ord).isoformat(),
+            "last_effort": RANK_LABEL[days[last_ord][0]],
+            "last_exercise": days[last_ord][1],
+            "needed_days": REQUIRED_REST[rank_b],
+            "reason": f"{RANK_LABEL[rank_b]} {ex_b} {date.fromordinal(binding).isoformat()}"
+                      + (" (as limiter)" if role_b == "limiter" else ""),
+            "sore": None,
+        }
+    # the check-in beats the calendar: sore muscles are not recovered, whatever the dates say
+    for region, level in ((checkin or {}).get("soreness") or {}).items():
+        if level not in ("mild", "strong"):
+            continue
+        for m in SORENESS_REGIONS.get(region, []):
+            cell = muscles.setdefault(m, {"ready_on": today.isoformat(), "ready": True, "days_since": None,
+                                          "last_date": None, "last_effort": None, "last_exercise": None,
+                                          "needed_days": 0, "reason": "", "sore": None})
+            cell["sore"] = level
+            if level == "strong":
+                tomorrow = (today + timedelta(days=1)).isoformat()
+                cell["ready_on"] = max(cell["ready_on"], tomorrow)
+                cell["ready"] = False
+                cell["reason"] = "strong soreness (check-in)" + (f" · {cell['reason']}" if cell["reason"] else "")
+
+    ex_rows = []
+    for e in exercises:
+        targets = list(e.get("targets") or []) or [e.get("group") or "?"]
+        limiters = [l for l in (e.get("limiters") or []) if l not in targets]
+        t_block = [m for m in targets if m in muscles and not muscles[m]["ready"]]
+        l_block = [m for m in limiters if m in muscles and not muscles[m]["ready"]]
+        t_mild = [m for m in targets if muscles.get(m, {}).get("sore") == "mild"]
+        if t_block:
+            status, ready_on, fresh_on = "not_ready", max(muscles[m]["ready_on"] for m in t_block), None
+            why = "; ".join(f"{m}: {muscles[m]['reason']}" for m in t_block)
+        elif l_block or t_mild:
+            status, ready_on = "limited", today.isoformat()
+            fresh_on = max([muscles[m]["ready_on"] for m in l_block] + [today.isoformat()])
+            why = "; ".join([f"{m}: {muscles[m]['reason']} (fresh {muscles[m]['ready_on']})" for m in l_block]
+                            + [f"{m}: mild soreness (check-in)" for m in t_mild])
+        else:
+            status, ready_on, fresh_on, why = "ready", today.isoformat(), today.isoformat(), ""
+        ex_rows.append({"name": e["name"], "group": e["group"], "ex": e["ex"], "status": status,
+                        "ready_on": ready_on, "fresh_on": fresh_on,
+                        "limited_by": sorted(set(l_block + t_mild)), "blocked_by": t_block, "reason": why})
+
+    # group rollup (compatibility for the UI and the planner)
     per_group = {}
-    insufficient_after_hard = 0
     for grp in ("Push", "Pull", "Drive"):
-        # daily effort for this muscle group
-        by_day = {}
+        rows = [r for r in ex_rows if r["group"] == grp]
+        by_day: dict = {}
         for s in (x for x in work if x.get("group") == grp):
             d = s["date"][:10]
-            r = RANK.get(s.get("effort"), 0)
+            r = EFFORT_RANK.get(s.get("effort"), 2)
             cell = by_day.setdefault(d, {"rank": 0, "inroad": None})
             if r >= cell["rank"]:
-                cell["rank"] = r
-                cell["inroad"] = s.get("inroad")
+                cell["rank"], cell["inroad"] = r, s.get("inroad")
         gdays = sorted(by_day)
-        gords = [datetime.fromisoformat(d).toordinal() for d in gdays]
-        # check each consecutive pair: was the gap enough for the PREVIOUS effort?
-        events = []
-        for (pd, po), (cd, co) in zip(zip(gdays, gords), zip(gdays[1:], gords[1:])):
-            prev_rank = by_day[pd]["rank"]
-            need = REQUIRED_REST[prev_rank]
-            got = co - po
-            if got < need and prev_rank >= 2:      # short rest after a hard session
-                events.append({"after": pd, "effort": prev_rank, "rest_days": got, "needed": need})
-                insufficient_after_hard += 1
+        gords = [date.fromisoformat(d).toordinal() for d in gdays]
         last_day = gdays[-1] if gdays else None
-        rank_label = {3: "deep", 2: "moderate", 1: "submax", 0: "unknown"}
-        last_rank = by_day[last_day]["rank"] if last_day else 0
-        days_since = (datetime.now().toordinal() - gords[-1]) if gords else None   # vs today
-        ready = (days_since is None) or (days_since >= REQUIRED_REST[last_rank])   # recovered enough
         per_group[grp] = {
             "days": len(gdays),
             "min_gap": min((b - a for a, b in zip(gords, gords[1:])), default=None),
             "hard_days": sum(1 for d in gdays if by_day[d]["rank"] >= 2),
             "submax_days": sum(1 for d in gdays if by_day[d]["rank"] == 1),
-            "last_effort": rank_label[last_rank] if last_day else None,
+            "last_effort": RANK_LABEL.get(by_day[last_day]["rank"]) if last_day else None,
             "last_inroad": by_day[last_day]["inroad"] if last_day else None,
-            "days_since": days_since,
-            "ready": ready,
-            "insufficient_recovery": events,
+            "days_since": (today_ord - gords[-1]) if gords else None,
+            "ready": any(r["status"] in ("ready", "limited") for r in rows) if rows else True,
+            "ready_on": min((r["ready_on"] for r in rows), default=today.isoformat()),
         }
 
-    # When should the next session start? Rest scales with the LAST day's real
-    # effort (per the effort-conditioned rule above), taken across the groups
-    # trained that day. Sub-maximal last day -> train again soon; deep -> wait.
-    next_rest, next_earliest = None, None
-    if days:
-        last_day = days[-1]
-        last_ranks = [RANK.get(s.get("effort"), 0) for s in work if s["date"][:10] == last_day]
-        r = max(last_ranks) if last_ranks else 0
-        next_rest = REQUIRED_REST[r]
-        next_earliest = (datetime.fromisoformat(last_day) + timedelta(days=next_rest)).date().isoformat()
+    ready_today = [r["name"] for r in ex_rows if r["status"] == "ready"]
+    limited_today = [{"name": r["name"], "limited_by": r["limited_by"], "fresh_on": r["fresh_on"], "reason": r["reason"]}
+                     for r in ex_rows if r["status"] == "limited"]
+    not_ready = [{"name": r["name"], "ready_on": r["ready_on"], "blocked_by": r["blocked_by"], "reason": r["reason"]}
+                 for r in ex_rows if r["status"] == "not_ready"]
+    if ready_today or limited_today or not ex_rows:
+        next_earliest = today.isoformat()
+    else:
+        next_earliest = min(r["ready_on"] for r in not_ready)
+    return {
+        "muscles": muscles,
+        "exercises": ex_rows,
+        "ready_today": ready_today,
+        "limited_today": limited_today,
+        "not_ready": not_ready,
+        "next_earliest": next_earliest,
+        "recommended_rest_days": (date.fromisoformat(next_earliest) - today).days,
+        "all_ready_on": max((r["ready_on"] for r in ex_rows), default=today.isoformat()),
+        "per_group": per_group,
+    }
 
-    hard_total = sum(pg["hard_days"] for pg in per_group.values())
-    submax_total = sum(pg["submax_days"] for pg in per_group.values())
-    # Flag is now effort-conditioned, not frequency alone.
-    if insufficient_after_hard >= 1:
-        flag = "overload_risk"                 # short rest FOLLOWING genuinely hard sessions
-    elif gaps and sorted(gaps)[len(gaps) // 2] > 10:
-        flag = "detraining_risk"               # long gaps -> losing adaptation
-    elif hard_total == 0 and len(days) >= 3:
-        flag = "underload"                     # frequent but never truly maximal
+
+def _session_transitions(work: list[dict], catalog: dict) -> list[dict]:
+    """Consecutive training days compared on the muscle level.
+
+    For every training day after the first: the gap to the previous training
+    day, which muscles both days loaded, and - checked against each muscle's
+    OWN previous load, not only the previous day - whether a muscle was loaded
+    moderate-or-harder again before the rest its previous hard load required
+    had elapsed ('conflict'). A day right after another day is fine when
+    different muscles were used, or when the repeat was light."""
+    loads: dict = {}                   # date -> {muscle: (rank, exercise)}
+    for s in work:
+        d = s["date"][:10]
+        for m, rank, _role in _set_loads(s, catalog):
+            if rank > loads.setdefault(d, {}).get(m, (0, ""))[0]:
+                loads[d][m] = (rank, s["name"])
+    days = sorted(loads)
+    prev_load: dict = {}               # muscle -> (ordinal, rank, exercise, date)
+    out = []
+    for i, d in enumerate(days):
+        o = date.fromisoformat(d).toordinal()
+        conflicts, repeated = [], []
+        for m, (rank, ex) in loads[d].items():
+            if m in prev_load:
+                po, prank, pex, pdate = prev_load[m]
+                gap, need = o - po, REQUIRED_REST[prank]
+                if prank >= 2 and rank >= 2 and gap < need:
+                    conflicts.append({"muscle": m, "prev_date": pdate, "prev_effort": RANK_LABEL[prank],
+                                      "prev_exercise": pex, "effort": RANK_LABEL[rank], "exercise": ex,
+                                      "gap_days": gap, "needed_days": need})
+                if i and pdate == days[i - 1]:
+                    repeated.append(m)
+        for m, (rank, ex) in loads[d].items():
+            prev_load[m] = (o, rank, ex, d)
+        if i == 0:
+            continue
+        gap_prev = o - date.fromisoformat(days[i - 1]).toordinal()
+        verdict = "conflict" if conflicts else ("fine" if repeated else "no_overlap")
+        if conflicts:
+            detail = (f"{gap_prev} day(s) after {days[i - 1]} - conflict: "
+                      + ", ".join(f"{c['muscle']} {c['prev_effort']} -> {c['effort']} after {c['gap_days']} of {c['needed_days']} days"
+                                  for c in conflicts))
+        elif repeated:
+            detail = f"{gap_prev} day(s) after {days[i - 1]} - {', '.join(sorted(repeated))} loaded again, no conflict"
+        else:
+            detail = f"{gap_prev} day(s) after {days[i - 1]} - different muscles, no overlap"
+        out.append({"date": d, "prev_date": days[i - 1], "gap_days": gap_prev,
+                    "muscles_repeated": sorted(repeated), "conflicts": conflicts,
+                    "verdict": verdict, "detail": detail})
+    return out
+
+
+def _load_analysis(work: list[dict], catalog: dict, exercises: list[dict], today: date,
+                   checkin: dict | None = None) -> dict:
+    """Recovery / load signals from how training is spaced over time.
+
+    Base idea of ARX-style high-intensity training: brief, all-out, and
+    INFREQUENT. Recovery is effort-conditioned (~48-72 h only after a truly
+    maximal load, far less after a sub-maximal one) and judged per MUSCLE
+    (see _recovery / _session_transitions). The overall flag looks only at the
+    last RECENT_WINDOW_DAYS before today - what happened in the first weeks is
+    history, not today's state:
+      overload_risk    a hard-on-hard conflict inside the window, or the
+                       check-in reports an elevated resting HR plus strong soreness
+      detraining_risk  more than DETRAINING_GAP_DAYS since the last session
+      underload        two or more sessions in the window, none moderate or harder
+      ok               otherwise
+    History totals are kept for the AI. The final judgement is the AI's, with
+    these numbers and the guidance in its prompt."""
+    today_ord = today.toordinal()
+    days = sorted({s["date"][:10] for s in work})
+    ords = [date.fromisoformat(d).toordinal() for d in days]
+    gaps = [b - a for a, b in zip(ords, ords[1:])]           # days between training days
+    span = (ords[-1] - ords[0]) if len(ords) > 1 else 0
+    weekly_rate = round(len(days) / (span / 7), 1) if span else None
+    sessions_last7 = sum(1 for o in ords if today_ord - o < 7)
+    day_rank = {d: max(EFFORT_RANK.get(s.get("effort"), 2) for s in work if s["date"][:10] == d) for d in days}
+    hard_days = sum(1 for d in days if day_rank[d] >= 2)
+    submax_days = sum(1 for d in days if day_rank[d] < 2)
+
+    recovery = _recovery(work, catalog, exercises, today, checkin)
+    transitions = _session_transitions(work, catalog)
+    all_conflicts = [c for t in transitions for c in t["conflicts"]]
+
+    window_start = today_ord - RECENT_WINDOW_DAYS
+    w_days = [d for d in days if date.fromisoformat(d).toordinal() >= window_start]
+    w_conflicts = [dict(c, date=t["date"]) for t in transitions
+                   if date.fromisoformat(t["date"]).toordinal() >= window_start for c in t["conflicts"]]
+    w_light = [d for d in w_days if day_rank[d] < 2]
+    ci = checkin or {}
+    strong_sore = any(v == "strong" for v in (ci.get("soreness") or {}).values())
+    if w_conflicts or (ci.get("rhr_status") == "elevated" and strong_sore):
+        flag = "overload_risk"
+    elif days and (today_ord - ords[-1] > DETRAINING_GAP_DAYS or (gaps and gaps[-1] > DETRAINING_GAP_DAYS)):
+        flag = "detraining_risk"
+    elif len(w_days) >= 2 and len(w_light) == len(w_days):
+        flag = "underload"
     else:
         flag = "ok"
 
     return {
+        "today": today.isoformat(),
         "training_days": len(days),
         "gaps_days": gaps,
         "median_gap_days": sorted(gaps)[len(gaps) // 2] if gaps else None,
         "min_gap_days": min(gaps) if gaps else None,
+        "days_since_last": (today_ord - ords[-1]) if ords else None,
         "sessions_last7": sessions_last7,
         "weekly_rate": weekly_rate,
-        "hard_sessions": hard_total,
-        "submax_sessions": submax_total,
-        "insufficient_recovery_after_hard": insufficient_after_hard,
-        "recommended_rest_days": next_rest,      # days to wait before the next session
-        "next_earliest": next_earliest,          # earliest sensible next training date
-        "per_group": per_group,
+        "hard_sessions": hard_days,                  # training days with at least one moderate/deep set
+        "submax_sessions": submax_days,
+        "insufficient_recovery_after_hard": len(w_conflicts),        # conflicts in the recent window
+        "insufficient_recovery_after_hard_total": len(all_conflicts),  # ... over the whole history
+        "conflicts_recent": w_conflicts,
+        "window": {"days": RECENT_WINDOW_DAYS, "sessions": len(w_days), "light_sessions": len(w_light),
+                   "conflicts": len(w_conflicts)},
+        "recommended_rest_days": recovery["recommended_rest_days"],   # 0 = something is ready today
+        "next_earliest": recovery["next_earliest"],
+        "all_ready_on": recovery["all_ready_on"],
+        "per_group": recovery["per_group"],
+        "recovery": {k: recovery[k] for k in ("muscles", "exercises", "ready_today", "limited_today", "not_ready")},
+        "transitions": transitions[-SEQ_DAYS:],
         "flag": flag,
     }
 
@@ -897,24 +1087,33 @@ def _session_plan(exercises: list[dict], restrictions: dict,
         drops Drive / Belt Squat); 'more' comes first and may get an extra slot;
         'less' only fills leftover slots.
       * approach: 'full' (balanced full body every session), 'split' (feature the
-        one most due & recovered region this session), or 'auto' (auto-regulate:
-        skip groups that are not recovered yet, per the load model).
-    The AI plan on top of this individualizes further from history."""
+        one most due & recovered region this session), or 'auto' (auto-regulate
+        by the MUSCLE-level readiness: exercises whose target muscles are not
+        recovered are left out, exercises whose limiter is not fresh go last
+        with a cue, and nothing ready means an empty plan = rest day).
+    Every item carries its readiness (status / ready_on / limited_by) so the UI
+    and the AI can mark it. The AI plan on top individualizes further."""
     focus = focus or {}
     approach = approach or "full"
     frank = {"more": 0, "normal": 1, "less": 2, "off": 3}
     fstate = lambda g: focus.get(g, "normal")
-    ready = {g: (load.get("per_group", {}).get(g, {}) or {}).get("ready", True)
-             for g in ("Push", "Pull", "Drive")}
+    rec = {r["name"]: r for r in ((load.get("recovery") or {}).get("exercises") or [])}
+    def rstate(e):
+        return rec.get(e["name"], {"status": "ready", "ready_on": None, "fresh_on": None, "limited_by": [], "reason": ""})
 
     def restr(e): return exercise_restriction(e["name"], restrictions)
     avail = [e for e in exercises if restr(e) != "avoid" and fstate(e["group"]) != "off"]
+    if approach == "auto":
+        avail = [e for e in avail if rstate(e)["status"] != "not_ready"]
+        avail.sort(key=lambda e: 0 if rstate(e)["status"] == "ready" else 1)   # stable: PB order kept within
 
     def mk(e):
-        r = restr(e)
+        r, rs = restr(e), rstate(e)
         return {"name": e["name"], "group": e["group"], "last": e["last"],
                 "restriction": r, "target": "gentle" if r == "careful" else "max",
-                "targets": e.get("targets", []), "limiters": e.get("limiters", [])}
+                "targets": e.get("targets", []), "limiters": e.get("limiters", []),
+                "status": rs["status"], "ready_on": rs["ready_on"], "fresh_on": rs.get("fresh_on"),
+                "limited_by": rs.get("limited_by", []), "readiness_reason": rs.get("reason", "")}
 
     chosen = []
     if approach == "split":
@@ -927,11 +1126,10 @@ def _session_plan(exercises: list[dict], restrictions: dict,
         feature = groups[0] if groups else None
         chosen = [e for e in avail if e["group"] == feature][:4]
     else:
-        # 'full' and 'auto' both produce a classic, always-usable balanced plan
-        # (never gated to empty). For 'auto' we put the most-recovered groups
-        # first; the readiness/timing itself is shown separately and handled by
-        # the AI. This way the standard plan is always visible - e.g. as a
-        # preview of what to do when a rest day ends.
+        # 'full' and 'auto' both produce a classic balanced plan; 'auto' has
+        # already dropped what is not recovered and puts the most-recovered
+        # groups first. 'full' is never gated, so the standard plan is always
+        # visible - e.g. as a preview of what to do when a rest day ends.
         used = set()
         def gkey(g):
             pg = load.get("per_group", {}).get(g, {}) or {}
@@ -951,7 +1149,10 @@ def _session_plan(exercises: list[dict], restrictions: dict,
                 continue
             used.add(e["ex"]); chosen.append(e)
 
-    return _order_by_limiters([mk(e) for e in chosen[:5]])
+    items = [mk(e) for e in chosen[:5]]
+    if approach == "auto":                    # fresh exercises get the athlete's best energy
+        items = [i for i in items if i["status"] != "limited"] + [i for i in items if i["status"] == "limited"]
+    return _order_by_limiters(items)
 
 
 EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
@@ -1099,7 +1300,13 @@ def build_report(con, cfg: dict) -> dict:
     save_effort_cache(cache)
 
     exercises = _exercise_series(work, catalog)
-    restrictions = cfg.get("restrictions", {}) or {}
+    today = _today(cfg)
+    checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
+    restrictions_saved = cfg.get("restrictions", {}) or {}
+    restrictions = dict(restrictions_saved)
+    pain_today = [p for p in (checkin.get("pain") or []) if _LEVEL_RANK.get(restrictions.get(p, "ok"), 0) < 1]
+    for p in pain_today:                      # pain today = careful today (not persisted)
+        restrictions[p] = "careful"
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions)
     days = sorted({s["date"][:10] for s in work})
@@ -1111,7 +1318,7 @@ def build_report(con, cfg: dict) -> dict:
                     "settings": featured_settings(con, top["id"], top.get("reps", 0)),
                     **decode_force_curve(con, top["id"])}
 
-    load = _load_analysis(work)
+    load = _load_analysis(work, catalog, exercises, today, checkin)
     approach = cfg.get("approach", "auto")
     sequences_all = _session_sequences(work, approach, catalog)
     # false starts per day (they are not sets, but four of them in one session
@@ -1151,7 +1358,11 @@ def build_report(con, cfg: dict) -> dict:
         "limiter_conflicts": _limiter_conflicts(sequences),
         "totals": _totals(work, load.get("weekly_rate"), sequences_all),
         "ideal_settings": IDEAL_SETTINGS,
-        "restrictions": restrictions,
+        "restrictions": restrictions,            # effective today (saved + pain from the check-in)
+        "restrictions_saved": restrictions_saved,
+        "pain_today": pain_today,
+        "checkin": checkin or None,
+        "today": today.isoformat(),
         "focus": cfg.get("focus", {}) or {},
         "approach": approach,
         "session_plan": _session_plan(exercises, restrictions,
