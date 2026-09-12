@@ -10,7 +10,7 @@
 <style>
   :root{
     --bg:#131519;--panel:#1B1E24;--panel2:#23272F;--ink:#F0EEE9;--ink2:#B3B8C1;--ink3:#7D828C;
-    --rule:#2B2F38;--rule2:#3A3F4A;--accent:#FF6A52;--good:#3FC6AE;--warn:#E0A13E;--warn-bg:#2A2212;--fc:#B18BEA;--grid:#262A32;
+    --rule:#2B2F38;--rule2:#3A3F4A;--accent:#FF6A52;--good:#3FC6AE;--good-bg:#12271F;--warn:#E0A13E;--warn-bg:#2A2212;--fc:#B18BEA;--grid:#262A32;
     --disp:'Oswald',Impact,system-ui,sans-serif;--body:'IBM Plex Sans',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -114,7 +114,10 @@
   /* two-column report: main sections left, AI panel right; both scroll together */
   #r_body{max-width:min(1500px,92vw)}
   .report-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(400px,34%);gap:34px;align-items:start}
-  @media(max-width:1040px){.report-grid{grid-template-columns:1fr}}
+  /* grid/flex children default to min-width:auto, so a wide table or chart would push the whole
+     page wider than a phone screen - cap them, inner tables/charts scroll on their own */
+  #r_main,#r_side,.kpi,.excard,.panel,.verdict > *{min-width:0}
+  @media(max-width:1040px){.report-grid{grid-template-columns:minmax(0,1fr)}}
   .who{font-family:var(--disp);font-size:26px;font-weight:700;text-transform:uppercase;background:none;border:0;color:var(--ink);padding:0;text-align:left;border-bottom:2px dashed transparent;cursor:pointer}
   .who:hover{border-bottom-color:var(--accent);color:var(--accent)}
   .banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--good-bg);border:2px solid var(--good);border-radius:8px;padding:14px 18px;margin:16px 0;font-size:17px}
@@ -268,12 +271,12 @@ function uCm(v){return CFG.units==="imperial"?+(v/2.54).toFixed(1):v;}
 const LKg=()=>CFG.units==="imperial"?"lb":"kg", LCm=()=>CFG.units==="imperial"?"in":"cm";
 
 const STR={de:{setup:"Ersteinrichtung",save:"Speichern & Starten",searchph:"Name suchen…",created:"angelegt",
-  sessions:"Sessions",curve:"Kraftkurve · Highlight",progress:"Fortschritt je Übung",ht:"Verlauf, Trend & Prognose",
+  sessions:"Sessions",sets:"Sätze",last:"Letzte Einheit",vsprev:"vs. letztes Mal",progress:"Fortschritt je Übung",ht:"Verlauf, Trend & Prognose",
   lastS:"Letzte Sessions",lastD:"Letzte Tage",wb:"Gesamtkörper-Faktor",planh:"Vorschlag nächste Einheit",aih:"KI-Auswertung",
   aitag:"Erzeugt mit deinem Schlüssel aus den Kennzahlen dieser Person.",loading:"lädt…",
   rise:"Anstieg",inroad:"Inroad"},
  en:{setup:"First-time setup",save:"Save & start",searchph:"Search name…",created:"created",
-  sessions:"sessions",curve:"Force curve · highlight",progress:"Progress per exercise",ht:"History, trend & forecast",
+  sessions:"sessions",sets:"Sets",last:"Last session",vsprev:"vs last time",progress:"Progress per exercise",ht:"History, trend & forecast",
   lastS:"Last sessions",lastD:"Last days",wb:"Whole-body factor",planh:"Next session suggestion",aih:"AI analysis",
   aitag:"Generated with your key from this person's metrics.",loading:"loading…",rise:"Rise",inroad:"Inroad"}};
 const T=()=>STR[CFG.language];
@@ -284,7 +287,13 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
-  if(!b.configured){openSettings("search");} else {show("search");$("#q").focus();}
+  if(!b.configured){openSettings("search");return;}
+  // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
+  const deep=new URLSearchParams(location.search).get("user");
+  if(deep){ api("/api/users?q=").then(async list=>{ const u=list.find(x=>String(x.id)===deep); if(!u){show("search");$("#q").focus();return;}
+    CUR={id:u.id,name:u.name}; const g=await api("/api/goal?user_id="+CUR.id);
+    CUR.restrictions=(g&&g.restrictions)||{}; CUR.language=(g&&g.language)||null; loadReport(); }); return; }
+  show("search");$("#q").focus();
 });
 
 // ---------- setup ----------
@@ -471,19 +480,18 @@ function renderReport(){
   $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${de0?'Tage':'days'} · ${r.generated.replace('T',' ').slice(0,16)}`;
   const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100),k=r.kpi,F=r.featured;
   const kpiHtml=`<div class="kpis">
-    <div class="kpi"><div class="label">${t.sessions}</div><div class="val">${r.sets_working}<small> /${r.sets_total}</small></div></div>
+    <div class="kpi"><div class="label">${t.sets}</div><div class="val">${r.sets_working}<small> /${r.sets_total}</small></div></div>
     <div class="kpi"><div class="label">${de0?'Tage':'Days'}</div><div class="val">${r.training_days.length}</div></div>
     <div class="kpi hot"><div class="label">Top</div><div class="val">${uKg(k.top_force)}<small> ${LKg()}</small></div></div>
     <div class="kpi"><div class="label">${de0?'Exz./Konz.':'Ecc./Con.'}</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
+  // sets that do not count (tests, aborts, false starts) - said openly, never hidden
+  const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data']};
+  const exl=Object.entries(r.sets_excluded||{}).filter(([,n])=>n>0).map(([k,n])=>`${n} ${(exNames[k]||[k,k])[n>1?0:1]}`);
+  const exclLine=exl.length?`<p class="foot" style="margin:6px 0 0">${r.sets_total-r.sets_working} ${de0?'Sätze nicht gewertet':'sets not counted'}: ${exl.join(', ')}. ${de0?'Nur echte Arbeitssätze fließen in Bestwerte, Trend, Belastung und Plan ein.':'Only real working sets feed bests, trends, load and the plan.'}</p>`:'';
 
-  let main=kpiHtml+goalLine+restrHtml(r.restrictions)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
-  const rmap={pb:['🏅',de0?'Neuer Bestwert!':'New personal best!'],deep:['🔥',de0?'Tiefe Ausbelastung':'Deep fatigue reached'],submax:['💤',de0?'Submaximal — Luft nach oben':'Sub-maximal — room to push'],recent:['🆕',de0?'Aktueller Satz':'Recent set']};
-  const rr2=rmap[F.reason]||rmap.recent;
-  main+=`<section><div class="eyebrow">${t.curve}</div><h2 class="sec">${F.meta.name} · ${uKg(F.meta.max_kg)} ${LKg()} <span class="chip up" style="font-size:14px;vertical-align:middle">${rr2[0]} ${rr2[1]}</span></h2>
-    <p class="lead">${F.meta.date} · ${F.meta.reps} ${de0?'Wdh.':'reps'} · ROM ${uCm(F.meta.rom_cm)} ${LCm()} · ${de0?'konz.':'con.'} ${uKg(F.meta.concentric_kg)}, ${de0?'exz.':'ecc.'} <b>${uKg(F.meta.eccentric_kg)} ${LKg()}</b>.</p>
-    <div class="panel chartwrap"><svg id="curveSvg" viewBox="0 0 1000 420"></svg></div>
-    <div class="verdict" id="verdict"></div></section>`;
+  // order: KPIs -> goal -> restrictions -> LAST SESSION (what you just did) -> readiness -> the rest
+  let main=kpiHtml+exclLine+goalLine+restrHtml(r.restrictions,r.pain_today)+lastSessionHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
   main+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
@@ -492,10 +500,13 @@ function renderReport(){
     <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
   const apprName={full:de0?'Ganzkörper':'Full body',split:de0?'Split':'Split',auto:de0?'Auto (Belastung)':'Auto (readiness)'}[r.approach||'auto'];
-  const rr=(r.load&&r.load.recommended_rest_days)||0, nx=(r.load&&r.load.next_earliest)||null;
-  const timing = rr>0
-    ? `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn);margin:0 0 12px"><b style="color:var(--warn)">🛌 ${de0?'Heute Ruhetag empfohlen':'Rest day recommended'}</b> — ${de0?'nächste Einheit ab':'next session from'} <b>${nx||'—'}</b>. ${de0?'Vorschau, was dann sinnvoll ist:':'A preview of what makes sense then:'}</div>`
-    : `<div class="banner" style="background:var(--good-bg);border-color:var(--good);margin:0 0 12px"><b style="color:var(--good)">✅ ${de0?'Heute trainierbar':'Good to train today'}</b></div>`;
+  // readiness is judged per muscle / exercise (see loadHtml): "rest day" only when NOTHING is recovered
+  const rc=(r.load&&r.load.recovery)||{ready_today:[],limited_today:[],not_ready:[]};
+  const nx=(r.load&&r.load.next_earliest)||null, allOn=(r.load&&r.load.all_ready_on)||null;
+  const notYet=rc.not_ready.length?` ${de0?'Noch nicht':'Not yet'}: ${rc.not_ready.map(x=>`${x.name} (${de0?'ab':'from'} ${x.ready_on.slice(5)})`).join(', ')}.`:'';
+  const timing = (rc.ready_today.length+rc.limited_today.length)>0
+    ? `<div class="banner" style="background:var(--good-bg);border-color:var(--good);margin:0 0 12px"><b style="color:var(--good)">✅ ${de0?'Heute trainierbar':'Good to train today'}</b> — ${rc.ready_today.length} ${de0?'Übungen bereit':'exercises ready'}${rc.limited_today.length?`, ${rc.limited_today.length} ${de0?'eingeschränkt':'limited'}`:''}.${notYet}</div>`
+    : `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn);margin:0 0 12px"><b style="color:var(--warn)">🛌 ${de0?'Heute Ruhetag empfohlen':'Rest day recommended'}</b> — ${de0?'nächste Einheit ab':'next session from'} <b>${nx||'—'}</b>${allOn?` · ${de0?'alles erholt ab':'everything recovered by'} ${allOn}`:''}. ${de0?'Vorschau, was dann sinnvoll ist:':'A preview of what makes sense then:'}</div>`;
   main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${de0?'Standardplan · klassische Methodik':'Standard plan · classic method'}</h2>
     ${timing}
     <p class="foot" style="margin:-2px 0 4px">${de0?'Regelbasiert nach anerkannter Methodik':'Rule-based, established methodology'} · ${apprName}. ${de0?'Die individualisierte, verlaufsbasierte KI-Empfehlung steht rechts →':'The individualized, history-based AI recommendation is on the right →'}</p>
@@ -508,19 +519,134 @@ function renderReport(){
   $("#r_body").innerHTML = updateBannerHtml() +
     `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;
 
-  drawCurve();drawWB();renderProg();renderPlan();
+  drawSessionCharts();drawWB();renderProg();renderPlan();
   $("#xseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;XMODE=b.dataset.x;[...$("#xseg").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===XMODE));renderProg();});
   renderAISide(); autoLoadAI();
 }
 
-function restrHtml(rest){
+// muscle vocabulary of exercises.json -> readable names
+const MUSCLE_NAMES={grip:["Griff","Grip"],elbow_flexors:["Armbeuger","Elbow flexors"],triceps:["Trizeps","Triceps"],shoulders:["Schultern","Shoulders"],
+  chest:["Brust","Chest"],lats:["Latissimus","Lats"],upper_back:["Oberer Rücken","Upper back"],lower_back:["Unterer Rücken","Lower back"],
+  glutes:["Gesäß","Glutes"],quads:["Oberschenkel vorn","Quads"],hamstrings:["Oberschenkel hinten","Hamstrings"],calves:["Waden","Calves"]};
+function mname(m){const n=MUSCLE_NAMES[m];return n?(CFG.language==="de"?n[0]:n[1]):m;}
+const pctS=v=>v==null?'—':(v>0?'+':'')+(+v).toFixed(1)+' %';
+const dcol=v=>v==null?'var(--ink3)':v>0.5?'var(--good)':v<-0.5?'var(--accent)':'var(--ink2)';
+const effLabel=e=>{const de=CFG.language==="de";return {deep:de?"tief":"deep",moderate:de?"moderat":"moderate",submax:de?"submax":"sub-max",unknown:"—"}[e]||'';};
+
+// ---- LAST SESSION: what the athlete just did, exercise by exercise, vs the previous time ----
+function lastSessionHtml(r){
+  const ls=r.last_session; if(!ls||!ls.exercises||!ls.exercises.length) return "";
+  const de=CFG.language==="de", t=T();
+  const cards=ls.exercises.filter(x=>x.chart).map((x,i)=>{
+    const p=x.prev;
+    const badges=[x.is_pb?`<span class="chip up">🏅 ${de?'Neuer Bestwert':'New PB'}</span>`:'',
+      x.effort==='deep'?`<span class="chip up">🔥 ${de?'Tiefe Ausbelastung':'Deep fatigue'}</span>`:'',
+      x.sets_today>1?`<span class="chip">${x.sets_today}× ${de?'heute':'today'}</span>`:'',
+      x.restriction&&x.restriction!=='ok'?`<span class="grp" style="background:${x.restriction==='avoid'?'var(--accent)':'var(--warn)'}">${rlabel(x.restriction)}</span>`:''].filter(Boolean).join(' ');
+    const romCmp=p?(x.delta_comparable?`<span style="color:var(--good)">✓ ROM ${uCm(x.rom_cm)} ${LCm()}</span>`
+                               :`<span style="color:var(--warn)">⚠ ROM ${uCm(x.rom_cm)} vs ${uCm(p.rom_cm)} ${LCm()}</span>`)
+                  :`ROM ${uCm(x.rom_cm)} ${LCm()}`;
+    const kpi=(label,now,sub)=>`<div class="kpi"><div class="label">${label}</div><div class="val" style="font-size:clamp(24px,3.2vw,36px)">${now}</div><div class="foot" style="margin-top:4px">${sub}</div></div>`;
+    const strip=`<div class="kpis" style="margin:10px 0 12px">
+      ${kpi(de?'Spitze':'Peak',`${uKg(x.max_kg)}<small> ${LKg()}</small>`,
+            p?`<b style="color:${x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'}">${pctS(x.delta_pct)}</b> ${t.vsprev} (${uKg(p.max_kg)}) · PB ${uKg(x.pb_kg)}`:(de?'erstes Mal':'first time'))}
+      ${kpi(de?'Mittelkraft':'Mean force',`${uKg(x.mean_force_kg)}<small> ${LKg()}</small>`,
+            p?`${pctS(x.delta_mean_pct)} ${t.vsprev} (${uKg(p.mean_force_kg)})`:'')}
+      ${kpi('Inroad',`${x.inroad==null?'—':x.inroad+'<small>%</small>'}`,
+            `${effLabel(x.effort)}${p?` · ${t.vsprev} ${p.inroad==null?'—':p.inroad+'%'}`:''}`)}
+      ${kpi(de?'Satz':'Set',`${x.reps}<small> ${de?'Wdh.':'reps'}</small> · ${Math.round(x.seconds)}<small> s</small>`,
+            `${romCmp}${x.rest_before_min!=null?` · ${de?'Pause davor':'rest before'} ${x.rest_before_min} min`:''}`)}
+    </div>`;
+    const chg=(x.settings_changed&&x.settings_changed.length)?`<p class="foot" style="margin:-4px 0 8px">⚙ ${de?'Einstellungen geändert':'Settings changed'}: ${x.settings_changed.join(' · ')} — ${de?'Kraftwerte verschieben sich mit Tempo und Pausen.':'force values shift with tempo and pauses.'}</p>`:'';
+    return `<div class="panel" style="margin-bottom:16px">
+      <div class="exhead" style="margin-bottom:0"><h3 style="font-size:24px"><span class="grp ${x.group}">${x.group}</span> ${x.name} ${badges}</h3><span class="foot">${p?`${t.vsprev}: ${p.date}`:''}</span></div>
+      ${strip}${chg}
+      <div class="chartwrap"><svg id="ls_${i}" viewBox="0 0 1000 360"></svg></div>
+      <p class="foot" id="lsv_${i}" style="margin:8px 0 0"></p></div>`;
+  }).join("");
+  const rows=ls.exercises.map(x=>{const p=x.prev;
+    return `<tr><td class="num">${x.order||''}</td>
+      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}</td>
+      <td class="num">${x.rest_before_min!=null?x.rest_before_min+' min':'—'}</td>
+      <td class="num">${uKg(x.max_kg)}</td>
+      <td class="num" style="color:${p?(x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'):'var(--ink3)'}">${p?pctS(x.delta_pct):'—'}${p&&!x.delta_comparable?' ⚠':''}</td>
+      <td class="num">${x.inroad==null?'—':x.inroad+'%'} <small style="font-family:var(--body);font-weight:400;color:var(--ink3)">${effLabel(x.effort)}</small></td>
+      <td class="num">${uCm(x.rom_cm)}${p?(x.delta_comparable?' <span style="color:var(--good)">✓</span>':' <span style="color:var(--warn)">⚠</span>'):''}</td></tr>`;}).join("");
+  const tr=ls.transition; let trans="";
+  if(tr){
+    const rep=tr.muscles_repeated.map(mname).join(', ');
+    if(tr.verdict==='conflict') trans=`<b style="color:var(--accent)">${de?'Konflikt':'Conflict'}:</b> ${tr.conflicts.map(c=>`${mname(c.muscle)} ${effLabel(c.prev_effort)} → ${effLabel(c.effort)} ${de?'nach':'after'} ${c.gap_days}/${c.needed_days} ${de?'Tagen':'days'}`).join('; ')}`;
+    else if(tr.verdict==='fine') trans=`${de?'erneut belastet':'loaded again'}: ${rep} — <b style="color:var(--good)">${de?'kein Konflikt':'no conflict'}</b>`;
+    else trans=`<b style="color:var(--good)">${de?'andere Muskeln, keine Überschneidung':'different muscles, no overlap'}</b>`;
+    trans=`<p class="foot" style="margin:10px 0 0">↔ ${tr.gap_days} ${de?(tr.gap_days===1?'Tag nach':'Tage nach'):(tr.gap_days===1?'day after':'days after')} ${tr.prev_date}: ${trans}.</p>`;
+  }
+  const fs=ls.false_starts?` · ${ls.false_starts} ${de?(ls.false_starts>1?'Fehlstarts':'Fehlstart'):(ls.false_starts>1?'false starts':'false start')}`:'';
+  const flags=(ls.flags||[]).map(f=>`<span class="chip flat" title="${f.detail||''}">${f.type.replace(/_/g,' ')}</span>`).join(' ');
+  return `<section><div class="eyebrow">${t.last}</div><h2 class="sec">${ls.date} · ${ls.working_sets} ${de?'Sätze':'sets'} · ${ls.wall_minutes} min</h2>
+    <p class="lead">${de?'Deine Übungen in Ausführungsreihenfolge, jede gegen das letzte Mal.':'Your exercises in the order performed, each against the last time you did them.'} ${de?'Gestrichelt = die vorige Kurve.':'Dashed = the previous curve.'}</p>
+    ${cards}
+    <div class="panel" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:17px;white-space:nowrap">
+      <tr class="foot"><td>#</td><td>${de?'Übung':'Exercise'}</td><td class="num">${de?'Pause davor':'Rest before'}</td><td class="num">${de?'Spitze':'Peak'} ${LKg()}</td><td class="num">${t.vsprev}</td><td class="num">Inroad</td><td class="num">ROM ${LCm()}</td></tr>
+      ${rows}</table>
+      <p class="foot" style="margin:10px 0 0">${ls.working_sets} ${de?'Arbeitssätze':'working sets'}${fs} · ${de?'unter Last':'under load'} ${ls.time_under_load_min} min ${de?'von':'of'} ${ls.wall_minutes} min ${flags?' · '+flags:''}</p>${trans}</div></section>`;
+}
+function drawSessionCharts(){
+  const ls=REPORT.last_session; if(!ls) return; const de=CFG.language==="de";
+  ls.exercises.filter(x=>x.chart).forEach((x,i)=>{
+    const el=$("#ls_"+i); if(!el) return;
+    const W=1000,H=360,L=64,R=20,Tp=24,B=46, cur=x.curve||[], prev=x.prev_curve||[];
+    if(!cur.length) return;
+    const tmax=Math.max(cur[cur.length-1].t, prev.length?prev[prev.length-1].t:0)||1;
+    const fmax=Math.max(...cur.map(p=>p.force_kg),...prev.map(p=>p.force_kg),1)*1.1;
+    const X=v=>L+(v/tmax)*(W-L-R), Y=v=>H-B-(v/fmax)*(H-Tp-B);
+    const acc=css('--accent'),g=css('--grid'),i3=css('--ink3'),ink=css('--ink'),i2=css('--ink2');
+    const path=c=>c.map((p,k)=>`${k?'L':'M'}${X(p.t).toFixed(1)},${Y(p.force_kg).toFixed(1)}`).join(" ");
+    let s=`<defs><linearGradient id="fl${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${acc}" stop-opacity=".26"/><stop offset="1" stop-color="${acc}" stop-opacity=".02"/></linearGradient></defs>`;
+    for(let k=0;k<=4;k++){const f=fmax*k/4,yy=Y(f);s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${g}" stroke-width="1.5"/><text x="${L-10}" y="${yy+6}" text-anchor="end" font-size="19" fill="${i3}">${Math.round(uKg(f))}</text>`;}
+    const step=Math.max(5,Math.ceil(tmax/6/5)*5);
+    for(let tt=0;tt<=tmax;tt+=step){s+=`<text x="${X(tt)}" y="${H-B+28}" text-anchor="middle" font-size="18" fill="${i3}">${tt}s</text>`;}
+    if(prev.length) s+=`<path d="${path(prev)}" fill="none" stroke="${i3}" stroke-width="2.5" stroke-dasharray="7 6" opacity=".9"/>`;
+    const cp=path(cur);
+    s+=`<path d="${cp} L${X(cur[cur.length-1].t).toFixed(1)},${H-B} L${L},${H-B} Z" fill="url(#fl${i})"/><path d="${cp}" fill="none" stroke="${acc}" stroke-width="3"/>`;
+    // rep markers at their REAL time (needed once a second curve shares the axis)
+    (x.rep_peaks||[]).forEach((v,k)=>{const tt=(x.rep_times||[])[k]; if(tt==null) return; const cx=X(tt),cy=Y(v);
+      s+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="${css('--panel')}" stroke="${i2}" stroke-width="3"/><text x="${cx.toFixed(1)}" y="${(cy-14).toFixed(1)}" text-anchor="middle" font-size="17" font-weight="600" fill="${ink}">${Math.round(uKg(v))}</text>`;});
+    el.innerHTML=s;
+    // verdict + legend, bilingual
+    const rp=x.rep_peaks||[]; let v="";
+    if(rp.length>=2){const first=rp[0],peak=Math.max(...rp),last=rp[rp.length-1];
+      if(last>=first) v=de?`Kraft <b>stieg</b> über den Satz (${Math.round(uKg(first))}→${Math.round(uKg(peak))} ${LKg()}): frühe Wiederholungen submaximal — ab Rep 1 näher ans Maximum.`
+                          :`Force <b>rose</b> across the set (${Math.round(uKg(first))}→${Math.round(uKg(peak))} ${LKg()}): the early reps were sub-maximal — push closer to max from rep 1.`;
+      else v=de?`<b>${x.inroad_pct}% Inroad</b>: Kraft fiel bis zur letzten Wiederholung — echte Ausbelastung erreicht.`
+                :`<b>${x.inroad_pct}% inroad</b>: force fell to the last rep — real fatigue reached.`;}
+    const legend=`<span style="color:var(--accent)">━</span> ${ls.date}${x.prev?` &nbsp; <span style="color:var(--ink3)">╌╌</span> ${x.prev.date}`:''}`;
+    $("#lsv_"+i).innerHTML=`${legend}${v?' &nbsp;·&nbsp; '+v:''}`;
+  });
+}
+function readinessHtml(l){
+  const de=CFG.language==="de", rc=l&&l.recovery; if(!rc) return "";
+  const muscles=Object.entries(rc.muscles||{}).sort((a,b)=>(b[1].ready_on||'').localeCompare(a[1].ready_on||'')||a[0].localeCompare(b[0]));
+  const chips=muscles.map(([m,v])=>{
+    const col=!v.ready?'var(--accent)':(v.sore==='mild'?'var(--warn)':'var(--good)');
+    const txt=!v.ready?`${de?'ab':'from'} ${(v.ready_on||'').slice(5)}`:(v.sore==='mild'?(de?'leichter Muskelkater':'mild soreness'):(de?'bereit':'ready'));
+    return `<span class="chip" style="border:1px solid ${col};color:${col};background:transparent;margin:0" title="${v.reason||''}">${mname(m)} · ${txt}</span>`;}).join(' ');
+  const list=(arr,col,label,fmt)=>arr.length?`<div style="margin-top:8px"><b style="color:${col}">${label}:</b> ${arr.map(fmt).join(', ')}</div>`:'';
+  return `<div class="panel" style="margin-top:12px"><div class="eyebrow" style="margin-bottom:8px">${de?'Bereitschaft heute':'Readiness today'} · ${l.today||''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
+    ${list(rc.ready_today||[],'var(--good)',de?'Bereit':'Ready',n=>n)}
+    ${list(rc.limited_today||[],'var(--warn)',de?'Eingeschränkt':'Limited',x=>`${x.name} (${(x.limited_by||[]).map(mname).join(', ')}${x.fresh_on&&x.fresh_on!==l.today?` ${de?'frisch ab':'fresh from'} ${x.fresh_on.slice(5)}`:''})`)}
+    ${list(rc.not_ready||[],'var(--accent)',de?'Noch nicht':'Not yet',x=>`${x.name} (${de?'ab':'from'} ${(x.ready_on||'').slice(5)})`)}
+    <p class="foot" style="margin:10px 0 0">${de?'Je Muskel: Ruhezeit nach der letzten harten Belastung (tief 3 Tage, moderat 2, submaximal 1); ein Check-in mit Muskelkater überstimmt den Kalender.':'Per muscle: rest after its last hard load (deep 3 days, moderate 2, sub-max 1); a check-in with soreness overrides the calendar.'}</p>
+  </div>`;
+}
+function restrHtml(rest,painToday){
   const active=Object.entries(rest||{}).filter(([,v])=>v&&v!=="ok");
   if(!active.length) return "";
-  const de=CFG.language==="de";
+  const de=CFG.language==="de", pain=new Set(painToday||[]);
   const nameOf=k=>{const b=BODYPARTS.find(x=>x[0]===k);return b?(de?b[1]:b[2]):k;};
   const chips=active.map(([k,v])=>{
     const col=v==="avoid"?"var(--accent)":"var(--warn)";
-    return `<span class="grp" style="background:${col}">${nameOf(k)}: ${rlabel(v)}</span>`;}).join(" ");
+    return `<span class="grp" style="background:${col}">${nameOf(k)}: ${rlabel(v)}${pain.has(k)?(de?' · heute (Check-in)':' · today (check-in)'):''}</span>`;}).join(" ");
   return `<section><div class="eyebrow" style="color:var(--warn)">${de?'Einschränkungen aktiv':'Restrictions active'}</div>
     <div class="verdict" style="border-left-color:var(--warn);background:var(--warn-bg)">
       <p style="margin:0">${de?'Betroffene Partien werden nicht voll belastet, betroffene Übungen werden geschont oder ausgelassen.':'Affected areas are not loaded to the max; affected exercises are eased or omitted.'}<br><span style="display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:8px">${chips}</span></p>
@@ -532,9 +658,10 @@ function settingsHtml(r){
     const dev=(act!=null && ideal!=null && Math.abs(act-ideal)>(unit==='s'?1:0.6));
     return `<tr><td>${label}</td><td class="num">${ideal!=null?ideal+(unit||''):'—'}</td><td class="num" style="color:${act==null?'var(--ink3)':dev?'var(--warn)':'var(--good)'}">${act!=null?act+(unit||''):'—'}</td></tr>`;
   };
+  const F=r.featured, who=F&&F.meta?`${F.meta.name} · ${String(F.meta.date).slice(0,10)}`:(de?'dein Satz':'your set');
   return `<section><div class="eyebrow">${de?'Optimale Einstellungen':'Recommended settings'}</div>
    <h2 class="sec">${de?'Wissenschaftlich validierte Maschineneinstellung':'Science-based machine settings'}</h2>
-   <p class="foot" style="margin:-2px 0 8px">${de?'Empfohlen für Muskel- und Kraftaufbau · rechts der zuletzt gezeigte Satz zum Vergleich.':'Recommended for muscle & strength · your featured set on the right for comparison.'}</p>
+   <p class="foot" style="margin:-2px 0 8px">${de?'Empfohlen für Muskel- und Kraftaufbau · rechts dein erster Satz der letzten Einheit zum Vergleich':'Recommended for muscle & strength · your first set of the last session on the right for comparison'} (${who}).</p>
    <div class="panel"><table style="width:100%;border-collapse:collapse;font-size:18px">
      <tr class="foot"><td></td><td class="num">${de?'Empfohlen':'Recommended'}</td><td class="num">${de?'Dein Satz':'Your set'}</td></tr>
      ${row(de?'Wiederholungen':'Reps',i.reps,a.reps,'')}
@@ -577,38 +704,20 @@ function loadHtml(l,target){
     `<span class="grp ${g}">${g}</span> ${de?"letzte Einheit":"last session"} ${effL[v.last_effort]||'—'}${v.last_inroad!=null?` (${v.last_inroad}% Inroad)`:''}`).join(" &nbsp; ");
   const rate=l.weekly_rate!=null?l.weekly_rate:"—";
   const head=`${rate} <small style="font-size:.4em">${de?'Einheiten/Woche':'sessions/week'}</small>`;
-  let expl;
-  if(l.flag==="overload_risk") expl=de?`${l.insufficient_recovery_after_hard}× kurze Pause nach einer maximalen Einheit. Nach echter Ausbelastung 48–72 h Pause pro Muskelgruppe.`:`${l.insufficient_recovery_after_hard}× short rest after a maximal session. After true fatigue allow 48–72h per muscle group.`;
-  else if(l.flag==="underload") expl=de?`Häufig trainiert, aber ${l.hard_sessions} wirklich maximale Einheiten. Kürzere Pausen sind hier ok – wichtiger ist mehr Intensität bis zum Inroad.`:`Frequent training but only ${l.hard_sessions} truly maximal sessions. Short rests are fine here — push to real inroad instead.`;
-  else if(l.flag==="detraining_risk") expl=de?`Lange Pausen – Kraft kann abfallen.`:`Long gaps — strength may decline.`;
-  else expl=de?`Ausbelastung und Erholung passen zusammen.`:`Effort and recovery are aligned.`;
-  const sub=de?`Ziel ${target||2}/Woche · Abstände ${l.gaps_days.join(', ')} Tage · maximale Einheiten: ${l.hard_sessions}`
-              :`Target ${target||2}/week · gaps ${l.gaps_days.join(', ')} days · maximal sessions: ${l.hard_sessions}`;
+  let expl; const w=l.window||{days:7};
+  if(l.flag==="overload_risk") expl=de?`${l.insufficient_recovery_after_hard}× derselbe Muskel hart belastet, bevor seine Ruhezeit um war (letzte ${w.days} Tage)${l.conflicts_recent&&l.conflicts_recent.length?': '+l.conflicts_recent.map(c=>`${mname(c.muscle)} ${c.date.slice(5)}`).join(', '):''}. Nach echter Ausbelastung braucht ein Muskel 48–72 h.`
+                                       :`${l.insufficient_recovery_after_hard}× the same muscle loaded hard before its rest was over (last ${w.days} days)${l.conflicts_recent&&l.conflicts_recent.length?': '+l.conflicts_recent.map(c=>`${mname(c.muscle)} ${c.date.slice(5)}`).join(', '):''}. After true fatigue a muscle needs 48–72 h.`;
+  else if(l.flag==="underload") expl=de?`${w.sessions} Einheiten in den letzten ${w.days} Tagen, keine davon moderat oder tief. Kürzere Pausen sind hier ok – wichtiger ist mehr Intensität bis zum Inroad.`:`${w.sessions} sessions in the last ${w.days} days, none moderate or deep. Short rests are fine here — push to real inroad instead.`;
+  else if(l.flag==="detraining_risk") expl=de?`${l.days_since_last} Tage seit der letzten Einheit – Kraft kann abfallen.`:`${l.days_since_last} days since the last session — strength may decline.`;
+  else expl=de?`Ausbelastung und Erholung passen zusammen (letzte ${w.days} Tage: ${w.sessions} Einheiten, kein Muskel zu früh wieder hart belastet).`:`Effort and recovery are aligned (last ${w.days} days: ${w.sessions} sessions, no muscle loaded hard again too early).`;
+  const sub=de?`Ziel ${target||2}/Woche · Abstände ${l.gaps_days.join(', ')} Tage · Einheiten mit echter Belastung: ${l.hard_sessions} von ${l.training_days}`
+              :`Target ${target||2}/week · gaps ${l.gaps_days.join(', ')} days · sessions with real effort: ${l.hard_sessions} of ${l.training_days}`;
   return `<section><div class="eyebrow">${de?'Belastung & Erholung':'Load & recovery'}</div>
     <h2 class="sec">${de?'Trainingsabstände':'Session spacing'}</h2>
     <div class="verdict" style="border-left-color:${col};background:var(--panel)">
       <div class="big" style="color:${col}">${head}</div>
       <p><b style="color:${col}">${label}.</b> ${expl}<br><span class="foot">${sub}</span><br>${groups}</p>
-    </div></section>`;
-}
-function drawCurve(){
-  const F=REPORT.featured,W=1000,H=420,L=64,R=20,Tp=24,B=46;
-  let c=F.curve; if(c.length>340){const st=Math.ceil(c.length/340);c=c.filter((_,i)=>i%st===0);}
-  const tmax=c[c.length-1].t, fmax=Math.max(...c.map(p=>p.force_kg))*1.08;
-  const x=v=>L+(v/tmax)*(W-L-R), y=v=>H-B-(v/fmax)*(H-Tp-B);
-  const acc=css('--accent'),g=css('--grid'),i3=css('--ink3'),ink=css('--ink'),i2=css('--ink2');
-  let s=`<defs><linearGradient id="fl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${acc}" stop-opacity=".26"/><stop offset="1" stop-color="${acc}" stop-opacity=".02"/></linearGradient></defs>`;
-  for(let i=0;i<=4;i++){const f=fmax*i/4,yy=y(f);s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${g}" stroke-width="1.5"/><text x="${L-10}" y="${yy+6}" text-anchor="end" font-size="19" fill="${i3}">${Math.round(uKg(f))}</text>`;}
-  for(let tt=0;tt<=tmax;tt+=Math.ceil(tmax/6/5)*5){s+=`<text x="${x(tt)}" y="${H-B+28}" text-anchor="middle" font-size="18" fill="${i3}">${tt}s</text>`;}
-  const path=c.map((p,i)=>`${i?'L':'M'}${x(p.t).toFixed(1)},${y(p.force_kg).toFixed(1)}`).join(" ");
-  s+=`<path d="${path} L${x(tmax).toFixed(1)},${H-B} L${L},${H-B} Z" fill="url(#fl)"/><path d="${path}" fill="none" stroke="${acc}" stroke-width="3"/>`;
-  const rp=F.rep_peaks,n=rp.length;rp.forEach((v,i)=>{const cx=x(tmax*(i+0.5)/n),cy=y(v);s+=`<circle cx="${cx}" cy="${cy}" r="6" fill="${css('--panel')}" stroke="${i2}" stroke-width="3"/><text x="${cx}" y="${cy-14}" text-anchor="middle" font-size="17" font-weight="600" fill="${ink}">${Math.round(uKg(v))}</text>`;});
-  $("#curveSvg").innerHTML=s;
-  // verdict
-  const first=rp[0],peak=Math.max(...rp),last=rp[rp.length-1],rising=last>=first,t=T();
-  $("#verdict").innerHTML=rising
-   ?`<div class="big">+${Math.round((peak-first)/first*100)}%<small>${t.rise}</small></div><p>Kraft <b>stieg</b> über den Satz (${Math.round(uKg(first))}→${Math.round(uKg(peak))} ${LKg()}). Frühe Reps submaximal. Ab Rep 1 näher ans Maximum für echten Reiz.</p>`
-   :`<div class="big">${F.inroad_pct}%<small>${t.inroad}</small></div><p>Kraft fiel um ${F.inroad_pct}% bis zur letzten Wiederholung. Tiefe Ausbelastung erreicht.</p>`;
+    </div>${readinessHtml(l)}</section>`;
 }
 function exChart(e){
   const W=460,H=190,L=44,R=14,Tp=14,B=30, occ=e.occ, useDay=XMODE==="day";
@@ -645,8 +754,11 @@ function renderProg(){const t=T();
     let rb="";
     if(e.restriction==="careful")rb=`<span class="grp" style="background:var(--warn)">${rlabel('careful')}</span> `;
     else if(e.restriction==="avoid")rb=`<span class="grp" style="background:var(--accent)">${rlabel('avoid')}</span> `;
+    // when it was last done and how it compared with the time before (only when the ROM matched)
+    const vs=e.prev_kg!=null?` · ${t.vsprev} <b style="color:${e.delta_comparable?dcol(e.delta_pct):'var(--ink3)'}">${e.delta_comparable?pctS(e.delta_pct):'ROM ≠'}</b>`:'';
+    const lastLine=`<div class="meta">${de?'zuletzt':'last'} ${e.last_date||'—'}${e.in_last_session?` <span class="chip" style="margin-left:2px">${de?'letzte Einheit':'last session'}</span>`:''}${vs}</div>`;
     return `<div class="excard"><div class="n"><span class="exname">${e.name}</span><span class="cur">${uKg(e.last)} <small>${LKg()}</small></span></div>
-      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${rom}${exChart(e)}</div>`;}).join("");
+      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${rom}${exChart(e)}</div>`;}).join("");
 }
 function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22,B=46;
   const X=i=>L+(wb.length<2?0.5:i/(wb.length-1))*(W-L-R),Y=v=>H-B-(v/100)*(H-Tp-B);
@@ -662,17 +774,19 @@ function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22
 function renderPlan(){const de=CFG.language==="de";
   const plan=REPORT.session_plan||[];
   if(!plan.length){
-    const nx=(REPORT.load&&REPORT.load.next_earliest)||null;
+    const nx=(REPORT.load&&REPORT.load.next_earliest)||null, allOn=(REPORT.load&&REPORT.load.all_ready_on)||null;
     $("#plan").innerHTML=`<li style="grid-template-columns:1fr"><div><div class="ex">🛌 ${de?'Heute Ruhetag':'Rest day today'}</div>`+
-      `<div class="cue">${de?'Die Autoregulation erkennt keine ausreichend erholte Muskelgruppe. Frühestens wieder':'Auto-regulation finds no sufficiently recovered muscle group. Earliest next session'} ${nx||'—'}.</div></div></li>`;
+      `<div class="cue">${de?'Kein Muskel, den eine Übung braucht, ist heute erholt. Frühestens wieder':'No muscle an exercise needs is recovered today. Earliest next session'} ${nx||'—'}${allOn?` · ${de?'alles erholt ab':'everything by'} ${allOn}`:''}.</div></div></li>`;
     return;
   }
   const cues=de?["Große Kette zuerst","Großer Druck","Großer Zug","Hintere Kette","Isolation zum Schluss"]:["Large chain first","Big push","Big pull","Posterior chain","Isolation last"];
   $("#plan").innerHTML=plan.map((o,i)=>{
-    const careful=o.restriction==="careful";
-    const cue=careful?(de?"Vorsichtig, submaximal, saubere Technik":"Gentle, sub-maximal, clean technique"):(cues[i]||'');
+    const careful=o.restriction==="careful", limited=o.status==="limited";
+    let cue=careful?(de?"Vorsichtig, submaximal, saubere Technik":"Gentle, sub-maximal, clean technique"):(cues[i]||'');
+    // a limiter (grip, elbow flexors, ...) that is not fresh yet may end the set early - say so
+    if(limited) cue=`${de?'Submaximal':'Sub-max'} — ${(o.limited_by||[]).map(mname).join(', ')} ${de?'noch nicht frisch':'not fresh yet'}${o.fresh_on?` (${de?'ab':'from'} ${o.fresh_on.slice(5)})`:''}`;
     const tgt=careful?(de?"1 Satz · vorsichtig":"1 set · gentle"):`1 ${de?'Satz':'set'} · ~${[3,3,3,2,2][i]||2} min`;
-    const rb=careful?` <span class="grp" style="background:var(--warn)">${rlabel('careful')}</span>`:"";
+    const rb=(careful?` <span class="grp" style="background:var(--warn)">${rlabel('careful')}</span>`:"")+(limited?` <span class="chip flat">${de?'eingeschränkt':'limited'}</span>`:"");
     return `<li><div class="ex"><span class="grp ${o.group}">${o.group}</span> ${o.name}${rb}</div><div class="cue">${cue}</div><div class="tgt">${tgt}</div></li>`;}).join("");
 }
 // playful loading lines while the AI thinks
