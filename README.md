@@ -57,11 +57,8 @@ and shows you what actually happened — and what to do next.
   <img src="docs/coach-board.png" alt="The coach's whiteboard: last session, today, plan table, milestones, focus" width="80%">
   <img src="docs/readiness.png" alt="Check-in score and muscle-level readiness" width="80%">
   <img src="docs/checkin.png" alt="The 20-second daily check-in" width="60%">
-  <img src="docs/arx-insight1.png" alt="Overview with AI Analysis" width="80%">
-  <img src="docs/arx-insight2.png" alt="Strongest session" width="80%">
-  <img src="docs/arx-insight3.png" alt="History, Average and Outlook" width="80%">
-  <img src="docs/arx-insight4.png" alt="Wholebody-Factor" width="80%">
-  <img src="docs/arx-insight5.png" alt="Sport scientific based plan recommendation" width="80%">
+  <img src="docs/progress.png" alt="Progress per exercise with ROM validity, and the whole-body factor" width="80%">
+  <img src="docs/plan.png" alt="Rule-based next-session plan with readiness, and the machine settings check" width="60%">
 </p>
 
 ## Install on Windows (plug and play)
