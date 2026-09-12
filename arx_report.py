@@ -17,7 +17,7 @@ Public domain / CC0. No warranty. Not medical advice.
 """
 
 from __future__ import annotations
-import os, sys, json, gzip, shutil, tempfile, argparse, random, statistics as st
+import os, sys, json, gzip, shutil, tempfile, argparse, statistics as st
 from datetime import datetime, date, timedelta
 
 
@@ -303,27 +303,37 @@ def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
     return curve, events
 
 
-def rep_peaks_and_inroad(curve: list[dict], events: list[dict]) -> tuple[list[float], int | None]:
-    """Segment the curve per rep (BeginRep/EndRep pairs) and compute 'inroad'.
-
-    Inroad = decline from the strongest rep's peak to the LAST rep's peak, in %.
-    It is THE effort signal on an adaptive-resistance machine: a set that reached
-    deep fatigue ends well below its strongest rep; a sub-maximal or ramping set
-    ends at or near it. An unmatched trailing BeginRep (aborted last rep) is
-    simply dropped by the pairwise zip. Returns (rep_peaks, inroad_pct) with
-    inroad None when fewer than two complete reps exist.
-    """
+def rep_segments(curve: list[dict], events: list[dict]) -> list[dict]:
+    """Per rep (BeginRep/EndRep pairs): the peak force and WHEN it occurred, so
+    the UI can place the rep markers at their real position on the time axis
+    (matters once a second curve is overlaid). An unmatched trailing BeginRep
+    (aborted last rep) is simply dropped by the pairwise zip."""
     begins = [e["_t"] for e in events if e.get("Type") == "BeginRep"]
     ends = [e["_t"] for e in events if e.get("Type") == "EndRep"]
-    rep_peaks = []
+    out = []
     for a, b in zip(begins, ends):
-        seg = [p["force_kg"] for p in curve if a <= p["t"] <= b]
+        seg = [p for p in curve if a <= p["t"] <= b]
         if seg:
-            rep_peaks.append(round(max(seg), 1))
-    inroad_pct = None
+            top = max(seg, key=lambda p: p["force_kg"])
+            out.append({"t": top["t"], "peak": top["force_kg"]})
+    return out
+
+
+def _inroad(rep_peaks: list[float]) -> int | None:
+    """Inroad = decline from the strongest rep's peak to the LAST rep's peak, in %.
+    It is THE effort signal on an adaptive-resistance machine: a set that
+    reached deep fatigue ends well below its strongest rep; a sub-maximal or
+    ramping set ends at or near it. None with fewer than two complete reps."""
     if len(rep_peaks) >= 2 and max(rep_peaks) > 0:
-        inroad_pct = round((max(rep_peaks) - rep_peaks[-1]) / max(rep_peaks) * 100)
-    return rep_peaks, inroad_pct
+        return round((max(rep_peaks) - rep_peaks[-1]) / max(rep_peaks) * 100)
+    return None
+
+
+def rep_peaks_and_inroad(curve: list[dict], events: list[dict]) -> tuple[list[float], int | None]:
+    """Segment the curve per rep and compute the inroad (see rep_segments / _inroad).
+    Returns (rep_peaks, inroad_pct)."""
+    rep_peaks = [s["peak"] for s in rep_segments(curve, events)]
+    return rep_peaks, _inroad(rep_peaks)
 
 
 def classify_effort(inroad: int | None, rising: bool) -> str:
@@ -337,11 +347,25 @@ def classify_effort(inroad: int | None, rising: bool) -> str:
     return "submax"
 
 
-def decode_force_curve(con, set_id: int) -> dict:
-    """Full curve + per-rep peaks + inroad for the featured set (see load_curve)."""
+CURVE_POINTS = 300             # curve samples handed to the UI per set (downsampled)
+
+
+def _downsample(curve: list[dict], n: int = CURVE_POINTS) -> list[dict]:
+    """Thin a ~20 Hz curve to about n evenly spaced samples (the last one kept)."""
+    if len(curve) <= n:
+        return curve
+    step = len(curve) / n
+    return [curve[int(i * step)] for i in range(n)] + [curve[-1]]
+
+
+def set_curve(con, set_id: int) -> dict:
+    """Downsampled curve + per-rep peaks with their times + inroad of one set
+    (see load_curve) - what a force-curve card in the UI needs."""
     curve, events = load_curve(con, set_id)
-    rep_peaks, inroad_pct = rep_peaks_and_inroad(curve, events)
-    return {"curve": curve, "rep_peaks": rep_peaks, "inroad_pct": inroad_pct}
+    segs = rep_segments(curve, events)
+    peaks = [s["peak"] for s in segs]
+    return {"curve": _downsample(curve), "rep_peaks": peaks,
+            "rep_times": [s["t"] for s in segs], "inroad_pct": _inroad(peaks)}
 
 
 # --- exercise catalog: code -> {name, group (Push/Pull/Drive), kind} ----------
@@ -369,7 +393,7 @@ def _linfit(xs, ys):
     return b, my - b * mx
 
 
-def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
+def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None) -> list[dict]:
     """Per-exercise progress, aggregated to the BEST set per training day.
 
     Important: an athlete often does several sets of the same exercise in one
@@ -382,32 +406,43 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
     whose range of motion matches the exercise's reference ROM (see
     ROM_TOLERANCE): a different ROM makes the force values incomparable, so such
     days are kept in the series for display but excluded from trend/forecast,
-    and the trend is None when fewer than MIN_TREND_POINTS comparable days exist."""
+    and the trend is None when fewer than MIN_TREND_POINTS comparable days exist.
+    The last day is also compared with the previous one (delta_pct, only
+    meaningful when delta_comparable = same ROM) so the coach can talk about
+    the most recent session in concrete numbers."""
     by_ex = {}
     for s in work:
         by_ex.setdefault(s["exercise"], []).append(s)
     d0 = min(datetime.fromisoformat(s["date"][:10]).toordinal() for s in work) if work else 0
+    last_day_all = max((s["date"][:10] for s in work), default=None)
 
     out = []
     for ex, ss in by_ex.items():
         meta = catalog.get(str(ex), {})
-        # aggregate to daily best (and carry the ROM of that best set)
+        # aggregate to daily best (the best SET carries the day's context)
         by_day = {}
         for s in ss:
             day = s["date"][:10]
-            d = by_day.setdefault(day, {"kg": 0, "rom": None, "sets": 0, "sessions": set()})
+            d = by_day.setdefault(day, {"kg": 0, "best": None, "sets": 0, "sessions": set()})
             if s["max_kg"] >= d["kg"]:
-                d["kg"], d["rom"] = s["max_kg"], s.get("rom_cm")
+                d["kg"], d["best"] = s["max_kg"], s
             d["sets"] += 1
             d["sessions"].add(s["session"])
         days_sorted = sorted(by_day)
-        occ = [{"i": i,
-                "day": datetime.fromisoformat(day).toordinal() - d0,
-                "date": day, "kg": by_day[day]["kg"],
-                "rom_cm": by_day[day]["rom"],          # ROM of that day's best set
-                "sets": by_day[day]["sets"],           # sets of this exercise that day
-                "sessions": len(by_day[day]["sessions"])}
-               for i, day in enumerate(days_sorted)]
+        def occ_row(i, day):
+            b = by_day[day]["best"]
+            return {"i": i,
+                    "day": datetime.fromisoformat(day).toordinal() - d0,
+                    "date": day, "kg": by_day[day]["kg"],
+                    "id": b["id"],                          # the best set of that day
+                    "rom_cm": b.get("rom_cm"),              # ROM of that day's best set
+                    "inroad": b.get("inroad"), "effort": b.get("effort"),
+                    "mean_force_kg": b.get("mean_force_kg"), "eccentric_kg": b.get("eccentric_kg"),
+                    "reps": b.get("reps"), "seconds": b.get("seconds"),
+                    "pause_end_s": b.get("pause_end_s"), "pause_return_s": b.get("pause_return_s"),
+                    "sets": by_day[day]["sets"],            # sets of this exercise that day
+                    "sessions": len(by_day[day]["sessions"])}
+        occ = [occ_row(i, day) for i, day in enumerate(days_sorted)]
 
         # ROM validity: the reference is the ROM (among the last ROM_REF_DAYS days)
         # that the most days agree with - i.e. the largest cluster, most recent
@@ -419,6 +454,11 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
             def agree(ref):
                 return sum(1 for r in ref_window if abs(r - ref) / ref <= ROM_TOLERANCE)
             rom_ref = max(reversed(ref_window), key=agree)   # reversed -> latest wins ties
+        restricted = exercise_restriction(meta.get("name", ""), restrictions or {}) != "ok"
+        if restricted and occ[-1]["rom_cm"]:
+            # a limited athlete may deliberately shorten the range: the latest
+            # setting is the baseline, not a "fix your positions" nag
+            rom_ref = occ[-1]["rom_cm"]
         for o in occ:
             o["rom_valid"] = bool(rom_ref and o["rom_cm"]
                                   and abs(o["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
@@ -440,6 +480,11 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
                 step *= 0.85
                 cur += step
                 fc.append(round(cur, 1))
+        # last day vs the previous day of this exercise (the coach's "vs last time")
+        last, prev = occ[-1], (occ[-2] if len(occ) > 1 else None)
+        comparable = bool(prev and prev["rom_cm"] and last["rom_cm"]
+                          and abs(last["rom_cm"] - prev["rom_cm"]) / prev["rom_cm"] <= ROM_TOLERANCE)
+        pb = max(o["kg"] for o in occ)
         out.append({
             "ex": ex,
             "name": meta.get("name", f"Übung {ex}"),
@@ -447,11 +492,21 @@ def _exercise_series(work: list[dict], catalog: dict) -> list[dict]:
             "kind": meta.get("kind", "?"),
             "targets": list(meta.get("targets") or []),     # muscles the exercise is for
             "limiters": list(meta.get("limiters") or []),   # what gives out first (a means, not the goal)
-            "pb": max(o["kg"] for o in occ),
+            "pb": pb,
             "n": len(occ),                              # number of training DAYS
             "total_sets": len(ss),                      # all sets across all days
             "multi_set_days": sum(1 for o in occ if o["sets"] > 1),
             "first": occ[0]["kg"], "last": occ[-1]["kg"],  # first/last DAY best
+            "last_date": last["date"],
+            "in_last_session": last["date"] == last_day_all,
+            "last_inroad": last["inroad"], "last_effort": last["effort"],
+            "prev_date": prev["date"] if prev else None,
+            "prev_kg": prev["kg"] if prev else None,
+            "prev_inroad": prev["inroad"] if prev else None,
+            "delta_pct": round((last["kg"] - prev["kg"]) / prev["kg"] * 100, 1) if (prev and prev["kg"]) else None,
+            "delta_comparable": comparable,             # same ROM on both days -> delta is meaningful
+            "delta_vs_pb_pct": round((last["kg"] - pb) / pb * 100, 1) if pb else None,
+            "restricted": restricted,
             "trend_per_session": round(slope, 1) if slope is not None else None,     # kg per training-day occurrence
             "trend_per_day": round(slope_per_day, 2) if slope_per_day is not None else None,  # kg per calendar day
             "trend_n": len(valid),                      # comparable days behind the trend
@@ -476,6 +531,7 @@ def _rom_warnings(exercises: list[dict]) -> list[dict]:
             continue
         out.append({
             "name": e["name"], "group": e["group"],
+            "restricted": e.get("restricted", False),   # ROM may be shortened on purpose
             "rom_cm_reference": e["rom_cm_reference"],
             "rom_cm_latest": e["rom_cm_latest"],
             "rom_drift_pct": e["rom_drift_pct"],
@@ -920,6 +976,7 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
             repeat = s["exercise"] in seen_ex
             rec = {
                 "order": i + 1,
+                "set_id": s["id"],                 # local join key only (never sent to the AI)
                 "exercise": s["name"], "group": s["group"],
                 "minutes_since_prev_set": rest,
                 "max_kg": s["max_kg"], "mean_force_kg": s["mean_force_kg"], "seconds": s["seconds"],
@@ -1235,47 +1292,112 @@ def featured_settings(con, set_id: int, reps: int) -> dict:
         return {"reps": reps}
 
 
-def _pick_featured(work: list[dict], user_id=None):
-    """Choose the set to feature in the big curve - NOT simply the strongest one
-    (that is always the leg press / Belt Squat and gets boring). Prefer a set
-    with a story: a fresh personal best, a deeply fatiguing set (well executed),
-    or a notably sub-maximal one (actionable). Among the interesting candidates
-    pick pseudo-randomly, seeded by today's date + user, so the highlight (and
-    the AI narrative built on it) is reproducible within a day yet varies across
-    days. Returns (set, reason)."""
-    if not work:
-        return None, None
-    rng = random.Random(f"{date.today()}-{user_id}")
-    days = sorted({s["date"][:10] for s in work})
-    recent_days = set(days[-2:])                      # last two training days
-    pb = {}
-    for s in work:
-        pb[s["exercise"]] = max(pb.get(s["exercise"], 0), s["max_kg"])
+LAST_SESSION_CHARTS = 3        # exercises of the last session that get a force-curve card
 
-    scored = []
-    for s in work:
-        ir = s.get("inroad")
-        is_pb = s["max_kg"] >= pb[s["exercise"]] - 0.01
-        recent = s["date"][:10] in recent_days
-        score, reason = 0.0, None
-        if is_pb and recent:
-            score += 3; reason = "pb"
-        if ir is not None and ir >= 25:
-            score += 2; reason = reason or "deep"
-        if ir is not None and ir < 8:
-            score += 1.8; reason = reason or "submax"
-        if recent:
-            score += 1
-        if reason:
-            scored.append((score, s, reason))
-    if not scored:                                    # nothing notable -> a recent set
-        pool = [(1.0, s, "recent") for s in work if s["date"][:10] in recent_days] \
-               or [(1.0, s, "recent") for s in work]
-    else:
-        pool = scored
-    pool.sort(key=lambda x: x[0], reverse=True)
-    _, s, reason = rng.choice(pool[:6])               # variety among the top candidates
-    return s, reason
+
+def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: list[dict],
+                  transitions: list[dict]) -> dict | None:
+    """The most recent training day, exercise by exercise, each compared with
+    the previous time that exercise was done.
+
+    This replaces the old "featured set" lottery: the athlete wants to see what
+    they just did. Exercises appear in the order they were performed (the best
+    set of the day represents an exercise done twice); the first
+    LAST_SESSION_CHARTS get a force-curve card with the previous set's curve
+    as a ghost - one explainable exception: a new personal best later in the
+    session replaces the third card. Every exercise carries the comparison
+    numbers (peak / mean force / inroad / ROM vs previous, comparable only
+    when the ROM matched, new-PB flag, settings that changed) so the table and
+    the AI can talk about the session in concrete terms."""
+    if not sequences_all:
+        return None
+    day = sequences_all[-1]
+    ex_by_name = {e["name"]: e for e in exercises}
+    seq_by_id = {r["set_id"]: r for r in day["sets"]}
+    order, best = [], {}
+    for s in sorted((x for x in work if x["date"][:10] == day["date"]), key=lambda x: x["date"]):
+        if s["name"] not in best:
+            order.append(s["name"])
+            best[s["name"]] = {"set": s, "n": 0}
+        b = best[s["name"]]
+        b["n"] += 1
+        if s["max_kg"] >= b["set"]["max_kg"]:
+            b["set"] = s
+
+    rows = []
+    for name in order:
+        s, n_today = best[name]["set"], best[name]["n"]
+        e = ex_by_name.get(name, {})
+        occ = e.get("occ") or []
+        prev = occ[-2] if (len(occ) >= 2 and occ[-1]["date"] == day["date"]) else None
+        seq = seq_by_id.get(s["id"], {})
+        comparable = bool(prev and prev.get("rom_cm") and s.get("rom_cm")
+                          and abs(s["rom_cm"] - prev["rom_cm"]) / prev["rom_cm"] <= ROM_TOLERANCE)
+        pb = e.get("pb", s["max_kg"])
+        changed = []
+        if prev:
+            if prev.get("seconds") and abs(s["seconds"] - prev["seconds"]) / prev["seconds"] > 0.15:
+                changed.append(f"duration {s['seconds']} s vs {prev['seconds']} s")
+            for k, lab in (("pause_end_s", "end pause"), ("pause_return_s", "return pause")):
+                if s.get(k) is not None and prev.get(k) is not None and abs(s[k] - prev[k]) >= 0.5:
+                    changed.append(f"{lab} {s[k]} s vs {prev[k]} s")
+            if prev.get("reps") and s["reps"] != prev["reps"]:
+                changed.append(f"reps {s['reps']} vs {prev['reps']}")
+        rows.append({
+            "name": name, "group": s["group"], "set_id": s["id"],
+            "order": seq.get("order"), "sets_today": n_today,
+            "rest_before_min": seq.get("minutes_since_prev_set"),
+            "max_kg": s["max_kg"], "mean_force_kg": s["mean_force_kg"],
+            "concentric_kg": s["concentric_kg"], "eccentric_kg": s["eccentric_kg"],
+            "reps": s["reps"], "seconds": s["seconds"], "rom_cm": s.get("rom_cm"),
+            "inroad": s.get("inroad"), "effort": s.get("effort"),
+            "pause_end_s": s.get("pause_end_s"), "pause_return_s": s.get("pause_return_s"),
+            "limiters_pre_fatigued": seq.get("limiters_pre_fatigued", []),
+            "prev": ({"date": prev["date"], "id": prev["id"], "max_kg": prev["kg"],
+                      "mean_force_kg": prev["mean_force_kg"], "reps": prev["reps"], "seconds": prev["seconds"],
+                      "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"]}
+                     if prev else None),
+            "delta_pct": round((s["max_kg"] - prev["kg"]) / prev["kg"] * 100, 1) if (prev and prev["kg"]) else None,
+            "delta_mean_pct": (round((s["mean_force_kg"] - prev["mean_force_kg"]) / prev["mean_force_kg"] * 100, 1)
+                               if (prev and prev.get("mean_force_kg")) else None),
+            "delta_comparable": comparable,
+            "is_pb": len(occ) >= 2 and s["max_kg"] >= pb - 0.01,
+            "pb_kg": pb,
+            "delta_vs_pb_pct": round((s["max_kg"] - pb) / pb * 100, 1) if pb else None,
+            "settings_changed": changed,
+            "restriction": e.get("restriction", "ok"),
+            "chart": False,
+        })
+
+    chart_names = [r["name"] for r in rows[:LAST_SESSION_CHARTS]]
+    for r in rows[LAST_SESSION_CHARTS:]:
+        if r["is_pb"] and chart_names:            # a new PB later in the session earns the third card
+            chart_names[-1] = r["name"]
+            break
+    for r in rows:
+        if r["name"] not in chart_names:
+            continue
+        r["chart"] = True
+        r.update(set_curve(con, r["set_id"]))
+        if r["prev"]:
+            pc = set_curve(con, r["prev"]["id"])
+            r["prev_curve"], r["prev_rep_peaks"], r["prev_rep_times"] = pc["curve"], pc["rep_peaks"], pc["rep_times"]
+        r["settings"] = featured_settings(con, r["set_id"], r["reps"])
+
+    transition = next((t for t in transitions if t["date"] == day["date"]), None)
+    return {
+        "date": day["date"],
+        "prev_date": transition["prev_date"] if transition else None,
+        "gap_days": transition["gap_days"] if transition else None,
+        "transition": transition,
+        "working_sets": day["working_sets"], "false_starts": day.get("false_starts", 0),
+        "visits": day["visits"], "wall_minutes": day["wall_minutes"],
+        "time_under_load_min": day["time_under_load_min"],
+        "groups_touched": day["groups_touched"], "flags": day["flags"],
+        "exercises": rows,
+        "charts": chart_names,
+        "featured": chart_names[0] if chart_names else None,
+    }
 
 
 def build_report(con, cfg: dict) -> dict:
@@ -1299,7 +1421,6 @@ def build_report(con, cfg: dict) -> dict:
         s["effort"] = e["effort"]
     save_effort_cache(cache)
 
-    exercises = _exercise_series(work, catalog)
     today = _today(cfg)
     checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
     restrictions_saved = cfg.get("restrictions", {}) or {}
@@ -1307,16 +1428,10 @@ def build_report(con, cfg: dict) -> dict:
     pain_today = [p for p in (checkin.get("pain") or []) if _LEVEL_RANK.get(restrictions.get(p, "ok"), 0) < 1]
     for p in pain_today:                      # pain today = careful today (not persisted)
         restrictions[p] = "careful"
+    exercises = _exercise_series(work, catalog, restrictions)
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions)
     days = sorted({s["date"][:10] for s in work})
-
-    featured = None
-    if work:
-        top, reason = _pick_featured(work, cfg.get("user_id"))
-        featured = {"meta": top, "reason": reason,
-                    "settings": featured_settings(con, top["id"], top.get("reps", 0)),
-                    **decode_force_curve(con, top["id"])}
 
     load = _load_analysis(work, catalog, exercises, today, checkin)
     approach = cfg.get("approach", "auto")
@@ -1330,6 +1445,16 @@ def build_report(con, cfg: dict) -> dict:
     for d in sequences_all:
         d["false_starts"] = fs_by_day.get(d["date"], 0)
     sequences = sequences_all[-SEQ_DAYS:]
+
+    # the last session, exercise by exercise, vs the previous time - the headline
+    last_session = _last_session(con, work, exercises, sequences_all, load["transitions"])
+    featured = None                          # compat: the first card's set (settings table, AI)
+    if last_session and last_session["featured"]:
+        top = next(r for r in last_session["exercises"] if r["name"] == last_session["featured"])
+        by_id = {s["id"]: s for s in work}
+        featured = {"meta": by_id[top["set_id"]], "reason": "last_session", "settings": top.get("settings"),
+                    "curve": top["curve"], "rep_peaks": top["rep_peaks"], "rep_times": top["rep_times"],
+                    "inroad_pct": top["inroad_pct"]}
 
     # headline KPIs for the UI
     ce = [s["eccentric_kg"] / s["concentric_kg"] for s in work if s["concentric_kg"] > 0]
@@ -1368,6 +1493,7 @@ def build_report(con, cfg: dict) -> dict:
         "session_plan": _session_plan(exercises, restrictions,
                                       cfg.get("focus", {}) or {},
                                       approach, load),
+        "last_session": last_session,
         "featured": featured,
     }
 
