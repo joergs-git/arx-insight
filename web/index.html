@@ -569,7 +569,9 @@ function updateBannerHtml(){
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
   if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+r.error+'</p>';return;}
-  $("#r_name").textContent=r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
+  // ?anon=1 hides the real name (for screenshots you want to share)
+  const anon=new URLSearchParams(location.search).get("anon")==="1";
+  $("#r_name").textContent=anon?(de0?"Athlet":"Athlete"):r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
   $("#r_profile").innerHTML="✎ "+(de0?"Profil":"Profile");
   $("#r_settings").innerHTML="⚙ "+(de0?"Einstellungen":"Settings");
   $("#r_limits").innerHTML="⚠ "+(de0?"Grenzen":"Limits");
