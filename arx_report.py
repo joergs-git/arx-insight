@@ -454,7 +454,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             def agree(ref):
                 return sum(1 for r in ref_window if abs(r - ref) / ref <= ROM_TOLERANCE)
             rom_ref = max(reversed(ref_window), key=agree)   # reversed -> latest wins ties
-        restricted = exercise_restriction(meta.get("name", ""), restrictions or {}) != "ok"
+        restricted = exercise_restriction(meta.get("name", ""), restrictions or {}, meta.get("joints")) != "ok"
         if restricted and occ[-1]["rom_cm"]:
             # a limited athlete may deliberately shorten the range: the latest
             # setting is the baseline, not a "fix your positions" nag
@@ -492,6 +492,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             "kind": meta.get("kind", "?"),
             "targets": list(meta.get("targets") or []),     # muscles the exercise is for
             "limiters": list(meta.get("limiters") or []),   # what gives out first (a means, not the goal)
+            "joints": list(meta.get("joints") or []),       # body parts a restriction can hit
             "pb": pb,
             "n": len(occ),                              # number of training DAYS
             "total_sets": len(ss),                      # all sets across all days
@@ -638,8 +639,9 @@ SORENESS_REGIONS = {
 
 
 def _today(cfg: dict) -> date:
-    """Today - overridable via cfg['_today'] (ISO date) for reproducible tests."""
-    t = (cfg or {}).get("_today")
+    """Today - overridable via cfg['_today'] or the ARX_TODAY environment
+    variable (ISO date) for reproducible tests and screenshots."""
+    t = (cfg or {}).get("_today") or os.environ.get("ARX_TODAY")
     try:
         return date.fromisoformat(t) if t else date.today()
     except Exception:
@@ -1120,16 +1122,119 @@ BODYPART_EXERCISES = {
 _LEVEL_RANK = {"ok": 0, "careful": 1, "avoid": 2}
 
 
-def exercise_restriction(name: str, restrictions: dict) -> str:
-    """Worst restriction level that applies to an exercise via its body parts."""
+def exercise_restriction(name: str, restrictions: dict, joints: list | None = None) -> str:
+    """Worst restriction level that applies to an exercise via the body parts
+    it loads. The catalog's optional 'joints' list per exercise is the source
+    of truth (users can edit it); an exercise without one falls back to the
+    name-based BODYPART_EXERCISES map, which also covers exercises that are
+    not in the catalog yet."""
     worst = "ok"
     for part, level in (restrictions or {}).items():
         if _LEVEL_RANK.get(level, 0) == 0:
             continue
-        if name in BODYPART_EXERCISES.get(part, []):
-            if _LEVEL_RANK[level] > _LEVEL_RANK[worst]:
-                worst = level
+        hit = (part in joints) if joints else (name in BODYPART_EXERCISES.get(part, []))
+        if hit and _LEVEL_RANK[level] > _LEVEL_RANK[worst]:
+            worst = level
     return worst
+
+
+# --- restriction checks --------------------------------------------------------
+RESTRICTION_CHECK_DAYS = 14    # how far back the coach looks for sets that ignored a restriction
+ECC_JUMP_PCT = 10              # eccentric peak this much above the previous day on a 'careful' exercise
+
+
+def _restriction_checks(work: list[dict], exercises: list[dict], restrictions: dict, today: date) -> list[dict]:
+    """Did the athlete respect their own restrictions? A mirror, not advice.
+
+    Within the last RESTRICTION_CHECK_DAYS: any set on an 'avoid' exercise
+    (trained_avoid); a moderate/deep set on a 'careful' exercise
+    (hard_on_careful); and an eccentric peak more than ECC_JUMP_PCT above the
+    previous day-best of a 'careful' exercise (eccentric_jump) - on ARX the
+    eccentric runs ~1.6x the concentric, and a jump there is what an irritated
+    joint feels first. Empty when nothing is restricted."""
+    if not any(_LEVEL_RANK.get(v, 0) for v in (restrictions or {}).values()):
+        return []
+    level_of = {e["name"]: e.get("restriction", "ok") for e in exercises}
+    ecc_by_day: dict = {}                       # (exercise, date) -> eccentric day-best
+    for s in work:
+        k = (s["name"], s["date"][:10])
+        ecc_by_day[k] = max(ecc_by_day.get(k, 0), s["eccentric_kg"])
+    days_by_ex: dict = {}
+    for n, d in ecc_by_day:
+        days_by_ex.setdefault(n, []).append(d)
+    for n in days_by_ex:
+        days_by_ex[n].sort()
+    start = today.toordinal() - RESTRICTION_CHECK_DAYS
+    out = []
+    for s in sorted(work, key=lambda x: x["date"]):
+        lvl, d = level_of.get(s["name"], "ok"), s["date"][:10]
+        if lvl == "ok" or date.fromisoformat(d).toordinal() < start:
+            continue
+        base = {"date": d, "exercise": s["name"], "level": lvl,
+                "inroad": s.get("inroad"), "effort": s.get("effort"), "eccentric_kg": s["eccentric_kg"]}
+        if lvl == "avoid":
+            out.append(dict(base, issue="trained_avoid"))
+            continue
+        if EFFORT_RANK.get(s.get("effort"), 0) >= 2 and s.get("effort") != "unknown":
+            out.append(dict(base, issue="hard_on_careful"))
+        days = days_by_ex.get(s["name"], [])
+        i = days.index(d)
+        if i > 0:
+            prev_ecc = ecc_by_day[(s["name"], days[i - 1])]
+            if prev_ecc and s["eccentric_kg"] > prev_ecc * (1 + ECC_JUMP_PCT / 100):
+                out.append(dict(base, issue="eccentric_jump", prev_date=days[i - 1], prev_eccentric_kg=prev_ecc,
+                                jump_pct=round((s["eccentric_kg"] - prev_ecc) / prev_ecc * 100)))
+    return out
+
+
+# --- daily check-in / readiness -------------------------------------------------
+# A short wellness questionnaire in the spirit of Hooper & Mackinnon (1995) and
+# McLean et al. (2010): sleep, energy, muscle soreness, plus the resting heart
+# rate against the athlete's own baseline. Subjective wellness tracks training
+# load at least as well as most objective markers, so the coach asks before
+# deciding. The score is a transparent 0-100 sum of equal parts - a signal for
+# today's intensity, NOT a diagnosis. Questions left unanswered simply do not
+# count (the score is rescaled to what was answered).
+READINESS_POINTS = {"sleep": {"poor": 0, "ok": 15, "good": 25},
+                    "energy": {"low": 0, "ok": 15, "high": 25}}
+READINESS_SORENESS = {"none": 25, "mild": 12, "strong": 0}
+READINESS_RHR = {"normal": 25, "raised": 10, "elevated": 0}
+RHR_RAISED_BPM = 4             # resting HR this far above the baseline = mildly raised
+RHR_ELEVATED_BPM = 7           # ... clearly elevated: not recovered, or getting ill
+RHR_BASELINE_MIN = 3           # earlier values needed before a baseline exists
+RHR_BASELINE_N = 7             # baseline = median of the last N earlier values
+READINESS_BANDS = ((75, "go_hard"), (50, "moderate"), (0, "light_or_rest"))
+
+
+def _readiness(checkin: dict | None, rhr_history: list[dict] | None) -> dict | None:
+    """Score today's check-in (see the constants above). rhr_history = earlier
+    {date, rhr} entries of this athlete, oldest first; the baseline is the
+    median of the last RHR_BASELINE_N of them. Returns None without a check-in."""
+    if not checkin:
+        return None
+    pts, maxp, parts = 0, 0, {}
+    for k, table in READINESS_POINTS.items():
+        v = checkin.get(k)
+        if v in table:
+            pts += table[v]; maxp += 25; parts[k] = v
+    sore = {r: l for r, l in (checkin.get("soreness") or {}).items() if l in ("mild", "strong")}
+    level = "strong" if "strong" in sore.values() else ("mild" if sore else "none")
+    if checkin.get("soreness") is not None:      # answered (possibly "nothing sore")
+        pts += READINESS_SORENESS[level]; maxp += 25; parts["soreness"] = level
+    rhr = checkin.get("rhr") or None
+    vals = [h["rhr"] for h in (rhr_history or []) if h.get("rhr")][-RHR_BASELINE_N:]
+    baseline = round(st.median(vals), 1) if len(vals) >= RHR_BASELINE_MIN else None
+    status = diff = None
+    if rhr and baseline:
+        diff = round(rhr - baseline, 1)
+        status = "elevated" if diff > RHR_ELEVATED_BPM else ("raised" if diff > RHR_RAISED_BPM else "normal")
+        pts += READINESS_RHR[status]; maxp += 25; parts["rhr"] = status
+    score = round(pts / maxp * 100) if maxp else None
+    band = next((b for th, b in READINESS_BANDS if score is not None and score >= th), None)
+    return {"date": checkin.get("date"), "score": score, "band": band, "components": parts,
+            "sore_regions": sore, "rhr": rhr, "rhr_baseline": baseline, "rhr_diff": diff,
+            "rhr_status": status, "rhr_values_known": len(vals),
+            "pain": list(checkin.get("pain") or []), "note": checkin.get("note") or None}
 
 
 def _session_plan(exercises: list[dict], restrictions: dict,
@@ -1158,7 +1263,7 @@ def _session_plan(exercises: list[dict], restrictions: dict,
     def rstate(e):
         return rec.get(e["name"], {"status": "ready", "ready_on": None, "fresh_on": None, "limited_by": [], "reason": ""})
 
-    def restr(e): return exercise_restriction(e["name"], restrictions)
+    def restr(e): return exercise_restriction(e["name"], restrictions, e.get("joints"))
     avail = [e for e in exercises if restr(e) != "avoid" and fstate(e["group"]) != "off"]
     if approach == "auto":
         avail = [e for e in avail if rstate(e)["status"] != "not_ready"]
@@ -1430,9 +1535,13 @@ def build_report(con, cfg: dict) -> dict:
         restrictions[p] = "careful"
     exercises = _exercise_series(work, catalog, restrictions)
     for e in exercises:                       # annotate each exercise with its restriction
-        e["restriction"] = exercise_restriction(e["name"], restrictions)
+        e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"))
     days = sorted({s["date"][:10] for s in work})
 
+    # today's check-in scored; its resting-HR verdict feeds the load flag
+    readiness = _readiness(checkin, cfg.get("checkin_history"))
+    if readiness and readiness["rhr_status"]:
+        checkin = dict(checkin, rhr_status=readiness["rhr_status"])
     load = _load_analysis(work, catalog, exercises, today, checkin)
     approach = cfg.get("approach", "auto")
     sequences_all = _session_sequences(work, approach, catalog)
@@ -1485,8 +1594,10 @@ def build_report(con, cfg: dict) -> dict:
         "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,            # effective today (saved + pain from the check-in)
         "restrictions_saved": restrictions_saved,
+        "restriction_checks": _restriction_checks(work, exercises, restrictions_saved, today),
         "pain_today": pain_today,
         "checkin": checkin or None,
+        "readiness": readiness,                  # scored check-in (None without one)
         "today": today.isoformat(),
         "focus": cfg.get("focus", {}) or {},
         "approach": approach,

@@ -23,6 +23,7 @@ Public domain / CC0. Not medical advice.
 """
 from __future__ import annotations
 import os, sys, json, time, argparse, threading, webbrowser
+from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -33,6 +34,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(core.data_dir(), "config.json")   # stable, survives re-download
 GOALS = os.path.join(core.data_dir(), "goals.json")     # per-user: {user_id: {...}}
 WEB = os.path.join(HERE, "web", "index.html")
+
+CHECKIN_KEEP_DAYS = 60        # daily check-ins older than this are pruned from goals.json
+CHECKIN_FIELDS = ("sleep", "energy", "soreness", "rhr", "pain", "note")
 
 REPO_URL = "https://github.com/joergs-git/arx-insight"
 RAW_VERSION_URL = "https://raw.githubusercontent.com/joergs-git/arx-insight/main/VERSION"
@@ -104,6 +108,18 @@ def user_info(user_id: int) -> dict:
     return {"id": user_id, "name": f"User {user_id}", "created": None}
 
 
+def checkin_payload(urec: dict, day: str) -> dict:
+    """Today's check-in of one person plus the earlier resting-HR values (for
+    the baseline). Stored per user in goals.json under 'checkins' {date: {...}}."""
+    cis = urec.get("checkins") or {}
+    ci = cis.get(day)
+    history = [{"date": d, "rhr": v.get("rhr")} for d, v in sorted(cis.items())
+               if d < day and v.get("rhr")]
+    scored = core._readiness({"date": day}, history)     # only for the baseline figure
+    return {"date": day, "checkin": ci, "history": history,
+            "rhr_baseline": scored["rhr_baseline"] if scored else None}
+
+
 def make_report(user_id: int, with_ai: bool) -> dict:
     cfg = read_json(CONFIG, {})
     goals = read_json(GOALS, {})
@@ -117,6 +133,11 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     cfg["restrictions"] = urec.get("restrictions", {})     # body part -> ok/careful/avoid
     cfg["focus"] = urec.get("focus", {})                   # group -> more/normal/less/off
     cfg["approach"] = urec.get("approach", "auto")         # full | split | auto
+    # today's check-in (sleep, energy, soreness, resting HR, pain) + RHR history
+    today = core._today({}).isoformat()
+    ck = checkin_payload(urec, today)
+    cfg["checkin"] = dict(ck["checkin"], date=today) if ck["checkin"] else None
+    cfg["checkin_history"] = ck["history"]
     # per-user language override wins for the AI narrative (falls back to device default)
     cfg["language"] = urec.get("language") or cfg.get("language", "en")
     cfg["_catalog"] = STATE["catalog"]
@@ -175,6 +196,11 @@ class Handler(BaseHTTPRequestHandler):
             goals = read_json(GOALS, {})
             uid = q.get("user_id", ["0"])[0]
             return self._send(goals.get(uid, {}))          # {} => not defined yet
+        if u.path == "/api/checkin":                       # today's (or a given day's) check-in
+            goals = read_json(GOALS, {})
+            uid = q.get("user_id", ["0"])[0]
+            day = q.get("date", [core._today({}).isoformat()])[0]
+            return self._send(checkin_payload(goals.get(uid, {}), day))
         if u.path == "/api/report":
             uid = int(q.get("user_id", ["0"])[0])
             ai = q.get("ai", ["0"])[0] == "1"
@@ -223,6 +249,23 @@ class Handler(BaseHTTPRequestHandler):
             goals[str(data["user_id"])] = rec
             write_json(GOALS, goals)
             return self._send({"ok": True})
+        if u.path == "/api/checkin":                       # daily check-in screen
+            goals = read_json(GOALS, {})
+            rec = goals.get(str(data["user_id"]), {})
+            day = data.get("date") or core._today({}).isoformat()
+            entry = {k: data[k] for k in CHECKIN_FIELDS if k in data}
+            try:
+                entry["rhr"] = int(entry["rhr"]) if entry.get("rhr") not in ("", None) else None
+            except (TypeError, ValueError):
+                entry["rhr"] = None
+            cis = rec.setdefault("checkins", {})
+            cis[day] = entry
+            cutoff = (date.fromisoformat(day) - timedelta(days=CHECKIN_KEEP_DAYS)).isoformat()
+            for d in [d for d in cis if d < cutoff]:      # keep the file small
+                del cis[d]
+            goals[str(data["user_id"])] = rec
+            write_json(GOALS, goals)
+            return self._send({"ok": True, "date": day})
         return self._send({"error": "not found"}, code=404)
 
 
