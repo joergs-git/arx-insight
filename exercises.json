@@ -1,13 +1,14 @@
 {
   "_comment": "ARX Omni exercise catalog. code = ExerciseSet.EXERCISE in DB. Mapping derived by joining the ARX cloud CSV export on date+max+intensity (68/68 matched). group per ARX Push/Pull/Drive. kind: compound | isolation.",
   "_limiters": "Optional per exercise. 'targets' = the muscles the exercise is FOR; 'limiters' = structures that tend to give out first although they are only a means (e.g. the grip on a Dead Lift). Several exercises sharing a limiter fatigue it cumulatively within a session, and an exercise whose TARGET is another exercise's LIMITER belongs after it in the plan. Vocabulary: grip, elbow_flexors (biceps/brachialis), triceps, shoulders (anterior deltoid), chest, lats, upper_back, lower_back, glutes, quads, hamstrings, calves. Missing fields are fine - the code treats them as empty.",
-  "3":  { "name": "Row",                 "group": "Pull",  "kind": "compound",  "targets": ["upper_back", "lats"],       "limiters": ["grip", "elbow_flexors"] },
-  "4":  { "name": "Pull Down",           "group": "Pull",  "kind": "compound",  "targets": ["lats", "upper_back"],       "limiters": ["grip", "elbow_flexors"] },
-  "10": { "name": "Dead Lift",           "group": "Drive", "kind": "compound",  "targets": ["glutes", "hamstrings", "quads"], "limiters": ["grip", "lower_back"] },
-  "11": { "name": "Biceps Curl",         "group": "Pull",  "kind": "isolation", "targets": ["elbow_flexors"],            "limiters": ["grip"] },
-  "12": { "name": "Triceps Pressdown",   "group": "Push",  "kind": "isolation", "targets": ["triceps"],                  "limiters": [] },
-  "19": { "name": "Belt Squat",          "group": "Drive", "kind": "compound",  "targets": ["quads", "glutes"],          "limiters": [] },
-  "20": { "name": "Romanian Dead Lift",  "group": "Drive", "kind": "compound",  "targets": ["hamstrings", "glutes"],     "limiters": ["grip", "lower_back"] },
-  "23": { "name": "Horizontal Press",    "group": "Push",  "kind": "compound",  "targets": ["chest"],                    "limiters": ["triceps", "shoulders"] },
-  "26": { "name": "Decline Press",       "group": "Push",  "kind": "compound",  "targets": ["chest"],                    "limiters": ["triceps", "shoulders"] }
+  "_joints": "Optional per exercise: the body parts a user can flag as limited on the restrictions screen (shoulder, elbow, wrist, knee, hip, lower_back, neck). An exercise listing a flagged joint is eased ('careful') or dropped ('avoid'). Overhead pulling (Pull Down) and rowing load an irritated shoulder too, not only the presses. Exercises without this field fall back to the built-in name map.",
+  "3":  { "name": "Row",                 "group": "Pull",  "kind": "compound",  "targets": ["upper_back", "lats"],       "limiters": ["grip", "elbow_flexors"], "joints": ["shoulder", "elbow", "wrist", "lower_back"] },
+  "4":  { "name": "Pull Down",           "group": "Pull",  "kind": "compound",  "targets": ["lats", "upper_back"],       "limiters": ["grip", "elbow_flexors"], "joints": ["shoulder", "elbow", "wrist"] },
+  "10": { "name": "Dead Lift",           "group": "Drive", "kind": "compound",  "targets": ["glutes", "hamstrings", "quads"], "limiters": ["grip", "lower_back"], "joints": ["hip", "knee", "lower_back", "wrist"] },
+  "11": { "name": "Biceps Curl",         "group": "Pull",  "kind": "isolation", "targets": ["elbow_flexors"],            "limiters": ["grip"],                  "joints": ["elbow", "wrist"] },
+  "12": { "name": "Triceps Pressdown",   "group": "Push",  "kind": "isolation", "targets": ["triceps"],                  "limiters": [],                        "joints": ["elbow", "wrist"] },
+  "19": { "name": "Belt Squat",          "group": "Drive", "kind": "compound",  "targets": ["quads", "glutes"],          "limiters": [],                        "joints": ["knee", "hip", "lower_back"] },
+  "20": { "name": "Romanian Dead Lift",  "group": "Drive", "kind": "compound",  "targets": ["hamstrings", "glutes"],     "limiters": ["grip", "lower_back"],    "joints": ["hip", "lower_back", "wrist"] },
+  "23": { "name": "Horizontal Press",    "group": "Push",  "kind": "compound",  "targets": ["chest"],                    "limiters": ["triceps", "shoulders"],  "joints": ["shoulder", "elbow", "wrist"] },
+  "26": { "name": "Decline Press",       "group": "Push",  "kind": "compound",  "targets": ["chest"],                    "limiters": ["triceps", "shoulders"],  "joints": ["shoulder", "elbow", "wrist"] }
 }
