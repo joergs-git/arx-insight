@@ -1317,6 +1317,150 @@ def _session_plan(exercises: list[dict], restrictions: dict,
     return _order_by_limiters(items)
 
 
+# --- coach layer -----------------------------------------------------------------
+# What a trainer writes on the whiteboard before the session: a concrete target
+# per exercise (progressive overload, but only where the last set showed room),
+# the effort the goal asks for, rest between sets, adherence to the weekly
+# target, the next milestones - and a deload signal when weeks of consistent
+# training meet falling numbers or poor readiness. All of it rule-based facts;
+# the AI phrases and individualises them, it does not invent them.
+TARGET_STEP_PCT = 2            # progressive-overload nudge when the trend is up and there was room
+TARGET_ROOM_INROAD = 20        # last inroad below this = the set stopped short of real fatigue
+ROUND_MARK = {"kg": 10, "lb": 25}                          # "next round number" step per unit
+REST_AFTER_MIN = {"compound": "3-4", "isolation": "2-3"}   # minutes between sets by exercise kind
+WORK_MARK_KG_S = 50000         # work-total milestone step (summed impulse, kg*s)
+DELOAD_WEEKS_AT_TARGET = 4     # consecutive weeks on target before a deload is even considered
+DELOAD_DECLINE_PCT = 5         # comparable-ROM decline over the last two occurrences that counts ...
+DELOAD_MIN_EXERCISES = 2       # ... on at least this many exercises
+DELOAD_READINESS_BELOW = 50    # or readiness below this on 2 of the last 3 check-ins
+
+
+def _target_effort(goal: dict) -> dict:
+    """The effort the training goal asks for (goal sliders = muscle / strength /
+    conditioning fractions)."""
+    g = goal or {}
+    muscle, strength, cond = g.get("muscle") or 0, g.get("strength") or 0, g.get("conditioning") or 0
+    if cond >= 0.3:
+        return {"mode": "conditioning", "inroad_min": 10, "inroad_target": "10-20 %",
+                "note": "timed protocol, steady force, shorter rests"}
+    if strength > muscle:
+        return {"mode": "strength", "inroad_min": 10, "inroad_target": "10-20 %",
+                "note": "maximal force on every rep, stop before form breaks"}
+    return {"mode": "muscle", "inroad_min": 20, "inroad_target": ">= 20 %",
+            "note": "take the set to real inroad"}
+
+
+def _adherence(days: list[str], sessions_per_week, today: date) -> dict:
+    """Training days per ISO week against the weekly target: this week so far,
+    the last four full weeks, and the streak of weeks that met the target."""
+    target = int(sessions_per_week or 2)
+    per_week: dict = {}
+    for d in days:
+        y, w, _ = date.fromisoformat(d).isocalendar()
+        per_week[(y, w)] = per_week.get((y, w), 0) + 1
+    first = date.fromisoformat(days[0]) if days else today
+    fy, fw, _ = first.isocalendar()
+    ty, tw, _ = today.isocalendar()
+    weeks = []
+    for back in range(4, 0, -1):
+        ref = today - timedelta(weeks=back)
+        y, w, _ = ref.isocalendar()
+        n = per_week.get((y, w), 0)
+        weeks.append({"week": f"{y}-W{w:02d}", "sessions": n, "met": n >= target,
+                      "before_start": (y, w) < (fy, fw)})     # no history yet -> not a missed week
+    streak = 0
+    for wk in reversed(weeks):
+        if wk["met"]:
+            streak += 1
+        elif not wk["before_start"]:
+            break
+    this_week = per_week.get((ty, tw), 0)
+    return {"target_per_week": target, "this_week": this_week, "this_week_met": this_week >= target,
+            "weeks": weeks, "streak_weeks": streak,
+            "weeks_of_history": round(max(0, (today - first).days) / 7, 1) if days else 0}
+
+
+def _coach_facts(exercises: list[dict], recovery: dict, goal: dict, days: list[str],
+                 sessions_per_week, today: date, totals: dict, units: str,
+                 checkin_history: list[dict] | None, readiness_today: dict | None) -> dict:
+    """Rule-based whiteboard facts for today (see the constants above)."""
+    unit = "lb" if units == "imperial" else "kg"
+    step_kg = ROUND_MARK["lb"] * LB_TO_KG if unit == "lb" else ROUND_MARK["kg"]
+    rec = {r["name"]: r for r in (recovery or {}).get("exercises") or []}
+    rows = []
+    for e in exercises:
+        rs = rec.get(e["name"], {"status": "ready", "ready_on": None, "limited_by": [], "fresh_on": None})
+        restr = e.get("restriction", "ok")
+        valid = [o for o in e["occ"] if o.get("rom_valid")]
+        base = valid[-1] if valid else e["occ"][-1]      # last COMPARABLE day-best = the reference
+        last = e["occ"][-1]
+        row = {"name": e["name"], "group": e["group"], "kind": e.get("kind", "?"),
+               "status": rs["status"], "ready_on": rs.get("ready_on"), "fresh_on": rs.get("fresh_on"),
+               "limited_by": rs.get("limited_by", []), "restriction": restr,
+               "base_kg": base["kg"], "base_date": base["date"], "base_rom_cm": base["rom_cm"],
+               "base_is_last": base["date"] == last["date"],
+               "last_inroad": e.get("last_inroad"), "trend_per_session": e.get("trend_per_session"),
+               "rest_after_min": REST_AFTER_MIN.get(e.get("kind"), "2-3"),
+               "last_settings": {"reps": last.get("reps"), "seconds": last.get("seconds"),
+                                 "pause_end_s": last.get("pause_end_s"), "pause_return_s": last.get("pause_return_s")},
+               "next_mark_kg": None, "to_next_mark_kg": None,
+               "target_rule": None, "target_peak_kg": None}
+        if e["pb"]:
+            # kept unrounded so a 25 lb mark converts back to exactly 275.0 lb, not 274.9
+            mark = (int(e["pb"] / step_kg) + 1) * step_kg
+            row["next_mark_kg"], row["to_next_mark_kg"] = mark, round(mark - e["pb"], 2)
+        if restr == "avoid":
+            row["target_rule"] = "excluded"
+        elif restr == "careful":
+            row["target_rule"] = "sub_max_careful"
+        elif rs["status"] == "not_ready":
+            row["target_rule"] = "not_ready"
+        elif rs["status"] == "limited":
+            row["target_rule"] = "sub_max_limiter"
+        else:
+            room = e.get("last_inroad") is None or e["last_inroad"] < TARGET_ROOM_INROAD
+            if (e.get("trend_per_session") or 0) > 0 and room:
+                row["target_rule"] = "trend_up_room"           # trend up, last set not to failure -> nudge
+                row["target_peak_kg"] = round(base["kg"] * (1 + TARGET_STEP_PCT / 100), 1)
+            else:
+                row["target_rule"] = "hold_reach_inroad"       # same force, but make the set real
+                row["target_peak_kg"] = base["kg"]
+        rows.append(row)
+
+    since = (today - timedelta(days=14)).isoformat()
+    recent_pbs = [e["name"] for e in exercises
+                  if e["n"] >= 2 and e["last_date"] >= since and e["last"] >= e["pb"] - 0.01]
+    work = (totals or {}).get("total_work_impulse") or 0
+    adherence = _adherence(days, sessions_per_week, today)
+
+    declining = []
+    for e in exercises:
+        v = [o["kg"] for o in e["occ"] if o.get("rom_valid")]
+        if len(v) >= 3 and v[-3] and (v[-1] - v[-3]) / v[-3] * 100 <= -DELOAD_DECLINE_PCT:
+            declining.append({"name": e["name"], "change_pct": round((v[-1] - v[-3]) / v[-3] * 100, 1)})
+    hist = list(checkin_history or [])
+    scores = []
+    for i in range(max(0, len(hist) - 3), len(hist)):
+        r = _readiness(hist[i], hist[:i])
+        if r and r["score"] is not None:
+            scores.append(r["score"])
+    if readiness_today and readiness_today.get("score") is not None:
+        scores = (scores + [readiness_today["score"]])[-3:]
+    low = sum(1 for s in scores if s < DELOAD_READINESS_BELOW)
+    suggested = (adherence["streak_weeks"] >= DELOAD_WEEKS_AT_TARGET
+                 and (len(declining) >= DELOAD_MIN_EXERCISES or low >= 2))
+    deload = {"suggested": suggested, "weeks_at_target": adherence["streak_weeks"],
+              "declining": declining, "low_readiness_checkins": low, "recent_readiness_scores": scores,
+              "rule": (f">= {DELOAD_WEEKS_AT_TARGET} weeks on target AND (>= {DELOAD_MIN_EXERCISES} exercises "
+                       f"down >= {DELOAD_DECLINE_PCT} % over two comparable sessions OR readiness < "
+                       f"{DELOAD_READINESS_BELOW} on 2 of the last 3 check-ins)")}
+    return {"target_effort": _target_effort(goal), "exercises": rows, "adherence": adherence,
+            "milestones": {"pbs_last_14_days": recent_pbs, "work_total_kg_s": work,
+                           "next_work_mark_kg_s": (int(work / WORK_MARK_KG_S) + 1) * WORK_MARK_KG_S,
+                           "round_mark_step_kg": round(step_kg, 1)},
+            "deload": deload, "rest_after_min": REST_AFTER_MIN}
+
+
 EFFORT_CACHE = os.path.join(data_dir(), ".effort_cache.json")
 
 
@@ -1573,6 +1717,10 @@ def build_report(con, cfg: dict) -> dict:
         "ce_ratio": round(st.mean(ce), 2) if ce else None,
         "total_impulse": sum(s["impulse_kg_s"] for s in work),
     }
+    totals = _totals(work, load.get("weekly_rate"), sequences_all)
+    coach = _coach_facts(exercises, load["recovery"], cfg.get("goal", {}) or {}, days,
+                         cfg.get("sessions_per_week"), today, totals, cfg.get("units", "imperial"),
+                         cfg.get("checkin_history"), readiness)
 
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
@@ -1590,7 +1738,8 @@ def build_report(con, cfg: dict) -> dict:
         "load": load,
         "session_sequences": sequences,
         "limiter_conflicts": _limiter_conflicts(sequences),
-        "totals": _totals(work, load.get("weekly_rate"), sequences_all),
+        "totals": totals,
+        "coach": coach,                          # whiteboard facts: targets, adherence, milestones, deload
         "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,            # effective today (saved + pain from the check-in)
         "restrictions_saved": restrictions_saved,
@@ -1616,85 +1765,146 @@ AI_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 AI_EFFORT_DEFAULT = "medium"
 
 
-def ai_narrative(report: dict, cfg: dict) -> str | None:
-    """Ask Claude to analyse the findings + suggest a session. Key stays local.
-
-    The model never sees raw personal data - only aggregated, name-free
-    metrics. Two kinds of input are handed over and kept apart in the system
-    prompt: the deterministic metrics (trend, load/recovery, ROM validity,
-    flags, limiter conflicts) are FINAL and must not be recomputed or
-    overridden; the ordered session sequences are raw material in which the
-    model may look for patterns the rules do not cover (ordering, pacing,
-    settings changes). Cost is steered by the 'ai_effort' config option
-    (low | medium | high | xhigh | max, default medium).
-    """
-    key = cfg.get("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        return None
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return None
-
-    client = Anthropic(api_key=key)
-    model = cfg.get("model", "claude-opus-5")   # override in config if desired
-    effort = str(cfg.get("ai_effort") or AI_EFFORT_DEFAULT).lower()
-    if effort not in AI_EFFORT_LEVELS:
-        effort = AI_EFFORT_DEFAULT
-
-    # Units: convert force/length so the model answers in the user's units.
+def ai_summary(report: dict, cfg: dict) -> dict:
+    """The compact, name-free payload the coach model receives, in the user's
+    units. Two kinds of content, kept apart in the prompt: precomputed FACTS
+    (final) and the ordered session sequences (raw material). Separate from
+    ai_narrative so it can be inspected and tested without an API call."""
     imp = cfg.get("units", "imperial") == "imperial"
     ff = 2.20462 if imp else 1.0
     lf = (1 / 2.54) if imp else 1.0
     FU, LU = ("lb", "in") if imp else ("kg", "cm")
     kg = lambda v: round(v * ff, 1) if v is not None else None
     cm = lambda v: round(v * lf, 1) if v is not None else None
+    today = report.get("today")
 
-    # Hand the model a compact, name-free summary: precomputed metrics (final)
-    # plus the ordered session sequences (raw material for its own observations).
-    # Exercise names/groups come from the catalog.
-    f = report.get("featured")
-    summary = {
+    ls = report.get("last_session") or {}
+    def ls_row(x):
+        p = x.get("prev")
+        return {
+            "order": x["order"], "name": x["name"], "group": x["group"], "sets_today": x["sets_today"],
+            "rest_before_min": x["rest_before_min"],
+            "peak": kg(x["max_kg"]), "mean_force": kg(x["mean_force_kg"]), "eccentric_peak": kg(x["eccentric_kg"]),
+            "reps": x["reps"], "seconds": x["seconds"], "rom": cm(x["rom_cm"]),
+            "inroad": x["inroad"], "effort": x["effort"],
+            "pause_end_s": x["pause_end_s"], "pause_return_s": x["pause_return_s"],
+            "limiters_pre_fatigued": x.get("limiters_pre_fatigued", []),
+            "is_new_pb": x["is_pb"], "personal_best": kg(x["pb_kg"]), "vs_pb_pct": x["delta_vs_pb_pct"],
+            "restriction": x.get("restriction", "ok"),
+            "vs_previous": ({"date": p["date"], "peak": kg(p["max_kg"]), "mean_force": kg(p["mean_force_kg"]),
+                             "inroad": p["inroad"], "effort": p["effort"], "rom": cm(p["rom_cm"]),
+                             "reps": p["reps"], "seconds": p["seconds"],
+                             "delta_peak_pct": x["delta_pct"], "delta_mean_force_pct": x["delta_mean_pct"],
+                             "comparable_rom": x["delta_comparable"]} if p else None),
+            "settings_changed": x.get("settings_changed", []),
+        }
+    days_ago = None
+    if ls.get("date") and today:
+        days_ago = (date.fromisoformat(today) - date.fromisoformat(ls["date"])).days
+    tr = ls.get("transition") or {}
+
+    load = report["load"]
+    rec = load.get("recovery") or {}
+    coach = report.get("coach") or {}
+    rd = report.get("readiness")
+
+    return {
+        "today": today,
         "units": {"force": FU, "length": LU},
         "goal": report["goal"],
-        "restrictions": report.get("restrictions", {}),   # body part -> ok/careful/avoid
+        "restrictions": report.get("restrictions_saved", report.get("restrictions", {})),  # body part -> ok/careful/avoid
+        "pain_today_from_checkin": report.get("pain_today", []),   # body parts flagged today -> careful today
         "focus": report.get("focus", {}),                 # group -> more/normal/less/off
         "approach": report.get("approach", "auto"),       # full | split | auto
         "ideal_settings": report.get("ideal_settings"),   # textbook machine settings
         "sessions_per_week_target": report.get("sessions_per_week"),
         "training_days": report["training_days"],
+        "sets": {"working": report["sets_working"], "recorded": report["sets_total"],
+                 "excluded": report.get("sets_excluded", {})},
+        # 1) the session that just happened, exercise by exercise, vs the previous time
+        "last_session": {
+            "date": ls.get("date"), "days_ago": days_ago,
+            "previous_session_date": ls.get("prev_date"), "gap_days": ls.get("gap_days"),
+            "vs_previous_session": {"verdict": tr.get("verdict"), "muscles_loaded_again": tr.get("muscles_repeated", []),
+                                    "conflicts": tr.get("conflicts", []), "detail": tr.get("detail")} if tr else None,
+            "working_sets": ls.get("working_sets"), "false_starts": ls.get("false_starts"),
+            "wall_minutes": ls.get("wall_minutes"), "time_under_load_min": ls.get("time_under_load_min"),
+            "flags": ls.get("flags", []),
+            "exercises": [ls_row(x) for x in ls.get("exercises", [])],
+        } if ls else None,
+        # 2) how the athlete feels today (None = no check-in) and what is recovered
+        "checkin_today": rd,
+        "readiness_today": {
+            "muscles": {m: {"ready": v["ready"], "ready_on": v["ready_on"], "reason": v["reason"],
+                            "sore": v.get("sore"), "last_effort": v["last_effort"], "last_exercise": v["last_exercise"],
+                            "days_since": v["days_since"]} for m, v in (rec.get("muscles") or {}).items()},
+            "exercises_ready": rec.get("ready_today", []),
+            "exercises_limited": rec.get("limited_today", []),
+            "exercises_not_ready": rec.get("not_ready", []),
+            "next_earliest": load.get("next_earliest"), "all_ready_on": load.get("all_ready_on"),
+        },
+        # 3) whiteboard facts
+        "coach": {
+            "target_effort": coach.get("target_effort"),
+            "targets": [{
+                "name": t["name"], "group": t["group"], "kind": t["kind"], "status": t["status"],
+                "ready_on": t["ready_on"], "limited_by": t["limited_by"], "restriction": t["restriction"],
+                "target_rule": t["target_rule"], "target_peak": kg(t["target_peak_kg"]),
+                "base_peak": kg(t["base_kg"]), "base_date": t["base_date"], "base_rom": cm(t["base_rom_cm"]),
+                "base_is_last_session": t["base_is_last"], "last_inroad": t["last_inroad"],
+                "trend_per_session": kg(t["trend_per_session"]),
+                "rest_after_min": t["rest_after_min"],
+                "next_round_mark": kg(t["next_mark_kg"]), "to_next_round_mark": kg(t["to_next_mark_kg"]),
+                "last_settings": t["last_settings"],
+            } for t in coach.get("exercises", [])],
+            "adherence": coach.get("adherence"),
+            "milestones": {
+                "pbs_last_14_days": (coach.get("milestones") or {}).get("pbs_last_14_days", []),
+                "work_total_impulse": (coach.get("milestones") or {}).get("work_total_kg_s"),
+                "next_work_mark_impulse": (coach.get("milestones") or {}).get("next_work_mark_kg_s"),
+                "round_mark_step": kg((coach.get("milestones") or {}).get("round_mark_step_kg")),
+            },
+            "deload": coach.get("deload"),
+        },
+        "restriction_checks": [{**c, "eccentric": kg(c.get("eccentric_kg")),
+                                "prev_eccentric": kg(c.get("prev_eccentric_kg"))}
+                               for c in report.get("restriction_checks", [])],
         "exercises": [{
             "name": e["name"], "group": e["group"], "kind": e["kind"],
             "targets": e.get("targets", []), "limiters": e.get("limiters", []),
             "restriction": e.get("restriction", "ok"),
             "personal_best": kg(e["pb"]),
-            "latest_day_best": kg(e["last"]),   # best set of the most recent training day
+            "latest_day_best": kg(e["last"]), "latest_date": e.get("last_date"),
+            "previous_day_best": kg(e.get("prev_kg")), "previous_date": e.get("prev_date"),
+            "delta_vs_previous_pct": e.get("delta_pct"), "delta_comparable_rom": e.get("delta_comparable"),
+            "in_last_session": e.get("in_last_session"),
             "training_days": e["n"], "total_sets": e["total_sets"],
             "days_with_multiple_sets": e["multi_set_days"],
             "trend_per_session": kg(e["trend_per_session"]),   # per training-day occurrence
             "trend_per_day": kg(e["trend_per_day"]),           # per calendar day
             "trend_based_on_days": e["trend_n"],               # ROM-comparable days only
-            "rom_reference": cm(e["rom_cm_reference"]),
-            "rom_latest": cm(e["rom_cm_latest"]),
-            "rom_drift_pct": e["rom_drift_pct"],
-            "rom_stable": e["rom_stable"],
+            "rom_reference": cm(e["rom_cm_reference"]), "rom_latest": cm(e["rom_cm_latest"]),
+            "rom_drift_pct": e["rom_drift_pct"], "rom_stable": e["rom_stable"],
             "days_excluded_for_rom": e["days_excluded_for_rom"],
         } for e in report["exercises"]],
         "rom_warnings": [{
-            "name": w["name"], "rom_reference": cm(w["rom_cm_reference"]),
-            "rom_latest": cm(w["rom_cm_latest"]), "rom_drift_pct": w["rom_drift_pct"],
-            "days_excluded_for_rom": w["days_excluded_for_rom"],
+            "name": w["name"], "restricted": w.get("restricted", False),
+            "rom_reference": cm(w["rom_cm_reference"]), "rom_latest": cm(w["rom_cm_latest"]),
+            "rom_drift_pct": w["rom_drift_pct"], "days_excluded_for_rom": w["days_excluded_for_rom"],
             "trend_available": w["trend_available"],
             "observed": [{"date": o["date"], "rom": cm(o["rom_cm"]), "best": kg(o["kg"]),
                           "comparable": o["valid"]} for o in w["observed"]],
         } for w in report.get("rom_warnings", [])],
         "whole_body_index_per_day": report["whole_body"]["series"],
-        "load_and_recovery": report["load"],
-        # Raw material for the model's OWN observations (see system prompt):
-        # the ordered sets of the last training days, in the user's units.
+        "load_and_recovery": {k: load.get(k) for k in (
+            "flag", "window", "training_days", "gaps_days", "median_gap_days", "days_since_last",
+            "sessions_last7", "weekly_rate", "hard_sessions", "submax_sessions",
+            "insufficient_recovery_after_hard", "insufficient_recovery_after_hard_total",
+            "conflicts_recent", "transitions", "per_group")},
+        # Raw material for the model's OWN observations (see system prompt)
         "session_sequences": [{
-            "date": d["date"], "working_sets": d["working_sets"], "visits": d["visits"],
-            "groups_touched": d["groups_touched"], "wall_minutes": d["wall_minutes"],
+            "date": d["date"], "working_sets": d["working_sets"], "false_starts": d.get("false_starts", 0),
+            "visits": d["visits"], "groups_touched": d["groups_touched"], "wall_minutes": d["wall_minutes"],
             "time_under_load_min": d["time_under_load_min"], "tul_ratio": d["tul_ratio"],
             "work_density_per_min": kg(d["work_density_per_min"]),
             "flags": d["flags"],
@@ -1714,37 +1924,58 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "limiter_conflicts": report.get("limiter_conflicts", []),
         "totals": report["totals"],
         "session_plan": report["session_plan"],
-        "featured_set": {
-            "exercise": f["meta"].get("name") if f else None,
-            "group": f["meta"].get("group") if f else None,
-            "why_featured": f.get("reason") if f else None,   # pb | deep | submax | recent
-            "peak": kg(f["meta"]["max_kg"]) if f else None,
-            "rep_peaks": [kg(v) for v in f["rep_peaks"]] if f else None,
-            "inroad_pct": f["inroad_pct"] if f else None,
-            "settings": f.get("settings") if f else None,   # actual machine settings of this set
-        },
     }
 
-    system = (
-        "You are a strength-training analyst for users of the ARX adaptive "
-        "resistance machine (amateurs training for muscle and strength). "
-        "Resistance auto-adapts to the user's force, so progress is measured by "
-        "produced force (kg) and by 'inroad' - the force decline across reps "
-        "that shows the set reached deep fatigue. Rising per-rep peaks mean the "
-        "early reps were sub-maximal. Exercises are grouped Push / Pull / Drive.\n"
+
+def ai_system_prompt(cfg: dict) -> str:
+    """The coach's standing instructions. Existing, validated sections are kept
+    (fatigue vs regression, ROM validity, restrictions, focus, two kinds of
+    input, flags, limiters); the trainer role, check-in / muscle-level
+    readiness, consecutive sessions, excluded sets and the fixed whiteboard
+    output format are added around them."""
+    imp = cfg.get("units", "imperial") == "imperial"
+    FU, LU = ("lb", "in") if imp else ("kg", "cm")
+    lang = "German" if cfg.get("language", "en") == "de" else "English"
+    return (
+        "You are the personal strength coach of an amateur who trains on the ARX "
+        "adaptive resistance machine for muscle and strength. Act like a good human "
+        "trainer who sees everything except posture: review what the athlete just "
+        "did, take how they feel today into account, decide today's intensity, "
+        "exercise selection, order, pauses and machine settings, write it on the "
+        "whiteboard in a way that cannot be misread, set concrete targets, and "
+        "motivate with real numbers - never with fluff. Ground every judgement in "
+        "current sports-medicine knowledge: recovery time depends on the effort "
+        "actually reached; delayed-onset soreness and subjective wellness (sleep, "
+        "energy) are valid signs of incomplete recovery; a resting heart rate well "
+        "above the athlete's own baseline is a sign of incomplete recovery or "
+        "illness; autoregulation (adjust the day to readiness) beats a fixed "
+        "calendar; progressive overload needs real effort first; a planned "
+        "lighter week (deload) is the answer to weeks of consistent training that "
+        "meet falling numbers or poor readiness, not more volume. Never give "
+        "medical advice, never diagnose; with pain or illness say to rest and "
+        "see a professional.\n"
+        "MACHINE BASICS: resistance auto-adapts to the user's force, so progress "
+        "is measured by produced force and by 'inroad' - the force decline across "
+        "reps that shows the set reached deep fatigue. Rising per-rep peaks mean "
+        "the early reps were sub-maximal. Exercises are grouped Push / Pull / Drive.\n"
         "CRITICAL - fatigue vs. regression: an athlete often performs SEVERAL "
         "sets of the same exercise within one session; later sets are naturally "
         "weaker because the muscles are already fatigued. This is expected and is "
         "NOT a regression or a deficit. The per-exercise numbers are already "
-        "aggregated to the BEST set of each training day (latest_day_best_kg vs. "
-        "personal_best_kg). Only compare best-of-day across days. When "
-        "days_with_multiple_sets > 0, treat any within-day or later-set drop as "
-        "fatigue, and never tell the user to 'work back up' to a value that is "
-        "just a fatigued repeat set. Judge progress by the trend of daily bests "
-        "and by whether sets reach real inroad. Two trend figures are given per "
-        "exercise: trend_per_session = change per training-day occurrence, "
-        "trend_per_day = change per calendar day (the two differ by the training "
-        "frequency); quote whichever you mean and never swap them.\n"
+        "aggregated to the BEST set of each training day. Only compare best-of-day "
+        "across days. When days_with_multiple_sets > 0, treat any within-day or "
+        "later-set drop as fatigue, and never tell the user to 'work back up' to "
+        "a value that is just a fatigued repeat set. Judge progress by the trend "
+        "of daily bests and by whether sets reach real inroad. Two trend figures "
+        "are given per exercise: trend_per_session = change per training-day "
+        "occurrence, trend_per_day = change per calendar day (they differ by the "
+        "training frequency); quote whichever you mean and never swap them.\n"
+        "EXCLUDED SETS: only real working sets are in the data. Sets that were "
+        "tests, familiarisation, aborted attempts or false starts (the same "
+        "exercise restarted within minutes with more reps) were removed and are "
+        "only counted in sets.excluded and last_session.false_starts. Several "
+        "false starts in one session usually mean the pre-timer or the start "
+        "position is wrong - mention it once, do not treat them as training.\n"
         "RANGE OF MOTION (ROM) VALIDITY: on this machine the force depends on "
         "the position range the set was performed over - a shorter ROM stays in "
         "the strong part of the movement and gives a higher peak. A force "
@@ -1753,99 +1984,188 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
         "rom_reference, rom_latest, rom_drift_pct, rom_stable, "
         "days_excluded_for_rom and trend_based_on_days; trend values are already "
         "computed on comparable days only and are null when too few exist. "
-        "rom_warnings lists exercises whose ROM drifted, with the observed ROM "
-        "and best force per day. For those, do NOT claim progress or a drop from "
-        "the force numbers; say the values are not comparable and ask the user "
-        "to set fixed start and end positions for that exercise so future "
-        "sessions can be compared.\n"
-        "LOAD & RECOVERY (effort-conditioned - important): the 48-72h recovery "
-        "window applies ONLY after a session that truly reached deep fatigue "
-        "(high inroad, effort 'deep'). A sub-maximal session (effort 'submax', "
-        "low/zero inroad, rising peaks) needs far less - ~12-24h - so training "
-        "again the next day is NOT overtraining in that case. Use "
-        "load_and_recovery: per muscle group it gives last_effort, last_inroad, "
-        "hard_days vs submax_days, and insufficient_recovery events (short rest "
-        "that followed a genuinely hard session). Only warn about OVERTRAINING "
-        "when insufficient_recovery_after_hard > 0, i.e. short rest after real "
-        "maximal effort. If the athlete trains often but the sessions are "
-        "sub-maximal (flag 'underload', hard_sessions low), the problem is the "
-        "opposite: not enough intensity - tell them to push to real inroad "
-        "rather than to rest more. Also flag UNDERLOAD across days as a plateau "
-        "or decline despite ample rest. Give a concrete recovery recommendation "
-        "scaled to the last session's actual effort. Never give medical advice.\n"
+        "rom_warnings lists exercises whose ROM drifted. For those, do NOT claim "
+        "progress or a drop from the force numbers; say the values are not "
+        "comparable and ask the user to set fixed start and end positions - "
+        "EXCEPT when the exercise is marked restricted: then a shortened range "
+        "is deliberate, the latest range is the new baseline, and the advice is "
+        "to keep it constant from now on.\n"
+        "LAST SESSION FIRST: last_session is the session that just happened - "
+        "open with it. For every exercise compare with vs_previous (peak, mean "
+        "force, inroad, ROM), but quote a force delta only when comparable_rom "
+        "is true; otherwise say 'ROM differed'. settings_changed lists tempo / "
+        "pause changes between the two sets - they shift force values (a "
+        "shorter set with no end pause raises mean force), so name them instead "
+        "of calling the shift progress. is_new_pb marks a new personal best. "
+        "vs_previous_session says whether the day before was too close for the "
+        "muscles it hit again (conflict) or fine.\n"
+        "CHECK-IN & MUSCLE-LEVEL READINESS (this decides today): checkin_today "
+        "is what the athlete reported this morning (null = no check-in: say so "
+        "in one clause and judge from the training data). Its score 0-100 and "
+        "band (go_hard / moderate / light_or_rest) come from sleep, energy, "
+        "soreness and resting HR vs the athlete's own baseline. Strong soreness "
+        "in a region already blocks its muscles in readiness_today; an elevated "
+        "resting HR (> +7 bpm) or poor sleep with low energy means a light day "
+        "or rest, whatever the calendar says; pain_today_from_checkin lists "
+        "body parts to treat as 'careful' today. readiness_today is computed per "
+        "MUSCLE: each muscle is ready again when the rest its last hard load "
+        "required has passed (deep 3 days, moderate 2, sub-max 1; a limiter is "
+        "loaded one level lighter than the set's target muscles). An exercise is "
+        "ready when all its target muscles are, 'limited' when only a limiter "
+        "(grip, elbow flexors, ...) is not fresh - it may be trained sub-max, the "
+        "limiter may end the set early - and not_ready otherwise. Training on "
+        "consecutive days is FINE when different muscles are used; only a hard "
+        "load on a muscle that has not finished recovering is a conflict. Use "
+        "exactly these lists and dates for 'what today' and 'when'; do not "
+        "invent blanket rest days.\n"
+        "LOAD & RECOVERY: load_and_recovery.flag is judged on the last 7 days "
+        "only: overload_risk = a hard-on-hard conflict in that window (or "
+        "elevated resting HR plus strong soreness); underload = every recent "
+        "session light (no moderate or deep set) - then the problem is intensity, "
+        "not rest; detraining_risk = more than 10 days without training. "
+        "History totals are given separately. Never warn about overtraining "
+        "without a conflict or a check-in signal; frequent-but-light training "
+        "means push to real inroad, not rest more.\n"
         "SAFETY - restrictions (highest priority): the user may flag body parts "
         "as limited. For any exercise with restriction 'avoid', do NOT recommend "
         "it and do NOT encourage effort on that body part - state plainly that it "
         "is excluded because of the restriction. For 'careful' (ramping back "
         "up), recommend gradual, sub-maximal, controlled-range loading and "
         "technique focus - never tell the user to go to maximum or to full "
-        "inroad on those. Avoiding aggravation always outranks progress. This is "
-        "not medical or rehabilitation advice.\n"
+        "inroad on those. Avoiding aggravation always outranks progress. "
+        "restriction_checks lists sets of the last 14 days that ignored a "
+        "restriction (trained_avoid, hard_on_careful, eccentric_jump = the "
+        "eccentric peak jumped > 10 % on a careful exercise; on ARX the "
+        "eccentric runs ~1.6x the concentric and is what an irritated joint "
+        "feels first). Name them briefly and without blame, then say what "
+        "'careful' means in numbers. This is not medical or rehabilitation advice.\n"
         "FOCUS & APPROACH: honor the user's focus (per group 'more'/'less'/'off' "
         "- e.g. an upper-body preference means emphasize Push/Pull and drop or "
         "minimize Drive/legs like Belt Squat) and their chosen approach: 'full' "
         "= balanced full body each session; 'split' = one region per session so "
         "each recovers between sessions; 'auto' = auto-regulate by readiness "
-        "(train a group again only when recovered - use per_group.ready, "
-        "days_since, last_effort, and a >~10% drop from a group's recent best as "
-        "the under-recovery signal). Recommend the split rotation or which groups "
-        "are ready today accordingly.\n"
-        "TWO KINDS OF INPUT - keep them apart: (1) all precomputed metrics "
-        "(trends, load_and_recovery, ROM validity, session flags, "
-        "limiter_conflicts, session_plan) are FINAL - do not recompute, "
+        "(train what is recovered today, per readiness_today).\n"
+        "COACH FACTS (final, use them): coach.target_effort = the effort the "
+        "goal asks for (inroad target). coach.targets gives per exercise a "
+        "target_rule and target_peak in the data's unit: trend_up_room = the "
+        "trend is up and the last set stopped short of real fatigue, so aim "
+        "2 % above base_peak; hold_reach_inroad = same force as base_peak, but "
+        "take the set to the inroad target; sub_max_limiter / sub_max_careful = "
+        "no target, sub-max; not_ready / excluded = not today. base_peak is the "
+        "last ROM-comparable day-best (base_rom, base_date - if "
+        "base_is_last_session is false the last session used another ROM: say "
+        "'set ROM x and aim for y'). rest_after_min = minutes of rest after the "
+        "set. next_round_mark / to_next_round_mark = the next round number and "
+        "how far it is (a milestone to name when it is close). coach.adherence "
+        "= sessions this week vs target, the last weeks and the streak "
+        "(before_start weeks are not missed weeks). coach.milestones = new PBs "
+        "in the last 14 days and the work total. coach.deload = whether a "
+        "lighter week is due, with the rule; suggest a deload ONLY when "
+        "suggested is true, and then describe it (same exercises, ~70 % force, "
+        "no inroad, one week).\n"
+        "TWO KINDS OF INPUT - keep them apart: (1) all precomputed facts "
+        "(last_session comparisons, trends, load_and_recovery, readiness_today, "
+        "coach, ROM validity, session flags, limiter_conflicts, "
+        "restriction_checks, session_plan) are FINAL - do not recompute, "
         "contradict or override them. (2) session_sequences is RAW MATERIAL: for "
         "each of the last training days the working sets in time order with the "
-        "rest before each set (minutes_since_prev_set = rest since the previous "
-        "set ended), peak and mean force, duration, reps, ROM, inroad/effort, the "
-        "machine pauses (pause_end_s / pause_return_s), whether the set repeats "
-        "an exercise already done that day, and which limiting muscles were "
-        "already fatigued by an earlier set. You MAY and SHOULD look for patterns "
-        "in it that the rules do not cover - e.g. exercise order within a day, "
-        "pacing, repeated sets that add nothing, settings that changed between "
-        "sessions - and report them as your own observations, clearly grounded "
-        "in the listed numbers. Never invent values that are not in the data.\n"
-        "SESSION FLAGS (rule-based, in session_sequences[].flags, each with its "
-        "numbers): too_many_sets (more than 6 working sets, or more than 4 in a "
-        "dense session); scattered_session (Push, Pull and Drive all on one day "
-        "although the approach is 'split'); short_intra_session_rest (the same "
-        "exercise or the same limiting muscle loaded again within 5 min); "
-        "density_shift (work per wall-clock minute deviating > 20 % from the "
-        "previous sessions - usually a pause/tempo/rest change). Explain what "
-        "each raised flag means for the athlete and how to fix it next time.\n"
+        "rest before each set, peak and mean force, duration, reps, ROM, "
+        "inroad/effort, the machine pauses, whether the set repeats an exercise "
+        "already done that day, and which limiting muscles were already fatigued "
+        "by an earlier set. You MAY and SHOULD look for patterns in it that the "
+        "rules do not cover - exercise order within a day, pacing, repeated sets "
+        "that add nothing, settings that changed between sessions - and report "
+        "them as your own observations, grounded in the listed numbers. Never "
+        "invent values that are not in the data.\n"
+        "SESSION FLAGS (rule-based, in session_sequences[].flags and "
+        "last_session.flags, each with its numbers): too_many_sets (more than 6 "
+        "working sets, or more than 4 in a dense session); scattered_session "
+        "(Push, Pull and Drive all on one day although the approach is 'split'); "
+        "short_intra_session_rest (the same exercise or the same limiting muscle "
+        "loaded again within 5 min); density_shift (work per wall-clock minute "
+        "deviating > 20 % from a consistent baseline of previous sessions - "
+        "usually a pause/tempo/rest change). Explain what a raised flag means "
+        "for the athlete and how to fix it next time.\n"
         "SHARED LIMITERS: exercises carry 'targets' (what they are for) and "
         "'limiters' (structures that give out first although they are only a "
         "means - e.g. the grip on Dead Lift, Row and Pull Down). Several sets "
         "sharing a limiter fatigue it cumulatively within a session, so a later "
         "set may end early on the limiter while the target muscles were not "
         "fully worked. limiter_conflicts lists, per day, the sets whose limiter "
-        "was already loaded by an earlier set (by which exercise, how many "
-        "minutes before). Rule for ordering: an exercise where the limiter is "
-        "only a means (Dead Lift, Row) goes BEFORE an exercise whose target is "
-        "that same structure (Biceps Curl), and the same limiter should not be "
-        "hit twice within a few minutes; session_plan already follows this on "
-        "top of 'large muscle groups first'.\n"
-        "Give short, concrete, scientifically defensible observations and ONE "
-        "session suggestion. It MUST include WHEN to train next (how many rest "
-        "days / the earliest sensible date — use load_and_recovery."
-        "recommended_rest_days and next_earliest) AND WHICH exercises, in what "
-        "order (large muscle groups first unless focus says otherwise, ~15 min, "
-        "matched to the goal, weekly frequency, focus, approach and the "
-        "restrictions above). Also state the recommended machine SETTINGS from "
-        "ideal_settings (~8 reps, ~5 s per movement direction, ~3 s hold at the "
-        "end position, no pause on the return; note the end-hold does not suit "
-        "every exercise type) and, if the featured set's actual settings deviate "
-        "from these, point it out. Never give "
-        f"medical advice. Use the units given in the data ({FU} and {LU}). "
-        f"Answer in {'German' if cfg.get('language','en')=='de' else 'English'}, "
-        "in a few short sentences with clear headings."
+        "was already loaded by an earlier set. Rule for ordering: an exercise "
+        "where the limiter is only a means (Dead Lift, Row) goes BEFORE an "
+        "exercise whose target is that same structure (Biceps Curl), and the "
+        "same limiter should not be hit twice within a few minutes; session_plan "
+        "already follows this on top of 'large muscle groups first'.\n"
+        "MACHINE SETTINGS: recommend ideal_settings (~8 reps, ~5 s per movement "
+        "direction, ~3 s hold at the end position, no pause on the return; the "
+        "end-hold does not suit every exercise type) and point out where the "
+        "athlete's last settings (coach.targets[].last_settings, "
+        "last_session settings_changed) deviate.\n"
+        "OUTPUT FORMAT - a whiteboard, markdown, exactly these five sections in "
+        "this order, headings with '## ', tables in GitHub pipe syntax with a "
+        "header row and a separator line (|---|---|), short cells, numbers with "
+        f"units ({FU}, {LU}), no preamble, no closing remarks:\n"
+        "## 1. Last session - <date>\n"
+        "A table: | Exercise | Now | Last time | Change | Inroad | ROM | - one row "
+        "per exercise in order (Now/Last time = peak force; Change = the "
+        "percentage only when comparable_rom is true, else 'ROM differed'; ROM = "
+        "'same' or the two values). Then 2-3 bullets in numbers: what was good, "
+        "what to fix (order, rest, false starts, settings changes, limiter "
+        "conflicts, flags).\n"
+        "## 2. Today - <date>\n"
+        "One line: check-in verdict (score, band, the components that matter) or "
+        "'no check-in', plus the load flag in plain words. Then a table: "
+        "| Muscle / exercise | Status | Ready from | Why | - only what is NOT "
+        "simply ready (sore, not ready, limited), then one line 'Ready today: ...' "
+        "listing the ready exercises. Write muscles in plain words (elbow "
+        "flexors, upper back, ...), never as identifiers with underscores.\n"
+        "## 3. Plan for today (or: Plan for <next_earliest> when nothing is ready)\n"
+        "A table: | # | Exercise | Target | Effort | Tempo / pauses | Rest after | Cue | "
+        "- 4 to 6 rows in the order to perform them (large muscle groups first, "
+        "limiter rules, restrictions, focus). Target = the concrete force from "
+        "coach.targets with unit, or 'sub-max' / 'gentle'; Effort = the inroad "
+        "target or 'stop 2 reps short'; Tempo / pauses = reps, s per direction, "
+        "end / return pause; Rest after = minutes; Cue = one short technique or "
+        "intent cue. Below the table one line on when to train next if not "
+        "today, and the deload verdict if coach.deload.suggested is true.\n"
+        "## 4. Progress & milestones\n"
+        "3-4 bullets with numbers: trends on comparable days, new PBs, adherence "
+        "(this week x of y, streak), the nearest round marks, the work total.\n"
+        "## 5. Focus\n"
+        "ONE sentence with the single most valuable thing to do differently next "
+        "time, then ONE short motivating sentence grounded in a number.\n"
+        f"Write in {lang}. Use the units given in the data ({FU} and {LU}). "
+        "Keep the whole board readable in two minutes."
     )
+
+
+def ai_narrative(report: dict, cfg: dict) -> str | None:
+    """Ask Claude to coach: review the last session, judge today's readiness,
+    write the whiteboard (see ai_summary / ai_system_prompt). Key stays local;
+    the model sees only aggregated, name-free metrics. Cost is steered by the
+    'ai_effort' config option (low | medium | high | xhigh | max, default medium).
+    """
+    key = cfg.get("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        return None
+
+    client = Anthropic(api_key=key)
+    model = cfg.get("model", "claude-opus-5")   # override in config if desired
+    effort = str(cfg.get("ai_effort") or AI_EFFORT_DEFAULT).lower()
+    if effort not in AI_EFFORT_LEVELS:
+        effort = AI_EFFORT_DEFAULT
     msg = client.messages.create(
         model=model,
-        max_tokens=16000,                        # room for adaptive thinking + a real analysis
+        max_tokens=16000,                        # room for adaptive thinking + the whole board
         thinking={"type": "adaptive"},           # on by default for Opus 5 / Fable
-        output_config={"effort": effort},        # analysis task now; user-tunable via 'ai_effort'
-        system=system,
-        messages=[{"role": "user", "content": json.dumps(summary, ensure_ascii=False)}],
+        output_config={"effort": effort},        # coaching is analysis; user-tunable via 'ai_effort'
+        system=ai_system_prompt(cfg),
+        messages=[{"role": "user", "content": json.dumps(ai_summary(report, cfg), ensure_ascii=False)}],
     )
     return "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
 

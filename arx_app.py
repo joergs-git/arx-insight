@@ -137,7 +137,9 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     today = core._today({}).isoformat()
     ck = checkin_payload(urec, today)
     cfg["checkin"] = dict(ck["checkin"], date=today) if ck["checkin"] else None
-    cfg["checkin_history"] = ck["history"]
+    # earlier check-ins in full (RHR baseline + readiness history for the deload rule)
+    cfg["checkin_history"] = [dict(v, date=d) for d, v in sorted((urec.get("checkins") or {}).items())
+                              if d < today]
     # per-user language override wins for the AI narrative (falls back to device default)
     cfg["language"] = urec.get("language") or cfg.get("language", "en")
     cfg["_catalog"] = STATE["catalog"]
@@ -147,11 +149,55 @@ def make_report(user_id: int, with_ai: bool) -> dict:
         report["created"] = info["created"]
         report["user"] = info
         if with_ai:
-            report["ai_narrative"] = core.ai_narrative(report, cfg)
+            report["ai_narrative"] = cached_narrative(report, cfg)
     finally:
         con.close()
         import shutil; shutil.rmtree(tmp, ignore_errors=True)
     return report
+
+
+# ---- AI narrative cache -------------------------------------------------------
+# The coach board is re-requested on every report load; without a cache every
+# visit (a reload, a language switch back and forth) would bill a new call.
+# The key covers everything the answer depends on: person, day, the recorded
+# sets, today's check-in, restrictions, goal, focus, approach, units, language,
+# model and effort. New training data or a new check-in -> a new answer.
+AI_CACHE = os.path.join(core.data_dir(), ".ai_cache.json")
+AI_CACHE_KEEP = 40            # most recent answers kept
+
+
+def _ai_cache_key(report: dict, cfg: dict) -> str:
+    import hashlib
+    basis = {
+        "user": cfg.get("user_id"), "today": report.get("today"),
+        "sets": [report.get("sets_total"), report.get("sets_working")],
+        "last_day": (report.get("training_days") or [None])[-1],
+        "checkin": report.get("checkin"), "restrictions": report.get("restrictions"),
+        "goal": report.get("goal"), "focus": report.get("focus"), "approach": report.get("approach"),
+        "units": cfg.get("units"), "language": cfg.get("language"),
+        "model": cfg.get("model"), "effort": cfg.get("ai_effort"),
+        "version": STATE.get("version"),
+    }
+    return hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
+
+
+def cached_narrative(report: dict, cfg: dict) -> str | None:
+    key = _ai_cache_key(report, cfg)
+    cache = read_json(AI_CACHE, {})
+    hit = cache.get(key)
+    if isinstance(hit, dict) and hit.get("text"):
+        return hit["text"]
+    text = core.ai_narrative(report, cfg)
+    if text:
+        cache[key] = {"text": text, "stored": time.strftime("%Y-%m-%dT%H:%M:%S"), "user": cfg.get("user_id")}
+        if len(cache) > AI_CACHE_KEEP:                      # drop the oldest entries
+            for k in sorted(cache, key=lambda k: cache[k].get("stored", ""))[:len(cache) - AI_CACHE_KEEP]:
+                del cache[k]
+        try:
+            write_json(AI_CACHE, cache)
+        except Exception:
+            pass
+    return text
 
 
 # ---- HTTP handler ------------------------------------------------------------
