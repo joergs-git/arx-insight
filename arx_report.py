@@ -42,8 +42,14 @@ LB_TO_KG = 0.45359237          # pounds  -> kilograms
 IN_TO_CM = 2.54                # inches  -> centimeters
 
 # --- a "real" working set must clear this noise filter ------------------------
-MIN_SECONDS = 30.0             # shorter = false start / repositioning
-MIN_REPS = 2                   # fewer   = aborted attempt
+# A normal ARX set is ~8 reps over 80-190 s. Anything with fewer than MIN_REPS
+# reps or under MIN_SECONDS is a machine test, a familiarisation set, a
+# positioning attempt or an abort - never training. See classify_set() and
+# flag_false_starts(); only 'working' sets reach any analysis.
+MIN_SECONDS = 40.0             # shorter = test / familiarisation / false start
+MIN_REPS = 4                   # fewer   = test set or aborted attempt
+RESTART_GAP_MIN = 3            # same exercise started again within this many minutes
+                               # with MORE reps -> the earlier one was a false start
 
 # --- effort / inroad classification --------------------------------------------
 # Bump EFFORT_ALGO_VERSION whenever set_effort's logic or these thresholds change:
@@ -136,6 +142,56 @@ def blob_bytes(v) -> bytes:
 # =============================================================================
 # Metrics
 # =============================================================================
+def classify_set(sec: float, reps: int, concentric: float, eccentric: float,
+                 ended_early: bool, has_events: bool) -> tuple[str, str]:
+    """Decide whether a recorded set is a real WORKING set or noise.
+
+    Everything downstream (bests, trends, effort, recovery, sequences, totals,
+    the AI) only ever sees working sets, so the "general intelligence" about
+    aborted attempts lives here. Statuses:
+      working      cleared every filter below
+      no_data      no force data / no event stream - nothing to analyse
+      aborted      the machine logged SequenceEndedBeforeCompletion and fewer
+                   than MIN_REPS reps were done (athlete quit or restarted)
+      short        fewer than MIN_REPS reps or under MIN_SECONDS - a machine
+                   test, familiarisation or positioning set, not training
+    A fifth status, false_start, is assigned afterwards by flag_false_starts()
+    because it needs the NEXT set of the same exercise. A timed protocol that
+    ends on the clock after 11-14 reps carries the ended-early event too but
+    has plenty of reps, so it stays a working set. Returns (status, reason).
+    """
+    if concentric <= 0 or eccentric <= 0 or not has_events:
+        return "no_data", "no force data"
+    if ended_early and reps < MIN_REPS:
+        return "aborted", f"ended early after {reps} reps ({sec:.0f} s)"
+    if reps < MIN_REPS or sec < MIN_SECONDS:
+        return "short", f"{reps} reps / {sec:.0f} s - test or familiarisation set"
+    return "working", ""
+
+
+def flag_false_starts(sets: list[dict]) -> None:
+    """Mark a set 'false_start' when the SAME exercise was started again within
+    RESTART_GAP_MIN minutes of its end and that later set has more reps: the
+    athlete re-positioned / re-armed and the real set is the second one.
+    Typical on ARX: a 12-40 s attempt followed by the full 8-rep set a minute
+    later. The attempt must not count as a set - it would otherwise look like a
+    weak repeat, a short intra-session rest or a bogus day-best. In place."""
+    by_ex: dict = {}
+    for s in sets:
+        by_ex.setdefault(s["exercise"], []).append(s)
+    for ss in by_ex.values():
+        ss.sort(key=lambda s: s["date"])
+        for a, b in zip(ss, ss[1:]):
+            ta, tb = _ts(a["date"]), _ts(b["date"])
+            if ta is None or tb is None or a["status"] == "no_data":
+                continue
+            gap_min = (tb - (ta + a["seconds"])) / 60.0
+            if gap_min <= RESTART_GAP_MIN and b["reps"] > a["reps"]:
+                a["status"] = "false_start"
+                a["reason"] = f"restarted {max(gap_min, 0):.1f} min later with {b['reps']} reps"
+                a["working"] = False
+
+
 def load_sets(con, user_id: int) -> list[dict]:
     """Read all non-deleted sets for one user and derive per-set metrics."""
     cur = con.cursor()
@@ -155,10 +211,14 @@ def load_sets(con, user_id: int) -> list[dict]:
         rsd = blob_bytes(r.pop("REPSCHEMEDATA"))
         ev = blob_bytes(r.pop("EVENTSTREAMDATA"))
 
-        reps = 0
+        reps, ended_early, has_events = 0, False, False
         try:
             events = json.loads(ev.decode("latin1"))
+            has_events = bool(events)
             reps = sum(1 for e in events if e.get("Type") == "EndRep")
+            # logged by the machine when the set stopped before the programmed
+            # rep count / time was reached (athlete quit, false start, restart)
+            ended_early = any(e.get("Type") == "SequenceEndedBeforeCompletion" for e in events)
         except Exception:
             pass
 
@@ -177,7 +237,7 @@ def load_sets(con, user_id: int) -> list[dict]:
         c = float(r["CONCENTRICMAX"] or 0)
         e = float(r["ECCENTRICMAX"] or 0)
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
-        working = sec >= MIN_SECONDS and reps >= MIN_REPS and c > 0 and e > 0
+        status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
 
         out.append({
             "id": r["ID"],
@@ -186,6 +246,9 @@ def load_sets(con, user_id: int) -> list[dict]:
             "exercise": r["EXERCISE"],
             "protocol": r["PROTOCOL"],
             "reps": reps,
+            "ended_early": ended_early,
+            "status": status,                  # working | short | aborted | no_data (| false_start)
+            "reason": reason,                  # why it is not a working set ("" when it is)
             "rom_cm": rom_cm,
             "pause_end_s": pause_end,          # programmed hold at the end position
             "pause_return_s": pause_return,    # programmed pause at the start position
@@ -197,7 +260,7 @@ def load_sets(con, user_id: int) -> list[dict]:
             # impulse = average force x time-under-load: a volume/work proxy that
             # is meaningful on an adaptive-resistance machine (no fixed "weight").
             "impulse_kg_s": round(mean_force * LB_TO_KG * sec),
-            "working": working,
+            "working": status == "working",
         })
     return out
 
@@ -427,15 +490,24 @@ def _rom_warnings(exercises: list[dict]) -> list[dict]:
 def _whole_body(work: list[dict], exercises: list[dict]) -> dict:
     """Self-referenced whole-body index: each exercise as % of the athlete's own
     personal best, averaged per training day. Not a cross-person score - it only
-    makes sense with broad muscle-group coverage, so we report coverage too."""
-    pb = {e["ex"]: e["pb"] for e in exercises}
+    makes sense with broad muscle-group coverage, so we report coverage too.
+    Only ROM-comparable days count (see _exercise_series): a best set at a
+    shorter range is not a personal best, and a day at a different ROM cannot
+    be scored against one - so both the PB and the day entries are ROM-gated."""
+    valid = {(e["ex"], o["date"]) for e in exercises for o in e["occ"] if o.get("rom_valid")}
+    pb = {}
+    for e in exercises:
+        kgs = [o["kg"] for o in e["occ"] if o.get("rom_valid")]
+        pb[e["ex"]] = max(kgs) if kgs else e["pb"]
     total = len(pb)
     series = []
     for day in sorted({s["date"][:10] for s in work}):
         best = {}
-        for s in (x for x in work if x["date"][:10] == day):
+        for s in (x for x in work if x["date"][:10] == day and (x["exercise"], day) in valid):
             best[s["exercise"]] = max(best.get(s["exercise"], 0), s["max_kg"])
-        idx = st.mean([v / pb[e] * 100 for e, v in best.items()]) if best else 0
+        if not best:
+            continue                       # nothing comparable that day
+        idx = st.mean([v / pb[e] * 100 for e, v in best.items()])
         series.append({"date": day[5:], "index": round(idx),
                        "coverage": len(best), "of": total})
     return {"series": series,
@@ -443,34 +515,24 @@ def _whole_body(work: list[dict], exercises: list[dict]) -> dict:
             "total_exercises": total}
 
 
-def _totals(work: list[dict], weekly_rate) -> dict:
+def _totals(work: list[dict], weekly_rate, sequences: list[dict]) -> dict:
     """Motivational totals: how much work and time the training added up to.
 
     'Time under load' is the actual working time (sum of set durations - the
     number that stays near the ~15 min ideal). 'Session wall-clock' includes the
     rest between sets. 'Work' is the summed impulse (mean force x time), a
     volume proxy. Per-week/month/year figures are projections from the current
-    cadence, so they are labelled as such in the UI."""
-    def tsec(s):
-        try:
-            return datetime.fromisoformat(s["date"]).timestamp()
-        except Exception:
-            return None
-
+    cadence, so they are labelled as such in the UI. A 'session' is a VISIT as
+    found by _session_sequences (a gap > VISIT_GAP_MIN starts a new one) - the
+    DB's SESSION ids are no visit markers (several ids within minutes, or one
+    id across a 7 h gap)."""
     tul_sec = sum(s["seconds"] for s in work)
     work_impulse = sum(s["impulse_kg_s"] for s in work)
 
-    sessions = {}
-    for s in work:
-        sessions.setdefault(s["session"], []).append(s)
-    walls = []
-    for ss in sessions.values():
-        starts = [tsec(s) for s in ss if tsec(s) is not None]
-        ends = [tsec(s) + s["seconds"] for s in ss if tsec(s) is not None]
-        if starts and ends:
-            walls.append((max(ends) - min(starts)) / 60.0)
-    n_sessions = len(sessions)
-    avg_wall = round(st.mean(walls), 1) if walls else None
+    n_sessions = sum(d["visits"] for d in sequences)
+    walls = [d["wall_minutes"] for d in sequences if d["wall_minutes"]]
+    total_wall = round(sum(walls), 1) if walls else None
+    avg_wall = round(total_wall / n_sessions, 1) if (n_sessions and total_wall is not None) else None
     avg_tul = round((tul_sec / n_sessions) / 60.0, 1) if n_sessions else None
 
     proj = {}
@@ -487,7 +549,7 @@ def _totals(work: list[dict], weekly_rate) -> dict:
     return {
         "sessions": n_sessions,
         "total_time_under_load_min": round(tul_sec / 60, 1),
-        "total_wall_min": round(sum(walls), 1) if walls else None,
+        "total_wall_min": total_wall,
         "avg_session_wall_min": avg_wall,
         "avg_session_tul_min": avg_tul,
         "total_work_impulse": round(work_impulse),
@@ -646,7 +708,7 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
     out = []
     for day in sorted(by_day):
         ss = sorted(by_day[day], key=lambda s: s["date"])
-        sets, prev_end, prev_start = [], None, None
+        sets, prev_end = [], None
         seen_ex: dict = {}          # exercise -> end time of its last set today
         seen_lim: dict = {}         # limiter -> (end time, exercise name) of the last set loading it
         visits, wall = 1, 0.0
@@ -690,7 +752,6 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
                 for l in limiters:
                     seen_lim[l] = (end, s["name"])
                 prev_end = end
-            prev_start = t
         if visit_start is not None and prev_end is not None:
             wall += (prev_end - visit_start) / 60.0
         wall = round(wall, 1)
@@ -725,11 +786,16 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
                 flags.append({"type": "short_intra_session_rest", "exercise": r["exercise"], "order": r["order"],
                               "limiters": sorted(soon), "after": after, "minutes_rest": m2,
                               "detail": f"{r['exercise']} loads {', '.join(sorted(soon))} only {m2} min after {', '.join(after)}"})
+        # A density shift needs a BASELINE: at least two previous sessions that
+        # agree with each other (each within DENSITY_SHIFT_PCT of their mean).
+        # During the first weeks, when every session differs from the last, the
+        # flag would otherwise fire every time and mean nothing.
         prev3 = [d["work_density_per_min"] for d in out[-3:] if d["work_density_per_min"]]
-        if work_density and prev3:
+        if work_density and len(prev3) >= 2:
             ref = st.mean(prev3)
+            consistent = all(abs(v - ref) / ref * 100 <= DENSITY_SHIFT_PCT for v in prev3)
             dev = round((work_density - ref) / ref * 100)
-            if abs(dev) > DENSITY_SHIFT_PCT:
+            if consistent and abs(dev) > DENSITY_SHIFT_PCT:
                 flags.append({"type": "density_shift", "work_density_per_min": work_density,
                               "previous_mean": round(ref, 1), "deviation_pct": dev,
                               "detail": f"work density {work_density} vs {round(ref, 1)} in the previous {len(prev3)} session(s) ({dev:+d} %) - check pause/tempo settings or rest between sets"})
@@ -743,7 +809,7 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
                                           if any(r["density_kg_per_s"] for r in sets) else None,
             "flags": flags,
         })
-    return out[-SEQ_DAYS:]
+    return out                     # ALL days; the caller hands the last SEQ_DAYS to UI / AI
 
 
 def _limiter_conflicts(sequences: list[dict]) -> list[dict]:
@@ -1015,7 +1081,12 @@ def build_report(con, cfg: dict) -> dict:
     """Assemble the full analysis payload for one athlete."""
     catalog = cfg.get("_catalog", {})
     sets = load_sets(con, cfg["user_id"])
+    flag_false_starts(sets)                  # needs neighbouring sets -> after loading all
     work = [s for s in sets if s["working"]]
+    excluded: dict = {}                      # status -> count of the sets that do NOT count
+    for s in sets:
+        if not s["working"]:
+            excluded[s["status"]] = excluded.get(s["status"], 0) + 1
     # effort per set (real fatigue reached), cached by set id + algorithm version
     cache = load_effort_cache()
     for s in work:                       # attach name/group + effort/inroad
@@ -1042,13 +1113,22 @@ def build_report(con, cfg: dict) -> dict:
 
     load = _load_analysis(work)
     approach = cfg.get("approach", "auto")
-    sequences = _session_sequences(work, approach, catalog)
+    sequences_all = _session_sequences(work, approach, catalog)
+    # false starts per day (they are not sets, but four of them in one session
+    # tell the coach something about the pre-timer / start position)
+    fs_by_day: dict = {}
+    for s in sets:
+        if s["status"] == "false_start":
+            fs_by_day[s["date"][:10]] = fs_by_day.get(s["date"][:10], 0) + 1
+    for d in sequences_all:
+        d["false_starts"] = fs_by_day.get(d["date"], 0)
+    sequences = sequences_all[-SEQ_DAYS:]
 
     # headline KPIs for the UI
     ce = [s["eccentric_kg"] / s["concentric_kg"] for s in work if s["concentric_kg"] > 0]
     kpi = {
         "top_force": round(max((s["max_kg"] for s in work), default=0), 1),
-        "sessions": len({s["session"] for s in work}),
+        "sessions": sum(d["visits"] for d in sequences_all),   # visits, not DB session ids
         "ce_ratio": round(st.mean(ce), 2) if ce else None,
         "total_impulse": sum(s["impulse_kg_s"] for s in work),
     }
@@ -1060,6 +1140,7 @@ def build_report(con, cfg: dict) -> dict:
         "sessions_per_week": cfg.get("sessions_per_week"),
         "sets_total": len(sets),
         "sets_working": len(work),
+        "sets_excluded": excluded,               # status -> count (short / aborted / false_start / no_data)
         "training_days": days,
         "kpi": kpi,
         "exercises": exercises,
@@ -1068,7 +1149,7 @@ def build_report(con, cfg: dict) -> dict:
         "load": load,
         "session_sequences": sequences,
         "limiter_conflicts": _limiter_conflicts(sequences),
-        "totals": _totals(work, load.get("weekly_rate")),
+        "totals": _totals(work, load.get("weekly_rate"), sequences_all),
         "ideal_settings": IDEAL_SETTINGS,
         "restrictions": restrictions,
         "focus": cfg.get("focus", {}) or {},
