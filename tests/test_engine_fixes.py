@@ -1,6 +1,6 @@
 """v0.3.1 engine fixes: hidden sets, ROM-gated personal bests, detraining flag, temp-copy hygiene,
 typed AI errors and a payload without free text or kg leaking into an lb payload."""
-import os, tempfile, time, unittest
+import os, re, tempfile, time, unittest
 from datetime import datetime
 
 from tests import fixtures as fx
@@ -147,7 +147,12 @@ class Payload(unittest.TestCase):
             self.assertIn("last_day_best", item)
         kg_best = {i["name"]: i["last"] for i in self.report["session_plan"]}
         for item in self.payload["session_plan"]:
+            if kg_best[item["name"]] is None:            # an exercise suggested as new has no best yet
+                self.assertIsNone(item["last_day_best"])
+                continue
             self.assertAlmostEqual(item["last_day_best"], kg_best[item["name"]] * 2.20462, delta=0.06)
+        leaks = re.findall(r"'(\w+_(?:kg|cm))'", str(self.payload))
+        self.assertFalse(leaks, leaks)                   # no metric key anywhere in an imperial payload
         self.assertEqual(self.payload["totals"]["work_unit"], "lb*s")
         self.assertAlmostEqual(self.payload["totals"]["total_work_impulse"],
                                self.report["totals"]["total_work_impulse"] * 2.20462, delta=0.06)

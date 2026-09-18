@@ -143,5 +143,27 @@ class Familiarisation(unittest.TestCase):
         self.assertAlmostEqual(e["tempo_s_reference"], 5.0, delta=0.1)
 
 
+class RestEffect(unittest.TestCase):
+    """More rest = less loss is only believed when the athlete's data really shows it."""
+    def test_four_mixed_observations_prove_nothing(self):
+        e = ev.rest_effect_from([(1.6, 15.2, 16.0), (8.2, 1.9, 4.0), (9.3, -0.6, 16.0), (14.2, 12.7, 16.0)])
+        self.assertEqual((e["status"], e["loss_share_change_per_min"], e["n"]), ("not_detectable", None, 4))
+
+    def test_noise_is_not_an_effect(self):
+        import random
+        rng = random.Random(7)
+        obs = [(m, 16.0 * rng.uniform(0.6, 1.4), 16.0) for m in (1, 2, 3, 5, 6, 8, 10, 12, 15)]
+        self.assertEqual(ev.rest_effect_from(obs)["status"], "not_detectable")
+
+    def test_a_consistent_relation_is_detected_relative_to_each_pairs_prior(self):
+        # two different pairs (priors 16 % and 4 %): the loss falls from 1.5x to 0.6x of the prior
+        obs = [(m, p * (1.5 - 0.06 * m), p) for m, p in ((1, 16.0), (2, 4.0), (4, 16.0), (6, 4.0), (8, 16.0), (10, 4.0), (13, 16.0), (15, 4.0))]
+        e = ev.rest_effect_from(obs)
+        self.assertEqual(e["status"], "detected")
+        self.assertAlmostEqual(e["loss_share_change_per_min"], -0.06, delta=0.005)
+        self.assertLessEqual(e["p_shuffle"], 0.10)
+        self.assertEqual(e["reference_minutes"], 7.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,1118 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ARX Insight - the planner: WHEN to train next, WHAT, in which ORDER, with which targets (v0.4.0).
+
+ONE plan, derived from the athlete's own data instead of rules of thumb:
+
+  when      The muscle-level recovery model is rolled forward day by day. The next date is where a
+            worthwhile session is possible AND the weekly cadence (7 / sessions per week) is met
+            best; trained today -> tomorrow at the earliest; a poor check-in -> not today. Every
+            reason is given with its numbers (why_this_date).
+  what      Exercises score by how overdue their muscles are, the athlete's focus per body region,
+            coverage gaps (no direct work in 4 weeks), momentum - and by the FRESH BENCHMARK
+            rotation: progress can only be judged on fresh sets, so every session keeps one
+            exercise free of anything that loads its muscles before it (never measured fresh comes
+            first, then the oldest fresh measurement). Twins (same target muscles) are not doubled
+            in a full-body session. With 3+ sessions a week a session covers only the most due
+            regions, so the others are ready the next day - a rotating split.
+  order     All permutations (<= 720) are scored by what each exercise is expected to lose to the
+            ones before it: the athlete's MEASURED order effects where they exist, catalog priors
+            otherwise (arx_evidence). Rest between two exercises changes that loss only when the
+            athlete's own data shows such a relation - no assumed decay. "A means before the
+            target" (Row before Biceps Curl) stays a hard rule. Deterministic.
+  how       Targets come from the last comparable value in the reference context, reduced by the
+            expected loss when the exercise is planned after something that loads its muscles. A
+            step only when the exercise is progressing and the last set left room; a plateau gets
+            a second set (volume is the lever that still works), not a bigger number. Today's
+            check-in band, the commitment profile (time vs effort), restrictions and the age band
+            cap effort and steps. Settings stay what the athlete uses (consistency first).
+  limiters  For every limiter (the grip above all) the planned load is compared with what the
+            athlete usually puts on it in a session, next to the loss measured so far; an aid
+            (hooks / straps) is suggested where it frees the most.
+  week      The same logic rolled forward HORIZON_DAYS, with the benchmark rotating on.
+
+Every decision carries a meaning / action item (meanings.json). check_plan() is the rule set the
+AI's plan will have to pass as well (v0.5.0). The plan ledger remembers what was recommended, so
+the next report can say what was done with it (plan_vs_actual).
+
+Pure functions on the report's data; imports arx_base, arx_detail (constants), arx_evidence and
+arx_history only. Public domain / CC0. No warranty. Not medical advice.
+"""
+
+from __future__ import annotations
+import itertools, math, statistics as st
+from datetime import date, timedelta
+
+from arx_base import EFFORT_RANK, REQUIRED_REST, _ts
+from arx_detail import INROAD_DEEP, INROAD_MODERATE, BORDERLINE
+import arx_evidence as evidence
+from arx_history import REGIONS, REGION_OF, item
+
+PLAN_ALGO_VERSION = 1
+
+HORIZON_DAYS = 10              # how far the week plan looks
+DATE_SEARCH_DAYS = 10          # the next session is searched within this many days
+MIN_READY_EXERCISES = 2        # fewer ready exercises are not worth a session
+CADENCE_W = 0.35               # date score: deviation from the ideal gap (in ideal gaps) ...
+CADENCE_FREE_DAYS = 0.5        # ... beyond this many days
+WEEK_W = 0.15                  # date score: the week's session target is still open
+HABIT_W = 0.10                 # date score: the athlete's usual weekday (only with a real pattern)
+HABIT_MIN_DAYS, HABIT_SHARE = 8, 0.75
+BAND_FILL = {"moderate": 0.85, "light_or_rest": 0.6}      # a session on a poor day is worth less
+REST_SCORE_BELOW = 35          # check-in score below this (or an elevated resting HR) = rest today
+DUE_INTERVAL_RANGE = (3.0, 7.0)  # days after which a muscle is "due" (7 x split / sessions per week)
+COVER_DAYS = 28                # no direct work for this long = a coverage gap
+REDUNDANCY = 0.7               # score multiplier (1 - REDUNDANCY x overlap) after a similar pick
+TWIN_OVERLAP = 0.99            # same target muscles = twins: never doubled in a full-body session
+NEW_WEIGHT = 0.5               # a known exercise wins a tie against a never-performed one
+MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
+TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
+TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
+SESSION_MIN_EX, SESSION_MAX_EX = 3, 6
+SESSION_MINUTES_RANGE = (15, 45)
+DEFAULT_SESSION_MINUTES = 25
+DEFAULT_SET_SECONDS = 105.0
+POS_LOSS_RANGE = (0.0, 3.0)    # expected loss per position in the session (own value, shrunk, clamped)
+REST_GAP_SWING = 0.5           # a measured rest effect may move a pair loss by at most +-50 %
+REST_MIN = {"compound": 3.0, "isolation": 2.0}             # minutes after an exercise of that kind
+REST_EXTRA_MAX = 3.0           # extra minutes when the next exercise shares muscles with it
+REST_EXTRA_PER_PCT = 5.0       # one extra minute per this much expected loss
+TRANSITION_MIN = 2.0           # set-up between two exercises when the athlete's own data is thin
+STEP_RANGE_PCT = (1.0, 3.0)    # progression step per session when it is earned
+CONTEXT_LOSS_MIN_PCT = 3.0     # smaller expected losses do not change a target
+LIGHT_DAY_SHARE = 0.70         # force on a light day
+BUDGET_TOLERANCE = 1.15        # planned limiter load above this share of the usual one = high
+BUDGET_MIN_SESSIONS = 3
+AID_MIN_EXERCISES = 3          # this many exercises on one limiter also trigger an aid hint
+HIT_RATE_OK = 0.5              # below: the effort is the problem, not the volume
+LEDGER_MAX = 40                # plans kept per athlete
+TARGET_HIT_SHARE = 0.98        # actual >= this share of the target = target met
+FOCUS_WEIGHT = {"more": 1.5, "normal": 1.0, "less": 0.6, "off": 0.0}
+LEGACY_FOCUS = {"Drive": ["legs"], "Pull": ["back", "arms"], "Push": ["chest", "shoulders", "arms"]}
+MINOR_BANDS, OLDER_BANDS = ("13-15", "16-17"), ("60-69", "70+")
+MINOR_MAX_EXERCISES = 4
+
+# Commitment profiles: the honest trade-off between time and effort (chosen in the goal interview;
+# the engine pre-selects one). effort: "goal" = what the goal asks for, "moderate" = capped below
+# failure; extra_sets: second set on the first two exercises; step: progression steps allowed;
+# size: exercises more / fewer than the time budget gives ("cover" = one per trained body region
+# at most - the minimum that still reaches everything); plateau_set: a plateau may get a 2nd set.
+COMMITMENT = {
+    "min_time_max_effort":   {"effort": "goal",     "extra_sets": 0, "step": True,  "size": "cover", "plateau_set": False},
+    "balanced":              {"effort": "goal",     "extra_sets": 0, "step": True,  "size": 0,  "plateau_set": True},
+    "more_time_less_brutal": {"effort": "moderate", "extra_sets": 1, "step": True,  "size": 1,  "plateau_set": True},
+    "maintain":              {"effort": "moderate", "extra_sets": 0, "step": False, "size": -1, "plateau_set": False},
+}
+EFFORT_TARGETS = {   # label -> what the set should reach (effort v3, see arx_detail)
+    "deep":     {"label": "deep", "inroad_min": INROAD_DEEP},
+    "moderate": {"label": "moderate", "inroad_min": INROAD_MODERATE},
+    "submax":   {"label": "submax", "inroad_min": 0},
+}
+# every default above that rests on sport science names its entry in science.json (tests check it)
+SCIENCE = {
+    "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "EFFORT_TARGETS": "proximity_to_failure",
+    "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance", "STEP_RANGE_PCT": "progression",
+    "COVER_DAYS": "weekly_volume", "DUE_INTERVAL_RANGE": "frequency", "MINOR_BANDS": "youth",
+    "OLDER_BANDS": "older_adults", "order": "exercise_order", "aids": "grip_and_straps",
+    "BAND_FILL": "autoregulation", "plateau_set": "weekly_volume", "LIGHT_DAY_SHARE": "autoregulation",
+}
+
+
+# =============================================================================
+# Inputs
+# =============================================================================
+def focus_regions(cfg: dict) -> dict:
+    """{region: more|normal|less|off}. The Push/Pull/Drive focus of older profiles is mapped."""
+    fr = dict(cfg.get("focus_regions") or {})
+    if not fr:
+        for group, level in (cfg.get("focus") or {}).items():
+            if level in FOCUS_WEIGHT and level != "normal":
+                for r in LEGACY_FOCUS.get(group, []):
+                    fr.setdefault(r, level)
+    return {r: (fr.get(r) if fr.get(r) in FOCUS_WEIGHT else "normal") for r in REGIONS if r != "grip"}
+
+
+def goal_effort(goal: dict) -> str:
+    """The effort the training goal asks for: muscle -> deep; strength / conditioning -> moderate
+    (full force on every rep, stop before form breaks)."""
+    g = goal or {}
+    if (g.get("conditioning") or 0) >= 0.3 or (g.get("strength") or 0) > (g.get("muscle") or 0):
+        return "moderate"
+    return "deep"
+
+
+def split_factor(spw: int) -> int:
+    """1 = full body; 2 / 3 = a session covers a half / a third of the regions (3+ / 5+ a week)."""
+    return 1 if spw <= 2 else (2 if spw <= 4 else 3)
+
+
+def recommend_commitment(cfg: dict, minutes: float, spw: int) -> str:
+    """What fits goal + time budget + experience when the athlete has not chosen."""
+    if cfg.get("outcome") == "maintain":
+        return "maintain"
+    if cfg.get("experience") == "new":
+        return "balanced"                          # learn the machine before going all out
+    return "min_time_max_effort" if minutes * spw <= 60 else "balanced"
+
+
+def _muscles(meta: dict, code, day: str, aids: dict) -> dict:
+    targets = list(meta.get("targets") or []) or [meta.get("group") or "?"]
+    out = {m: "target" for m in targets}
+    for m in evidence.effective_limiters(meta, code, day, aids):
+        out.setdefault(m, "limiter")
+    return out
+
+
+def _targets(c: dict) -> set:
+    return {m for m, role in c["muscles"].items() if role == "target"}
+
+
+def _typical(ss: list[dict], key: str, default: float) -> float:
+    vals = [s[key] for s in ss[-3:] if s.get(key)]
+    return st.median(vals) if vals else default
+
+
+def transition_minutes(work: list[dict]) -> tuple[float, bool]:
+    """(minutes, measured): from the end of one exercise to the start of the next one within a
+    visit (rest + set-up) - the athlete's own median when there are enough of them."""
+    gaps = []
+    by_visit: dict = {}
+    for s in work:
+        by_visit.setdefault((s["date"][:10], s.get("visit", 1)), []).append(s)
+    for ss in by_visit.values():
+        ss.sort(key=lambda x: x["date"])
+        for a, b in zip(ss, ss[1:]):
+            ta, tb = _ts(a["date"]), _ts(b["date"])
+            if ta is not None and tb is not None and a["exercise"] != b["exercise"]:
+                g = (tb - (ta + a["seconds"])) / 60.0
+                if 0 < g <= 15:
+                    gaps.append(g)
+    return (round(st.median(gaps), 1), True) if len(gaps) >= 4 else (REST_MIN["compound"] + TRANSITION_MIN, False)
+
+
+# =============================================================================
+# State of the muscles, rolled forward
+# =============================================================================
+def rest_days(rank: int, age: str | None) -> int:
+    """Days of rest after a load. 60+: one more day after a deep load - a precautionary default
+    (the evidence on age and recovery is mixed); the athlete's own recovery response wins once it
+    is known."""
+    return REQUIRED_REST[rank] + (1 if (rank == 3 and age in OLDER_BANDS) else 0)
+
+
+def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: str | None = None) -> dict:
+    """{muscle: {ready_on, last_target, sore}} from today's recovery model + the date of the last
+    direct (target) work of each muscle."""
+    out = {}
+    for m, v in ((load.get("recovery") or {}).get("muscles") or {}).items():
+        ready = v["ready_on"]
+        if age in OLDER_BANDS and v.get("needed_days") == REQUIRED_REST[3] and v.get("last_date"):
+            ready = max(ready, (date.fromisoformat(ready) + timedelta(days=1)).isoformat())
+        out[m] = {"ready_on": ready, "last_target": None, "sore": v.get("sore")}
+    for s in work:
+        for m, role in _muscles(catalog.get(str(s["exercise"]), {}), s["exercise"], s["date"], aids).items():
+            if role == "target":
+                cell = out.setdefault(m, {"ready_on": None, "last_target": None, "sore": None})
+                cell["last_target"] = max(cell["last_target"] or "", s["date"][:10])
+    return out
+
+
+def apply_session(state: dict, day: date, items: list[dict], age: str | None) -> dict:
+    """The muscle state after a planned session: targets at the planned effort rank, limiters one
+    rank lower (the same rule as the recovery model)."""
+    new = {m: dict(v, sore=None) for m, v in state.items()}
+    for it in items:
+        rank = EFFORT_RANK.get(it["effort_target"]["label"], 2)
+        for m, role in it["muscles"].items():
+            r = rank if role == "target" else max(rank - 1, 1)
+            ready = (day + timedelta(days=rest_days(r, age))).isoformat()
+            cell = new.setdefault(m, {"ready_on": None, "last_target": None, "sore": None})
+            cell["ready_on"] = max(cell["ready_on"] or "", ready)
+            if role == "target":
+                cell["last_target"] = day.isoformat()
+    return new
+
+
+def exercise_status(c: dict, state: dict, day: date, today: date | None = None) -> tuple[str, list[str]]:
+    """ready | limited | not_ready on a given day (+ the muscles behind it). Mild soreness from
+    today's check-in limits today only."""
+    iso = day.isoformat()
+    late = lambda m: (state.get(m, {}).get("ready_on") or "") > iso
+    blocked = sorted(m for m, role in c["muscles"].items() if role == "target" and late(m))
+    if blocked:
+        return "not_ready", blocked
+    limited = sorted(m for m, role in c["muscles"].items() if role == "limiter" and late(m))
+    if today is not None and day == today:
+        limited += sorted(m for m in _targets(c) if state.get(m, {}).get("sore") == "mild" and m not in limited)
+    return ("limited", limited) if limited else ("ready", [])
+
+
+# =============================================================================
+# Candidates
+# =============================================================================
+def build_pool(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict, today: date, progress: dict,
+               restriction_of=None) -> list[dict]:
+    """Everything that could be planned: the exercises the athlete does + catalog / library
+    exercises never performed (flagged new - only used to close a coverage gap)."""
+    aids = cfg.get("aids") or {}
+    restriction_of = restriction_of or (lambda name, joints: "ok")
+    by_ex: dict = {}
+    for s in work:
+        by_ex.setdefault(str(s["exercise"]), []).append(s)
+    status = {p["name"]: p for p in (progress or {}).get("exercises", [])}
+    pool, seen = [], set()
+
+    def entry(code, meta, e):
+        name = (e or {}).get("name") or meta.get("name") or f"Exercise {code}"
+        ss = by_ex.get(str(code), [])
+        muscles = _muscles(meta, code, today.isoformat(), aids)
+        fresh_days = [o["date"] for o in (e or {}).get("occ", []) if o.get("context") == "fresh" and o.get("comparable")]
+        configured = (aids.get(str(code)) or {}).get("aids") or []
+        return {"code": str(code), "name": name, "group": meta.get("group", "?"), "kind": meta.get("kind") or "compound",
+                "muscles": muscles, "regions": sorted({REGION_OF[m] for m in muscles if muscles[m] == "target" and m in REGION_OF}),
+                "new": e is None, "library": bool(meta.get("library")), "series": e, "progress": status.get(name),
+                "restriction": (e or {}).get("restriction") or restriction_of(name, meta.get("joints")),
+                "aids_possible": list(meta.get("aids") or []), "aid": configured[0] if configured else None,
+                "set_seconds": _typical(ss, "seconds", DEFAULT_SET_SECONDS), "impulse": _typical(ss, "impulse_kg_s", 0.0),
+                "last_fresh": max(fresh_days) if fresh_days else None, "n_days": len((e or {}).get("occ", []))}
+
+    for e in exercises:                            # what the athlete does (also codes the catalog does not know)
+        pool.append(entry(e["ex"], catalog.get(str(e["ex"]), {}), e))
+        seen.add(pool[-1]["name"])
+    for code, meta in catalog.items():             # never performed: catalog + library entries
+        if meta.get("name") and meta["name"] not in seen:
+            pool.append(entry(code, meta, None))
+            seen.add(meta["name"])
+    return pool
+
+
+def due_interval(spw: int) -> float:
+    lo, hi = DUE_INTERVAL_RANGE
+    return min(hi, max(lo, 7.0 * split_factor(spw) / max(1, spw)))
+
+
+def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw: int, cfg: dict,
+                     today: date | None = None) -> list[dict]:
+    """Score every exercise that may be trained on that day, with the reasons as items."""
+    interval = due_interval(spw)
+    never_fresh = sorted((c for c in pool if not c["new"] and not c["last_fresh"]), key=lambda c: (-c["n_days"], c["name"]))
+    measured = sorted((c for c in pool if not c["new"] and c["last_fresh"]), key=lambda c: (c["last_fresh"], c["name"]))
+    bench_rank = {c["name"]: i for i, c in enumerate(never_fresh + measured)}
+    out = []
+    for c in pool:
+        if c["restriction"] == "avoid":
+            continue
+        weight = max([FOCUS_WEIGHT[focus.get(r, "normal")] for r in c["regions"]] or [1.0])
+        if weight == 0.0:
+            continue
+        status, behind = exercise_status(c, state, day, today)
+        if status == "not_ready":
+            continue
+        targets = sorted(_targets(c))
+        since = {m: ((day - date.fromisoformat(state[m]["last_target"])).days if (state.get(m) or {}).get("last_target") else None)
+                 for m in targets}
+        never = all(v is None for v in since.values())
+        days_due = max((v for v in since.values() if v is not None), default=None)
+        worst = next((m for m in targets if since[m] == days_due), targets[0] if targets else None)
+        due = 2.0 if never else min((days_due or 0) / interval, 2.0)
+        cover = 1.0 if (never or (days_due or 0) > COVER_DAYS) else 0.0
+        if c["new"] and not cover:
+            continue                               # a new exercise only to close a gap
+        ps = (c["progress"] or {}).get("status")
+        prog = {"progressing": 1.0, "stable": 0.5, "plateau": 0.5, "insufficient": 0.5}.get(ps, 0.0)
+        can_bench = not c["new"] and status == "ready" and c["restriction"] == "ok"
+        bench = (1.0 / (1 + bench_rank[c["name"]])) if (can_bench and c["name"] in bench_rank) else 0.0
+        score = weight * (due + 0.5 * cover + 0.3 * prog + 0.5 * bench)
+        score *= 0.7 if c["restriction"] == "careful" else 1.0
+        score *= 0.6 if status == "limited" else 1.0
+        if c["new"]:                               # among new ones: big movements and mapped exercises first
+            score = score * NEW_WEIGHT + (0.05 if c["kind"] == "compound" else 0.0) + (0.0 if c["library"] else 0.02)
+        why = []
+        if c["new"]:
+            why.append(item("sel_new", {"muscle": worst}, cfg))
+        elif cover:
+            why.append(item("sel_coverage", {"muscle": worst, "days": days_due}, cfg))
+        elif due >= 1.0:
+            why.append(item("sel_overdue", {"muscle": worst, "days": days_due}, cfg))
+        else:
+            why.append(item("sel_ready_again", {"muscle": worst, "days": days_due}, cfg))
+        if weight > 1.0:
+            why.append(item("sel_focus", {"region": next(r for r in c["regions"] if focus.get(r) == "more")}, cfg))
+        if ps == "progressing":
+            why.append(item("sel_progress", {"change_spct": (c["progress"] or {}).get("change_pct")}, cfg))
+        out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind,
+                        why_selected=why, days_since_target=days_due, due_muscle=worst,
+                        bench_rank=bench_rank.get(c["name"]) if can_bench else None))
+    out.sort(key=lambda c: (-c["score"], c["name"]))
+    return out
+
+
+def theme_regions(cands: list[dict], pool: list[dict], spw: int) -> list[str] | None:
+    """With 3+ sessions a week: the most due regions of that day (a half / a third of the regions
+    the athlete trains), so the others are ready the day after. None = full body."""
+    k_split = split_factor(spw)
+    if k_split == 1:
+        return None
+    trained = {r for c in pool if not c["new"] for r in c["regions"]}      # regions the athlete really trains
+    best: dict = {}
+    for c in cands:
+        if c["score"] > 0:
+            for r in c["regions"]:
+                best[r] = max(best.get(r, 0.0), c["score"])
+    k = max(1, math.ceil(len(trained | {r for r in best if r not in trained and any(not c["new"] for c in cands if r in c["regions"])}) / k_split))
+    return sorted(sorted(best, key=lambda r: (-best[r], r))[:k])
+
+
+def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, max_new: int = 1) -> tuple[list[dict], list[dict]]:
+    """Greedy pick with a redundancy penalty: after each pick the remaining scores shrink by the
+    overlap of their target muscles with it (halved on a focus region or in a themed session).
+    Twins are skipped in a full-body session; at most max_new never-performed exercises (one - a
+    whole starter session only for an athlete without a history), and only for a focus region or
+    a slot no known exercise wants (else it is listed as "closes a gap")."""
+    left = [dict(c) for c in cands if theme is None or set(c["regions"]) & set(theme) or not c["regions"]]
+    known = sum(1 for c in left if not c["new"])
+    for c in left:                                 # a never-performed exercise serves a focus or fills a free
+        if c["new"] and known >= size and not any(focus.get(r) == "more" for r in c["regions"]):
+            c["score"], c["gap_only"] = 0.0, True  # slot - it never displaces what the athlete already does
+    chosen, dropped = [], [{"name": c["name"], "reason": "other_regions_today", "score": c["score"], "new": c["new"]}
+                           for c in cands if theme is not None and c["regions"] and not set(c["regions"]) & set(theme)]
+    while left and len(chosen) < size:
+        left.sort(key=lambda c: (-c["score"], c["name"]))
+        pick = left.pop(0)
+        if pick["score"] <= 0:
+            left.insert(0, pick)
+            break
+        chosen.append(pick)
+        keep = []
+        for c in left:
+            union = _targets(pick) | _targets(c)
+            overlap = len(_targets(pick) & _targets(c)) / len(union) if union else 0.0
+            wide = theme is not None or any(focus.get(r) == "more" for r in c["regions"])
+            if overlap >= TWIN_OVERLAP and not wide:
+                dropped.append({"name": c["name"], "reason": "same_muscles", "with": pick["name"], "score": c["score"], "new": c["new"]})
+                continue
+            if c["new"] and sum(1 for x in chosen if x["new"]) >= max_new:
+                dropped.append({"name": c["name"], "reason": "one_new_at_a_time", "score": c["score"], "new": True})
+                continue
+            if overlap:
+                c["score"] = round(c["score"] * (1 - REDUNDANCY * overlap * (0.5 if wide else 1.0)), 3)
+                c.setdefault("overlaps", pick["name"])
+            keep.append(c)
+        left = keep
+    dropped += [{"name": c["name"], "reason": "closes_a_gap" if c.get("gap_only") else "no_slot", "with": c.get("overlaps"),
+                 "score": c["base_score"] if c.get("gap_only") else c["score"], "new": c["new"], "muscle": c.get("due_muscle")}
+                for c in left]
+    return chosen, dropped
+
+
+# =============================================================================
+# Order
+# =============================================================================
+def pair_loss(a: dict, b: dict, ev: dict) -> tuple[float, dict | None]:
+    """Expected loss (%) of b when a is done before it: the athlete's measured effect when there is
+    one (already shrunk towards the prior), else the catalog prior. (0, None) when nothing is shared."""
+    for p in (ev or {}).get("pair_effects", []):
+        if p["before"] == a["name"] and p["then"] == b["name"]:
+            return max(0.0, p["loss_pct"]), {"id": p["id"], "source": "measured", "n": p["n"], "confidence": p["confidence"],
+                                             "loss_pct": p["loss_pct"], "before": a["name"]}
+    prior = evidence.pair_prior(a["muscles"], b["muscles"])
+    if prior <= 0:
+        return 0.0, None
+    return prior, {"id": f"prior:{b['name']}|after:{a['name']}", "source": "prior", "n": 0, "confidence": "prior",
+                   "loss_pct": prior, "before": a["name"]}
+
+
+def _rest_model(ev: dict):
+    """(share of a pair's loss per minute, reference minutes) when the athlete's data shows that
+    more rest costs less (arx_evidence: enough observations AND better than shuffled data) - else
+    None: no assumed decay."""
+    re_ = (ev or {}).get("rest_effect") or {}
+    if re_.get("status") != "detected" or not re_.get("loss_share_change_per_min") or re_.get("reference_minutes") is None:
+        return None
+    return re_["loss_share_change_per_min"], re_["reference_minutes"]
+
+
+def position_loss(ev: dict) -> float:
+    pe = (ev or {}).get("position_effect") or {}
+    val = -(pe.get("pct_per_position") if pe.get("pct_per_position") is not None else evidence.POSITION_PRIOR_PCT)
+    return min(POS_LOSS_RANGE[1], max(POS_LOSS_RANGE[0], val))
+
+
+def means_before_target(a: dict, b: dict) -> list[str]:
+    """Muscles that are a's TARGET and b's LIMITER: a must not come before b."""
+    return sorted(_targets(a) & {m for m, r in b["muscles"].items() if r == "limiter"})
+
+
+def best_order(chosen: list[dict], ev: dict) -> tuple[list[dict], list[dict], dict]:
+    """The cheapest permutation that respects 'a means before the target' and keeps the benchmark
+    exercise free of anything that loads its muscles before it."""
+    items = sorted(chosen, key=lambda c: c["name"])
+    loss = {(a["name"], b["name"]): pair_loss(a, b, ev) for a in items for b in items if a is not b}
+    pos_loss, rest = position_loss(ev), _rest_model(ev)
+    perms = [p for p in itertools.permutations(items)
+             if not any(means_before_target(a, b) for i, a in enumerate(p) for b in p[i + 1:])]
+    relaxed = not perms
+    if relaxed:                                    # cannot happen with a sane catalog (a cycle of means)
+        perms = list(itertools.permutations(items))
+    bench = None
+    for cand in sorted((c for c in items if c.get("bench_rank") is not None), key=lambda c: c["bench_rank"]):
+        feasible = [p for p in perms if all(loss[(a["name"], cand["name"])][0] == 0 for a in p[:p.index(cand)])]
+        if feasible:
+            bench, perms = cand["name"], feasible
+            break
+
+    def cost(p):
+        total, rows, clock, ends = 0.0, [], 0.0, []
+        for pos, b in enumerate(p):
+            exp, used = pos_loss * pos, []
+            for a, a_end in zip(p[:pos], ends):
+                base, src = loss[(a["name"], b["name"])]
+                if base <= 0:
+                    continue
+                eff = base
+                if rest:                           # only a MEASURED rest effect moves the loss, bounded
+                    eff = base * min(1 + REST_GAP_SWING, max(1 - REST_GAP_SWING, 1 + rest[0] * ((clock - a_end) - rest[1])))
+                exp += eff
+                used.append(dict(src, expected_loss_pct=round(eff, 1)))
+            total += b["base_score"] * exp
+            rows.append({"name": b["name"], "expected_loss_pct": round(exp, 1), "shared_loss_pct": round(exp - pos_loss * pos, 1),
+                         "evidence": used})
+            clock += b["set_seconds"] / 60.0
+            ends.append(clock)
+            clock += REST_MIN.get(b["kind"], 2.5) + TRANSITION_MIN
+        return total, rows
+
+    # Equal cost (nothing shared, no position effect measured): the order a trainer would write down -
+    # the clean measurement first, big exercises before small ones, what matters most before the
+    # rest, something new last. Fewest inversions against that order wins.
+    natural = sorted(items, key=lambda c: (0 if c["name"] == bench else 1, 1 if c["new"] else 0,
+                                           0 if c["kind"] == "compound" else 1, -c["base_score"], c["name"]))
+    rank = {c["name"]: i for i, c in enumerate(natural)}
+    inversions = lambda p: sum(1 for i, a in enumerate(p) for b in p[i + 1:] if rank[a["name"]] > rank[b["name"]])
+    scored = [(cost(p), p) for p in perms]
+    (total, rows), seq = min(scored, key=lambda x: (round(x[0][0], 6), inversions(x[1]), [c["name"] for c in x[1]]))
+    worst = max(s[0][0] for s in scored)
+    return list(seq), rows, {"benchmark": bench, "cost": round(total, 2), "worst_cost": round(worst, 2),
+                             "orders_compared": len(perms), "position_loss_pct": round(pos_loss, 1),
+                             "rest_effect_used": bool(rest), "rule_relaxed": relaxed}
+
+
+# =============================================================================
+# Effort, targets, rests
+# =============================================================================
+def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) -> tuple[dict, list[str]]:
+    """The effort a set should reach + what capped it (commitment | checkin | age)."""
+    label, caps = goal_effort(cfg.get("goal") or {}), []
+
+    def cap(to: str, why: str):
+        nonlocal label
+        if EFFORT_RANK[to] < EFFORT_RANK[label]:
+            label = to
+            caps.append(why)
+    if COMMITMENT[commitment]["effort"] == "moderate":
+        cap("moderate", "commitment")
+    if band == "moderate":
+        cap("moderate", "checkin")
+    if band == "light_or_rest":
+        cap("submax", "checkin")
+    if age in MINOR_BANDS:
+        cap("moderate", "age")
+    return dict(EFFORT_TARGETS[label]), caps
+
+
+def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: str | None, is_bench: bool,
+               row: dict, cfg: dict) -> dict:
+    """Force target, sets and the rule behind them (see the module docstring)."""
+    e = c["series"]
+    out = {"target_peak_kg": None, "target_con_mean_kg": None, "target_rule": None, "step_pct": 0.0, "base_kg": None,
+           "base_date": None, "base_context": None, "settings": None, "sets": 1, "context_note": None}
+    if c["new"] or not e:
+        out["target_rule"], out["interp"] = "new_exercise", item("plan_new_exercise", {}, cfg)
+        return out
+    occ = e["occ"]
+    comparable = [o for o in occ if o.get("comparable")]
+    fresh = [o for o in comparable if o.get("context") == "fresh"]
+    base = ((fresh if len(fresh) >= 2 else comparable) or occ)[-1]
+    out.update({"base_kg": base["kg"], "base_date": base["date"], "base_context": base.get("context"),
+                "settings": {"reps": base.get("reps"), "tempo_s": base.get("tempo_s"), "pause_end_s": base.get("pause_end_s"),
+                             "pause_return_s": base.get("pause_return_s"), "rom_cm": base.get("rom_cm"),
+                             "source": "last_comparable" if comparable else "last"}})
+    prog = c["progress"] or {}
+    if c["restriction"] == "careful":
+        out["target_rule"], out["interp"] = "sub_max_careful", item("plan_submax_careful", {}, cfg)
+        return out
+    if c["status"] == "limited":
+        out["target_rule"] = "sub_max_limiter"
+        out["interp"] = item("plan_submax_limited", {"muscle": (c.get("limited_by") or [None])[0]}, cfg)
+        return out
+    if band == "light_or_rest":
+        out["target_rule"], out["target_peak_kg"] = "light_day", round(base["kg"] * LIGHT_DAY_SHARE, 1)
+        out["interp"] = item("plan_light_day", {"target_kg": out["target_peak_kg"], "share_pct": LIGHT_DAY_SHARE * 100}, cfg)
+        return out
+    profile = COMMITMENT[commitment]
+    last_inroad = occ[-1].get("inroad")
+    # the last set stopped short of the effort the goal asks for (a borderline value counts as reached)
+    room = last_inroad is not None and last_inroad < effort["inroad_min"] - BORDERLINE
+    may_step = profile["step"] and band in (None, "go_hard") and age not in MINOR_BANDS
+    hit = prog.get("effort_hit_rate")
+    step = 0.0
+    if prog.get("status") == "progressing" and may_step and not room:
+        per_session = abs(prog.get("change_pct") or 0.0) / max(1, (prog.get("n") or 2) - 1)
+        step = min(STEP_RANGE_PCT[1], max(STEP_RANGE_PCT[0], per_session))
+        if age in OLDER_BANDS:
+            step = step / 2
+        rule, code = "step", "plan_step"
+    elif is_bench:                                                    # today's clean measurement
+        rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
+    elif room:
+        rule, code = "hold_reach_effort", "plan_hold_effort"          # the set stopped short: effort before force
+    elif prog.get("status") == "plateau" and (hit is None or hit >= HIT_RATE_OK):
+        if profile["plateau_set"] and age not in MINOR_BANDS:
+            rule, code, out["sets"] = "plateau_add_set", "plan_plateau_add_set", 2
+        else:
+            rule, code = "plateau_hold", "plan_plateau_min_time"
+    else:
+        rule, code = "hold", "plan_hold"
+    out["step_pct"], out["target_rule"] = round(step, 1), rule
+    factor = 1 + step / 100.0
+    shared = row.get("shared_loss_pct") or 0.0
+    if base.get("context") == "fresh" and shared >= CONTEXT_LOSS_MIN_PCT:
+        # the reference was measured fresh, this time something loads the same muscles first
+        factor *= 1 - shared / 100.0
+        top = max(row["evidence"], key=lambda x: x["expected_loss_pct"])
+        out["context_note"] = item("plan_context_adjusted", {"loss_pct": round(shared, 1), "before": top["before"],
+                                                            "n": top["n"], "fresh_kg": round(base["kg"] * (1 + step / 100.0), 1)},
+                                   cfg, source=top["source"])
+    elif base.get("context") in ("preloaded", "repeat") and shared < CONTEXT_LOSS_MIN_PCT and not is_bench:
+        # the reference was measured after other work for the same muscles - this time nothing is in the way
+        out["context_note"] = item("plan_fresher_than_reference", {"base_kg": base["kg"], "base_date": base["date"]}, cfg)
+    out["target_peak_kg"] = round(base["kg"] * factor, 1)
+    if len(comparable) >= 3 and base.get("con_top3_kg"):
+        out["target_con_mean_kg"] = round(base["con_top3_kg"] * factor, 1)
+    out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
+                                "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
+                                "span_days": prog.get("span_days"), "n": prog.get("n")}, cfg)
+    return out
+
+
+def estimate_session_minutes(items: list[dict], transition_min: float) -> int:
+    """Wall-clock minutes of a planned session: sets, rests between sets, change-over between
+    exercises (the athlete's own median when known)."""
+    total = 0.0
+    for i, it in enumerate(items):
+        total += it["sets"] * (it.get("set_seconds") or DEFAULT_SET_SECONDS) / 60.0
+        total += (it["sets"] - 1) * REST_MIN.get(it["kind"], 2.5)
+        if i:
+            total += max(it["rest_before_min"], transition_min)
+    return round(total)
+
+
+# =============================================================================
+# One session
+# =============================================================================
+def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: dict, spw: int, size: int,
+                   today: date) -> dict | None:
+    """What could be trained on that day (no order yet) + how complete that session would be."""
+    cands = score_candidates(pool, state, day, focus, spw, cfg, today)
+    theme = theme_regions(cands, pool, spw)
+    starter = sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX       # no history yet: a first session
+    chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else 1)
+    ready = [c for c in chosen if c["status"] == "ready"]
+    usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
+    if len(ready) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
+        return None
+    want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and set(c["regions"]) & set(theme))))
+    fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
+    return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2)}
+
+
+def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | None, age: str | None,
+                   transition: float, repeat_loss: dict) -> dict:
+    """Order, effort, targets, rests and minutes for a selected session."""
+    day = sel["date"]
+    seq, rows, meta = best_order(sel["chosen"], ev)
+    effort, caps = effort_for(cfg, commitment, band, age)
+    items = []
+    for pos, (c, row) in enumerate(zip(seq, rows), 1):
+        sub_max = c["restriction"] == "careful" or c["status"] == "limited" or c["new"]
+        eff = dict(EFFORT_TARGETS["submax"]) if sub_max else dict(effort)
+        is_bench = c["name"] == meta["benchmark"]
+        tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg)
+        if COMMITMENT[commitment]["extra_sets"] and pos <= 2 and not sub_max and band in (None, "go_hard"):
+            tgt["sets"] = max(tgt["sets"], 1 + COMMITMENT[commitment]["extra_sets"])
+        prev = seq[pos - 2] if pos > 1 else None
+        rest = 0.0 if prev is None else REST_MIN.get(prev["kind"], 2.5) + min(REST_EXTRA_MAX, round(row["shared_loss_pct"] / REST_EXTRA_PER_PCT))
+        why = list(c["why_selected"])
+        if is_bench:
+            why.append(item("sel_benchmark" if c["last_fresh"] else "sel_benchmark_never",
+                            {"last_date": c["last_fresh"], "k": c["n_days"]}, cfg))
+        rules = [item("order_means_first", {"first": a["name"], "second": c["name"], "muscle": means_before_target(c, a)[0]}, cfg)
+                 for a in seq[:pos - 1] if means_before_target(c, a)]
+        items.append({
+            "order": pos, "name": c["name"], "code": c["code"], "group": c["group"], "kind": c["kind"], "new": c["new"],
+            "benchmark": is_bench, "status": c["status"], "limited_by": c.get("limited_by", []), "restriction": c["restriction"],
+            "regions": c["regions"], "muscles": c["muscles"], "effort_target": eff, "rest_before_min": rest,
+            "set_seconds": round(c["set_seconds"]), "aid": c["aid"], "aid_hint": None,
+            "expected_loss_pct": row["expected_loss_pct"], "shared_loss_pct": row["shared_loss_pct"], "evidence": row["evidence"],
+            "planned_context": "preloaded" if row["evidence"] else "fresh",   # fresh = a clean measurement this time
+            "second_set_loss_pct": repeat_loss.get(c["name"]) if tgt["sets"] > 1 else None,
+            "why_selected": why, "order_rules": rules, "score": c["base_score"], "days_since_target": c["days_since_target"],
+            "progress_status": (c["progress"] or {}).get("status"), **tgt,
+        })
+    regions = sorted({r for it in items for r in it["regions"]})
+    return {"date": day.isoformat(), "weekday": day.weekday(), "session_type": "split" if sel["theme"] else "full_body",
+            "regions": regions, "theme": sel["theme"], "fill": sel["fill"], "est_minutes": estimate_session_minutes(items, transition),
+            "exercises": items, "benchmark": meta["benchmark"], "effort_target": effort, "effort_caps": caps,
+            "alternatives": sel["dropped"][:8], "order_meta": meta}
+
+
+def limiter_budget(session: dict, work: list[dict], catalog: dict, ev: dict, cfg: dict) -> dict:
+    """Planned load on every limiter vs what the athlete usually puts on it in one session - counted
+    only where the muscle works as a MEANS (the curl that targets the elbow flexors comes after the
+    rows anyway) - next to the loss measured on it so far."""
+    aids = cfg.get("aids") or {}
+    per_visit: dict = {}
+    typical: dict = {}
+    for s in work:
+        key = (s["date"][:10], s.get("visit", 1))
+        typical.setdefault(str(s["exercise"]), []).append(s)
+        for m, role in _muscles(catalog.get(str(s["exercise"]), {}), s["exercise"], s["date"], aids).items():
+            if role == "limiter":                  # work the muscle does as a helper, not as the goal
+                per_visit.setdefault(m, {}).setdefault(key, 0.0)
+                per_visit[m][key] += s.get("impulse_kg_s") or 0
+    out = {}
+    for m in sorted({m for it in session["exercises"] for m, r in it["muscles"].items() if r == "limiter"}):
+        rows = [{"name": it["name"], "aid": it["aid"],
+                 "load": round(_typical(typical.get(it["code"], []), "impulse_kg_s", 0.0) * it["sets"])}
+                for it in session["exercises"] if it["muscles"].get(m) == "limiter"]
+        planned = sum(r["load"] for r in rows)
+        visits = [v for _, v in sorted(per_visit.get(m, {}).items())][-6:]
+        usual = st.median(visits) if len(visits) >= BUDGET_MIN_SESSIONS else None
+        status = "unknown" if not usual else ("high" if planned > BUDGET_TOLERANCE * usual else "ok")
+        measured = ((ev or {}).get("limiter_effects") or {}).get(m)
+        out[m] = {"planned": planned, "usual": round(usual) if usual else None, "n_sessions": len(visits), "status": status,
+                  "share_pct": round(planned / usual * 100) if usual else None, "by_exercise": rows, "measured": measured,
+                  "interp": item(f"budget_{status}", {"muscle": m, "share_pct": round(planned / usual * 100) if usual else None,
+                                                     "k": len(rows)}, cfg),
+                  "measured_interp": item("limiter_measured", {"muscle": m, "loss_pct": measured["observed_loss_pct"],
+                                                               "n": measured["n"]}, cfg, confidence=measured["confidence"]) if measured else None}
+    return out
+
+
+def aid_hints(session: dict, budget: dict, cfg: dict, possible: dict) -> list[dict]:
+    """Where an aid (hooks / straps) frees the most: only when a limiter is over budget or carries
+    AID_MIN_EXERCISES exercises, only for exercises that offer an aid and use none yet - first the
+    one whose goal is farthest from the limiter (a hinge for the legs needs no grip training)."""
+    hints = []
+    for m, b in budget.items():
+        if b["status"] != "high" and len(b["by_exercise"]) < AID_MIN_EXERCISES:
+            continue
+        rows = [r for r in b["by_exercise"] if not r["aid"] and possible.get(r["name"])]
+        if not rows:
+            continue
+        region_of = {it["name"]: it["regions"] for it in session["exercises"]}
+        pick = min(rows, key=lambda r: (0 if "legs" in region_of[r["name"]] else 1, -r["load"], r["name"]))
+        aid = possible[pick["name"]][0]
+        hints.append(item("aid_hint", {"exercise": pick["name"], "aid": aid, "muscle": m, "k": len(b["by_exercise"]),
+                                       "share_pct": b["share_pct"]}, cfg, exercise=pick["name"], muscle=m, aid=aid))
+        for it in session["exercises"]:
+            if it["name"] == pick["name"]:
+                it["aid_hint"] = aid
+    return hints
+
+
+# =============================================================================
+# The plan
+# =============================================================================
+def weekday_habit(days: list[str], spw: int) -> list[int]:
+    """The athlete's usual weekdays (0 = Monday) - only when a real pattern exists."""
+    if len(days) < HABIT_MIN_DAYS:
+        return []
+    counts: dict = {}
+    for d in days:
+        wd = date.fromisoformat(d).weekday()
+        counts[wd] = counts.get(wd, 0) + 1
+    top = sorted(counts, key=lambda w: (-counts[w], w))[:max(1, spw)]
+    return sorted(top) if sum(counts[w] for w in top) / len(days) >= HABIT_SHARE else []
+
+
+def session_size(minutes: float, per_exercise_min: float, regions: int, commitment: str, band: str | None,
+                 age: str | None) -> int:
+    """Exercises per session: what the time budget holds at the athlete's own pace (set + change-
+    over), then the commitment profile; a poor check-in and the youth guard cut it."""
+    size = int(min(SESSION_MAX_EX, max(SESSION_MIN_EX, round(minutes / max(1.0, per_exercise_min)))))
+    delta = COMMITMENT[commitment]["size"]
+    size = min(size, max(SESSION_MIN_EX, regions)) if delta == "cover" else size + delta
+    size = max(SESSION_MIN_EX - 1, min(SESSION_MAX_EX, size))
+    if band == "moderate":
+        size = max(2, size - 1)
+    if band == "light_or_rest":
+        size = min(size, 3)
+    return min(size, MINOR_MAX_EXERCISES) if age in MINOR_BANDS else size
+
+
+def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict, today: date, readiness: dict | None,
+               load: dict, ev: dict, progress: dict, sequences: list[dict] | None = None, profile: dict | None = None,
+               restriction_of=None) -> dict:
+    """{today, profile, next_session, week_plan, week_strip, date_options} - see the module docstring."""
+    aids = cfg.get("aids") or {}
+    spw = max(1, min(7, int(cfg.get("sessions_per_week") or 2)))
+    band = (readiness or {}).get("band")
+    age = (profile or {}).get("age_band")
+    walls = [d["wall_minutes"] / max(1, d.get("visits") or 1) for d in (sequences or []) if d.get("wall_minutes")]
+    minutes = cfg.get("session_minutes")
+    minutes_auto = not minutes
+    if not minutes:
+        minutes = min(SESSION_MINUTES_RANGE[1], max(SESSION_MINUTES_RANGE[0], st.median(walls[-6:]))) if walls else DEFAULT_SESSION_MINUTES
+    minutes = float(minutes)
+    chosen_profile = cfg.get("commitment") if cfg.get("commitment") in COMMITMENT else None
+    recommended = recommend_commitment(cfg, minutes, spw)
+    commitment = chosen_profile or recommended
+    focus = focus_regions(cfg)
+    pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
+    state = muscle_state(load, work, catalog, aids, age)
+    transition, transition_measured = transition_minutes(work)
+    set_min = st.median([c["set_seconds"] for c in pool if not c["new"]] or [DEFAULT_SET_SECONDS]) / 60.0
+    per_exercise = (set_min + transition) if transition_measured else MINUTES_PER_EXERCISE
+    n_regions = len({r for c in pool if not c["new"] and c["restriction"] != "avoid" for r in c["regions"] if focus.get(r) != "off"})
+    size_for = lambda b: session_size(minutes, per_exercise, n_regions, commitment, b, age)
+    repeat_loss = {r["exercise"]: r["observed_loss_pct"] for r in (ev or {}).get("repeat_effects", []) if r["n"] >= 2}
+    days = sorted({s["date"][:10] for s in work})
+    last_day = date.fromisoformat(days[-1]) if days else None
+    ideal_gap = 7.0 / spw
+    habit = weekday_habit(days, spw)
+    week_counts: dict = {}
+    for d in days:
+        key = date.fromisoformat(d).isocalendar()[:2]
+        week_counts[key] = week_counts.get(key, 0) + 1
+
+    trained_today = bool(days) and days[-1] == today.isoformat()
+    score_today = (readiness or {}).get("score")
+    rest_today = band == "light_or_rest" and ((readiness or {}).get("rhr_status") == "elevated"
+                                              or (score_today is not None and score_today < REST_SCORE_BELOW))
+    earliest = today + timedelta(days=1) if (trained_today or rest_today) else today
+
+    def options(start: date, prev: date | None, st8: dict, counts: dict, pool_: list[dict], with_band: bool) -> list[dict]:
+        out = []
+        for k in range(DATE_SEARCH_DAYS + 1):
+            d = start + timedelta(days=k)
+            b = band if (with_band and d == today) else None
+            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today)
+            if not sel:
+                continue
+            gap = (d - prev).days if prev else None
+            off = max(0.0, abs(gap - ideal_gap) - CADENCE_FREE_DAYS) / ideal_gap if gap is not None else 0.0
+            open_week = counts.get(d.isocalendar()[:2], 0) < spw
+            fill = sel["fill"] * BAND_FILL.get(b, 1.0)
+            score = fill - CADENCE_W * off + (WEEK_W if open_week else 0.0) + (HABIT_W if d.weekday() in habit else 0.0)
+            out.append(dict(sel, band=b, gap_days=gap, open_week=open_week, habit=d.weekday() in habit, score=round(score, 3),
+                            fill_effective=round(fill, 2)))
+        return out
+
+    opts = options(earliest, last_day, state, week_counts, pool, True)
+    profile_out = {"commitment": commitment, "commitment_chosen": bool(chosen_profile), "recommended_commitment": recommended,
+                   "sessions_per_week": spw, "session_minutes": round(minutes), "session_minutes_auto": minutes_auto,
+                   "focus_regions": focus, "split_factor": split_factor(spw), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
+                   "supervision": age in MINOR_BANDS, "transition_min": transition, "transition_measured": transition_measured,
+                   "exercises_per_session": size_for(None),
+                   "commitment_options": commitment_options(cfg, minutes, spw, set_min, transition, per_exercise, n_regions, age)}
+    if not opts:
+        return {"algo": PLAN_ALGO_VERSION, "today": {"train_today": False, "trained_today": trained_today,
+                                                     "interp": item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)},
+                "profile": profile_out, "next_session": None, "today_session": None, "week_plan": [], "week_strip": [],
+                "date_options": []}
+    best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
+    session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
+    d1 = best["date"]
+
+    # --- why this date ---------------------------------------------------------------------------------
+    why = []
+    if trained_today:
+        why.append(item("date_trained_today", {}, cfg))
+    if rest_today:
+        why.append(item("date_checkin_rest", {"score": score_today}, cfg))
+    today_opt = next((o for o in opts if o["date"] == today), None)
+    if today_opt and d1 > today and today_opt["band"] in BAND_FILL:
+        why.append(item("date_checkin_low", {"score": score_today, "k": len(today_opt["chosen"])}, cfg))
+    n_ready = sum(1 for it in session["exercises"] if it["status"] == "ready")
+    why.append(item("date_recovery", {"k": n_ready, "total": len(session["exercises"]), "on_date": d1.isoformat()}, cfg))
+    waiting = sorted(((v["ready_on"], m) for m, v in state.items() if (v.get("ready_on") or "") > earliest.isoformat()
+                      and v["ready_on"] <= d1.isoformat()), reverse=True)
+    if waiting and d1 > earliest:
+        why.append(item("date_waited_for", {"muscle": waiting[0][1], "ready_date": waiting[0][0]}, cfg))
+    overdue = max(session["exercises"], key=lambda it: it.get("days_since_target") or 0)
+    if (overdue.get("days_since_target") or 0) > 2 * due_interval(spw):
+        why.append(item("date_overdue", {"muscle": next(c["due_muscle"] for c in best["chosen"] if c["name"] == overdue["name"]),
+                                         "days": overdue["days_since_target"]}, cfg))
+    why.append(item("date_cadence", {"spw": spw, "ideal": round(ideal_gap, 1), "gap": best["gap_days"]}, cfg)
+               if best["gap_days"] is not None else item("date_first", {"spw": spw}, cfg))
+    wk_done = week_counts.get(d1.isocalendar()[:2], 0)
+    why.append(item("date_week", {"done": wk_done, "spw": spw, "nth": wk_done + 1}, cfg))
+    if best["habit"]:
+        why.append(item("date_habit", {"weekday": d1.weekday()}, cfg))
+    fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best["fill"] + 0.25), None)
+    if fuller:
+        session["fuller_option"] = item("date_fuller_later", {"later_date": fuller["date"].isoformat(), "k": len(fuller["chosen"]),
+                                                              "k_now": len(best["chosen"])}, cfg)
+    session.update({"why_this_date": why, "days_from_today": (d1 - today).days, "gap_days": best["gap_days"],
+                    "readiness_band_applied": best["band"]})
+    budget = limiter_budget(session, work, catalog, ev, cfg)
+    session["limiter_budget"] = budget
+    session["aid_hints"] = aid_hints(session, budget, cfg, {c["name"]: c["aids_possible"] for c in pool})
+    session["order_notes"] = order_notes(session, cfg)
+    if transition_measured and transition > TRANSITION_NOTE_MIN and len(session["exercises"]) > 1:
+        saving = round((transition - TRANSITION_TARGET_MIN) * (len(session["exercises"]) - 1))
+        session["time_note"] = item("time_transitions", {"minutes": transition, "enough": TRANSITION_TARGET_MIN, "saving": saving,
+                                                         "total": session["est_minutes"]}, cfg)
+    if age in MINOR_BANDS:
+        session["guard"] = item("guard_youth", {"k": MINOR_MAX_EXERCISES}, cfg)
+    elif age in OLDER_BANDS:
+        session["guard"] = item("guard_older", {}, cfg)
+
+    # --- the week: roll the muscle state forward, rotate the benchmark, plan on -------------------------------
+    compact = lambda s: {"date": s["date"], "weekday": s["weekday"], "session_type": s["session_type"], "regions": s["regions"],
+                         "est_minutes": s["est_minutes"], "benchmark": s["benchmark"],
+                         "exercises": [it["name"] for it in s["exercises"]]}
+    sessions, st8, prev, counts, pool_ = [session], state, d1, dict(week_counts), pool
+    horizon = today + timedelta(days=HORIZON_DAYS)
+    while True:
+        cur = sessions[-1]
+        st8 = apply_session(st8, prev, cur["exercises"], age)
+        counts[prev.isocalendar()[:2]] = counts.get(prev.isocalendar()[:2], 0) + 1
+        done = {it["name"] for it in cur["exercises"]}       # by then: measured fresh / no longer new
+        pool_ = [dict(c, new=False if c["name"] in done else c["new"],
+                      last_fresh=cur["date"] if c["name"] == cur["benchmark"] else c["last_fresh"]) for c in pool_]
+        nxt = [o for o in options(prev + timedelta(days=1), prev, st8, counts, pool_, False) if o["date"] <= horizon]
+        if not nxt:
+            break
+        pick = max(nxt, key=lambda o: (o["score"], -o["date"].toordinal()))
+        sessions.append(finish_session(pick, cfg, ev, commitment, None, age, transition, repeat_loss))
+        prev = pick["date"]
+    # readiness per region for every day of the horizon, as it is on the morning of that day
+    strip, roll = [], state
+    by_date = {s["date"]: s for s in sessions}
+    for k in range(HORIZON_DAYS + 1):
+        d = today + timedelta(days=k)
+        iso = d.isoformat()
+        regions = {}
+        for r, ms in REGIONS.items():
+            known = [m for m in ms if m in roll]
+            late = [m for m in known if (roll[m].get("ready_on") or "") > iso]
+            regions[r] = "recovering" if (known and len(late) == len(known)) else ("partial" if late else "ready")
+        strip.append({"date": iso, "weekday": d.weekday(), "session": compact(by_date[iso]) if iso in by_date else None,
+                      "readiness_by_region": regions})
+        if iso in by_date:
+            roll = apply_session(roll, d, by_date[iso]["exercises"], age)
+
+    # standing in the gym anyway? the session that is possible TODAY (lighter after a poor check-in)
+    today_session = None
+    if today_opt and d1 > today:
+        today_session = finish_session(today_opt, cfg, ev, commitment, today_opt["band"], age, transition, repeat_loss)
+        today_session["limiter_budget"] = limiter_budget(today_session, work, catalog, ev, cfg)
+        today_session["order_notes"] = order_notes(today_session, cfg)
+        today_session["note"] = item("today_anyway", {"k": len(today_session["exercises"]), "next_date": d1.isoformat()}, cfg)
+
+    return {
+        "algo": PLAN_ALGO_VERSION,
+        "today_session": today_session,
+        "today": {"train_today": d1 == today, "trained_today": trained_today, "rest_today": rest_today,
+                  "interp": item("today_train" if d1 == today else "today_rest",
+                                 {"next_date": d1.isoformat(), "days": (d1 - today).days, "weekday": d1.weekday()}, cfg)},
+        "profile": profile_out, "next_session": session, "week_plan": [compact(s) for s in sessions], "week_strip": strip,
+        "date_options": [{"date": o["date"].isoformat(), "weekday": o["date"].weekday(), "score": o["score"], "fill": o["fill_effective"],
+                          "gap_days": o["gap_days"], "exercises": [c["name"] for c in o["chosen"]],
+                          "limited": [c["name"] for c in o["chosen"] if c["status"] == "limited"]} for o in opts],
+    }
+
+
+def order_notes(session: dict, cfg: dict) -> list[dict]:
+    """The order decisions worth telling: which exercise keeps its muscles fresh and what the
+    shared-muscle pairs are expected to cost in the chosen order."""
+    notes = []
+    if session.get("benchmark"):
+        notes.append(item("order_benchmark", {"exercise": session["benchmark"]}, cfg))
+    for it in session["exercises"]:
+        for src in it["evidence"]:
+            if src["expected_loss_pct"] >= CONTEXT_LOSS_MIN_PCT:
+                notes.append(item("order_pair_measured" if src["source"] == "measured" else "order_pair_prior",
+                                  {"first": src["before"], "second": it["name"], "loss_pct": src["expected_loss_pct"], "n": src["n"]},
+                                  cfg, confidence=src["confidence"]))
+    return notes
+
+
+def commitment_options(cfg: dict, minutes: float, spw: int, set_min: float, transition: float, per_exercise: float,
+                       regions: int, age: str | None) -> list[dict]:
+    """The time-vs-effort chooser: every option with its price in minutes per week."""
+    out = []
+    for key, c in COMMITMENT.items():
+        size = session_size(minutes, per_exercise, regions, key, None, age)
+        sets = size + min(2, size) * c["extra_sets"]
+        per_session = sets * set_min + (sets - size) * REST_MIN["compound"] + (size - 1) * transition
+        effort = "moderate" if c["effort"] == "moderate" else goal_effort(cfg.get("goal") or {})
+        if age in MINOR_BANDS and effort == "deep":
+            effort = "moderate"
+        out.append({"key": key, "exercises": size, "sets": sets, "minutes_per_session": round(per_session),
+                    "minutes_per_week": round(per_session * spw), "effort": effort, "progression": c["step"],
+                    "interp": item(f"commitment_{key}", {"minutes": round(per_session * spw), "effort_pct": EFFORT_TARGETS[effort]["inroad_min"],
+                                                        "sets": sets, "spw": spw}, cfg)})
+    return out
+
+
+# =============================================================================
+# The rule set a plan has to pass (the engine's own plan does by construction; the AI's must too)
+# =============================================================================
+def check_plan(session: dict, pool: list[dict], state: dict, today: date, effort_cap: str = "deep") -> list[dict]:
+    """[{code, exercise, detail}] - empty when the plan is valid."""
+    problems = []
+    by_name = {c["name"]: c for c in pool}
+    day = date.fromisoformat(session["date"])
+    if day < today:
+        problems.append({"code": "date_in_the_past", "exercise": None, "detail": session["date"]})
+    seen = set()
+    for it in session["exercises"]:
+        c = by_name.get(it["name"])
+        if not c:
+            problems.append({"code": "unknown_exercise", "exercise": it["name"]})
+            continue
+        if it["name"] in seen:
+            problems.append({"code": "duplicate_exercise", "exercise": it["name"]})
+        seen.add(it["name"])
+        label = (it.get("effort_target") or {}).get("label", "deep")
+        status, behind = exercise_status(c, state, day, today)
+        if c["restriction"] == "avoid":
+            problems.append({"code": "avoided_exercise", "exercise": it["name"]})
+        if status == "not_ready":
+            problems.append({"code": "muscle_not_ready", "exercise": it["name"], "detail": behind})
+        if status == "limited" and label != "submax":
+            problems.append({"code": "limited_needs_submax", "exercise": it["name"], "detail": behind})
+        if c["restriction"] == "careful" and label != "submax":
+            problems.append({"code": "careful_needs_submax", "exercise": it["name"]})
+        if c["new"] and label != "submax":
+            problems.append({"code": "new_needs_submax", "exercise": it["name"]})
+        if EFFORT_RANK.get(label, 3) > EFFORT_RANK.get(effort_cap, 3):
+            problems.append({"code": "effort_above_cap", "exercise": it["name"], "detail": effort_cap})
+    seq = [by_name[it["name"]] for it in session["exercises"] if it["name"] in by_name]
+    for i, a in enumerate(seq):
+        for b in seq[i + 1:]:
+            if means_before_target(a, b):
+                problems.append({"code": "target_before_its_means", "exercise": a["name"], "detail": b["name"]})
+    return problems
+
+
+# =============================================================================
+# Legacy views (the v0.3 UI blocks and the v1 AI payload keep working in 0.4.0)
+# =============================================================================
+LEGACY_RULE = {"step": "trend_up_room", "hold_reach_effort": "hold_reach_inroad", "hold": "hold_reach_inroad",
+               "retest_fresh": "hold_reach_inroad", "plateau_add_set": "hold_reach_inroad", "plateau_hold": "hold_reach_inroad",
+               "light_day": "sub_max_careful", "new_exercise": "sub_max_careful"}
+
+
+def legacy_session_plan(plan: dict, exercises: list[dict], recovery: dict) -> list[dict]:
+    """The old session_plan list, derived from the ONE plan (same order, same exercises)."""
+    rec = {r["name"]: r for r in (recovery or {}).get("exercises") or []}
+    by_name = {e["name"]: e for e in exercises}
+    out = []
+    for it in ((plan or {}).get("next_session") or {}).get("exercises", []):
+        e, rs = by_name.get(it["name"], {}), rec.get(it["name"], {})
+        out.append({"name": it["name"], "group": it["group"], "last": e.get("last"), "restriction": it["restriction"],
+                    "target": "gentle" if it["effort_target"]["label"] == "submax" else "max",
+                    "targets": e.get("targets", sorted(m for m, r in it["muscles"].items() if r == "target")),
+                    "limiters": e.get("limiters_eff", sorted(m for m, r in it["muscles"].items() if r == "limiter")),
+                    "status": it["status"], "ready_on": rs.get("ready_on"), "fresh_on": rs.get("fresh_on"),
+                    "limited_by": it["limited_by"], "readiness_reason": rs.get("reason", ""),
+                    "order": it["order"], "planned_date": plan["next_session"]["date"], "target_peak_kg": it["target_peak_kg"],
+                    "rest_before_min": it["rest_before_min"], "new": it["new"]})
+    return out
+
+
+def apply_to_coach(coach: dict, plan: dict) -> None:
+    """Make the whiteboard targets agree with the plan for the exercises it contains (in place)."""
+    rows = {r["name"]: r for r in (coach or {}).get("exercises", [])}
+    for it in ((plan or {}).get("next_session") or {}).get("exercises", []):
+        r = rows.get(it["name"])
+        if not r or it["target_rule"] in ("sub_max_careful", "sub_max_limiter"):
+            continue
+        r["target_rule"] = LEGACY_RULE.get(it["target_rule"], r["target_rule"])
+        r["target_peak_kg"] = it["target_peak_kg"]
+        if it.get("base_kg"):
+            r["base_kg"], r["base_date"] = it["base_kg"], it["base_date"]
+
+
+# =============================================================================
+# Plan ledger: what was recommended, and what was done with it
+# =============================================================================
+def ledger_entry(plan: dict, today: date) -> dict | None:
+    """The part of a plan worth remembering (no names of people - exercises and numbers only)."""
+    s = (plan or {}).get("next_session")
+    if not s:
+        return None
+    return {"created": today.isoformat(), "date": s["date"], "session_type": s["session_type"], "est_minutes": s["est_minutes"],
+            "benchmark": s["benchmark"], "commitment": plan["profile"]["commitment"],
+            "exercises": [{"name": it["name"], "order": it["order"], "sets": it["sets"], "target_peak_kg": it["target_peak_kg"],
+                           "target_rule": it["target_rule"], "effort": it["effort_target"]["label"],
+                           "inroad_min": it["effort_target"]["inroad_min"], "rest_before_min": it["rest_before_min"],
+                           "aid_hint": it["aid_hint"], "settings": it.get("settings")} for it in s["exercises"]]}
+
+
+def ledger_signature(entry: dict) -> str:
+    """Two plans with the same date, exercises, order and targets are the same recommendation."""
+    return "|".join([entry["date"]] + [f"{x['name']}:{x['sets']}:{x['target_peak_kg']}:{x['effort']}" for x in entry["exercises"]])
+
+
+def update_ledger(entries: list[dict], plan: dict, today: date) -> tuple[list[dict], bool]:
+    """Append the plan when it differs from the latest one made today (-> replaces it) or earlier."""
+    new = ledger_entry(plan, today)
+    entries = list(entries or [])
+    if not new:
+        return entries, False
+    if entries and ledger_signature(entries[-1]) == ledger_signature(new):
+        return entries, False
+    if entries and entries[-1]["created"] == new["created"]:
+        entries[-1] = new                          # the same day's plan changed (check-in, settings): keep the latest
+    else:
+        entries.append(new)
+    return entries[-LEDGER_MAX:], True
+
+
+def plan_vs_actual(entries: list[dict], last_session: dict | None, cfg: dict) -> dict | None:
+    """What the athlete did with the latest plan made BEFORE the last training day."""
+    if not last_session or not last_session.get("date"):
+        return None
+    day = last_session["date"]
+    earlier = [e for e in (entries or []) if e["created"] < day]
+    if not earlier:
+        return None
+    plan = earlier[-1]
+    done = [x["name"] for x in last_session.get("exercises", [])]
+    planned = [x["name"] for x in plan["exercises"]]
+    both = [n for n in planned if n in done]
+    pairs = [(a, b) for i, a in enumerate(both) for b in both[i + 1:]]
+    same_order = sum(1 for a, b in pairs if done.index(a) < done.index(b))
+    actual = {x["name"]: x for x in last_session.get("exercises", [])}
+    rows, hits, judged, effort_hits, effort_judged = [], 0, 0, 0, 0
+    for p in plan["exercises"]:
+        a = actual.get(p["name"])
+        row = {"name": p["name"], "done": bool(a), "target_peak_kg": p["target_peak_kg"], "actual_peak_kg": (a or {}).get("max_kg"),
+               "target_met": None, "inroad_min": p["inroad_min"], "inroad": (a or {}).get("inroad"), "effort_met": None,
+               "rest_planned_min": p["rest_before_min"], "rest_actual_min": (a or {}).get("rest_before_min")}
+        if a and p["target_peak_kg"] and a.get("max_kg"):
+            row["target_met"] = a["max_kg"] >= TARGET_HIT_SHARE * p["target_peak_kg"]
+            judged += 1
+            hits += 1 if row["target_met"] else 0
+        if a and p["inroad_min"] and a.get("inroad") is not None:
+            row["effort_met"] = a["inroad"] >= p["inroad_min"]
+            effort_judged += 1
+            effort_hits += 1 if row["effort_met"] else 0
+        rows.append(row)
+    out = {"plan_created": plan["created"], "planned_date": plan["date"], "actual_date": day,
+           "date_delta_days": (date.fromisoformat(day) - date.fromisoformat(plan["date"])).days,
+           "done": both, "skipped": [n for n in planned if n not in done], "added": [n for n in done if n not in planned],
+           "order_agreement": round(same_order / len(pairs), 2) if pairs else None,
+           "targets_met": hits, "targets_judged": judged, "effort_met": effort_hits, "effort_judged": effort_judged,
+           "exercises": rows}
+    code = "pva_followed" if (len(both) == len(planned) and not out["added"]) else ("pva_partly" if both else "pva_other")
+    out["interp"] = item(code, {"k": len(both), "total": len(planned), "skipped": out["skipped"], "added": out["added"],
+                                "hits": hits, "judged": judged, "effort_hits": effort_hits, "effort_judged": effort_judged,
+                                "delta_days": out["date_delta_days"]}, cfg)
+    return out

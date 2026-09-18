@@ -117,12 +117,14 @@ class _Cursor:
     LIST_COLS = ["ID", "EXERCISEDATE", "SESSION", "EXERCISE", "PROTOCOL", "MAXLOAD", "CONCENTRICMAX", "ECCENTRICMAX",
                  "INTENSITY", "ELAPSEDSECONDS", "REPSCHEMEDATA", "EVENTSTREAMDATA", "HIDEFROMSTATS"]
 
-    def __init__(self, rows):
-        self._rows, self._result, self.description = rows, [], []
+    def __init__(self, rows, users=None):
+        self._rows, self._users, self._result, self.description = rows, users or {}, [], []
 
     def execute(self, sql: str, params=()):
         q = " ".join(sql.lower().split())
-        if "where user_id" in q:                                        # load_sets
+        if 'from "user"' in q:                                          # name-free profile: gender, birthdate
+            self._result = [self._users[params[0]]] if params[0] in self._users else []
+        elif "where user_id" in q:                                      # load_sets
             rows = sorted((r for r in self._rows if r["USER_ID"] == params[0]), key=lambda r: r["EXERCISEDATE"])
             self.description = [(c,) for c in self.LIST_COLS]
             self._result = [tuple(r[c] for c in self.LIST_COLS) for r in rows]
@@ -141,11 +143,12 @@ class _Cursor:
 
 
 class FakeDB:
-    def __init__(self, rows):
-        self.rows = rows
+    """users = {user id: (gender, birthdate)} answers the profile query (no names exist here at all)."""
+    def __init__(self, rows, users=None):
+        self.rows, self.users = rows, users or {}
 
     def cursor(self):
-        return _Cursor(self.rows)
+        return _Cursor(self.rows, self.users)
 
     def close(self):
         pass

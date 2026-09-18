@@ -25,7 +25,7 @@ Leaf module apart from arx_base. Public domain / CC0. No warranty. Not medical a
 """
 
 from __future__ import annotations
-import statistics as st
+import random, statistics as st
 from datetime import date
 
 from arx_base import _ts
@@ -44,6 +44,8 @@ PRIOR_CAP = 20.0
 SHRINK_K = 3                   # prior counts like this many observations
 POSITION_PRIOR_PCT = -1.0      # general loss per position in the session when nothing is shared
 RECOVERY_BANDS = ((1, 2), (3, 4), (5, 7), (8, 999))     # days since the muscle's last hard load
+REST_EFFECT_MIN_N = 6          # observations before a rest effect is even looked for ...
+REST_EFFECT_SHUFFLES, REST_EFFECT_P = 500, 0.10   # ... and it has to beat shuffled data (p <= 0.10)
 
 
 def confidence(n: int, agree: float = 1.0) -> str:
@@ -195,6 +197,34 @@ def _theil_sen(xs: list[float], ys: list[float]) -> float | None:
     return st.median(slopes) if slopes else None
 
 
+def rest_effect_from(observations: list[tuple]) -> dict:
+    """Does more rest after the pre-loading set cost less? observations = [(minutes, loss %, the
+    pair's prior %)]. Pairs differ in what they share, so every loss is taken relative to its
+    pair's prior (1.0 = as expected) before minutes are compared. "Detected" needs
+    REST_EFFECT_MIN_N observations AND has to beat shuffled data: with four mixed observations
+    almost any slope appears by chance - and the planner must never act on an assumed decay."""
+    obs = [(m, l, round(l / p, 3)) for m, l, p in observations if m is not None and p and p > 0]
+    slope, p_value = None, None
+    if len(obs) >= REST_EFFECT_MIN_N:
+        xs, ys = [m for m, _, _ in obs], [r for _, _, r in obs]
+        slope = _theil_sen(xs, ys)
+        if slope is not None and slope < 0:
+            rng = random.Random(len(obs))                   # deterministic
+            worse = 0
+            for _ in range(REST_EFFECT_SHUFFLES):
+                shuffled = ys[:]
+                rng.shuffle(shuffled)
+                worse += 1 if (_theil_sen(xs, shuffled) or 0.0) <= slope else 0
+            p_value = worse / REST_EFFECT_SHUFFLES
+    detected = p_value is not None and p_value <= REST_EFFECT_P
+    return {"n": len(obs), "needs_n": REST_EFFECT_MIN_N, "status": "detected" if detected else "not_detectable",
+            "p_shuffle": p_value,
+            # share of a pair's expected loss that one more minute of rest takes away (negative)
+            "loss_share_change_per_min": round(slope, 3) if detected else None,
+            "reference_minutes": round(st.median(m for m, _, _ in obs), 1) if detected else None,
+            "observations": [{"minutes": m, "loss_pct": l, "vs_prior": r} for m, l, r in sorted(obs)]}
+
+
 def build_evidence(work: list[dict], catalog: dict, aids: dict | None = None) -> dict:
     """The athlete's measured effects (see the module docstring). Needs annotate_context() and the
     per-set 'comparable' flag (arx_report._exercise_series) to have run; calls
@@ -285,16 +315,11 @@ def build_evidence(work: list[dict], catalog: dict, aids: dict | None = None) ->
                        "confidence": confidence(n_pos) if slope is not None else "anecdotal"}
 
     # --- rest effect: does more rest after the pre-loading set cost less? --------------------------------
-    rest_obs = [(o["minutes"], o["loss_pct"]) for obs in pairs.values() for o in obs if o["minutes"] is not None]
-    rest_slope = _theil_sen([m for m, _ in rest_obs], [l for _, l in rest_obs]) if len(rest_obs) >= 4 else None
-    consistent = False
-    if rest_slope is not None and rest_slope < 0:
-        ordered = sorted(rest_obs)
-        half = len(ordered) // 2
-        consistent = st.mean(l for _, l in ordered[:half]) > st.mean(l for _, l in ordered[half:]) + 2.0
-    rest_effect = {"n": len(rest_obs), "status": "detected" if consistent else "not_detectable",
-                   "loss_change_pct_per_min": round(rest_slope, 2) if consistent else None,
-                   "observations": [{"minutes": m, "loss_pct": l} for m, l in sorted(rest_obs)]}
+    rest_obs = []
+    for (a, b), obs in pairs.items():
+        prior = pair_prior(muscles_of.get(a, {}), muscles_of.get(b, {}))
+        rest_obs += [(o["minutes"], o["loss_pct"], prior) for o in obs if o["minutes"] is not None]
+    rest_effect = rest_effect_from(rest_obs)
 
     # --- recovery response per muscle ---------------------------------------------------------------------
     hard_days: dict = {}                          # muscle -> ordinals of days with a moderate/deep TARGET load

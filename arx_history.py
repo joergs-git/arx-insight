@@ -47,6 +47,11 @@ MUSCLE_NAMES = {   # identifier -> (en, de): identifiers with underscores never 
     "hamstrings": ("Hamstrings", "Oberschenkel hinten"), "calves": ("Calves", "Waden"),
 }
 ROLE_WEIGHT = {"target": 1.0, "limiter": 0.5}     # a limiter works, but only as a means
+REGION_NAMES = {"legs": ("Legs", "Beine"), "back": ("Back", "Rücken"), "chest": ("Chest", "Brust"),
+                "shoulders": ("Shoulders", "Schultern"), "arms": ("Arms", "Arme"), "grip": ("Grip", "Griff")}
+AID_NAMES = {"hooks": ("lifting hooks", "Zughaken"), "straps": ("lifting straps", "Zugschlaufen")}
+WEEKDAY_NAMES = (("Monday", "Montag"), ("Tuesday", "Dienstag"), ("Wednesday", "Mittwoch"), ("Thursday", "Donnerstag"),
+                 ("Friday", "Freitag"), ("Saturday", "Samstag"), ("Sunday", "Sonntag"))
 
 WEEKS_MAX, MONTHS_MAX = 13, 12
 QUARTER_MIN_WEEKS, QUARTER_MIN_DAYS = 8, 8        # quarter view: span and training days in 13 weeks
@@ -99,6 +104,11 @@ def _fmt(key: str, val, imperial: bool, lang: str):
     if key == "muscle":
         names = MUSCLE_NAMES.get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
+    if key in ("region", "aid"):
+        names = (REGION_NAMES if key == "region" else AID_NAMES).get(str(val))
+        return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
+    if key == "weekday" and isinstance(val, int) and 0 <= val <= 6:
+        return WEEKDAY_NAMES[val][1 if lang == "de" else 0]
     comma = (lambda x: x.replace(".", ",")) if lang == "de" else (lambda x: x)
     if key.endswith("_kg"):
         v, u = (val * 2.20462, "lb") if imperial else (val, "kg")

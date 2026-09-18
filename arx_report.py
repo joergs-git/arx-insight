@@ -31,6 +31,7 @@ from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
+import arx_plan as planner      # the ONE plan: when, what, order, targets, week plan, plan ledger
 
 
 
@@ -329,7 +330,12 @@ def load_catalog(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
-        return {k: v for k, v in raw.items() if not k.startswith("_")}
+        catalog = {k: v for k, v in raw.items() if not k.startswith("_")}
+        known = {v.get("name") for v in catalog.values()}
+        for entry in raw.get("_library") or []:     # ARX exercises without a known DB code (planner suggestions)
+            if entry.get("name") and entry["name"] not in known:
+                catalog[f"lib:{entry['name']}"] = dict(entry, library=True)
+        return catalog
     except Exception:
         return {}
 
@@ -1795,6 +1801,14 @@ def build_report(con, cfg: dict) -> dict:
     coach = _coach_facts(exercises, load["recovery"], cfg.get("goal", {}) or {}, days,
                          cfg.get("sessions_per_week"), today, totals, cfg.get("units", "imperial"),
                          cfg.get("checkin_history"), readiness)
+    # chapter 2: the ONE plan - when, what, order, targets (arx_plan). The old session_plan list and
+    # the whiteboard targets are derived from it, so nothing on the page contradicts it.
+    profile = user_profile(con, cfg["user_id"], today)       # {sex, age, age_band} - never a name
+    plan = planner.build_plan(exercises, work, catalog, cfg, today, readiness, load, ev, hist_report["progress_factors"],
+                              sequences_all, profile,
+                              lambda name, joints: exercise_restriction(name, restrictions, joints))
+    planner.apply_to_coach(coach, plan)
+    unmapped = sorted({str(e["ex"]) for e in exercises if str(e["ex"]) not in catalog})
 
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
@@ -1827,9 +1841,11 @@ def build_report(con, cfg: dict) -> dict:
         "today": today.isoformat(),
         "focus": cfg.get("focus", {}) or {},
         "approach": approach,
-        "session_plan": _session_plan(exercises, restrictions,
-                                      cfg.get("focus", {}) or {},
-                                      approach, load),
+        "plan": plan,                            # next_session (date, why, order, targets), week_plan, profile
+        "plan_vs_actual": planner.plan_vs_actual(cfg.get("_plan_ledger"), last_session, cfg),
+        "profile": {"sex": profile["sex"], "age_band": profile["age_band"]},
+        "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
+        "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
         "featured": featured,
     }
@@ -1891,8 +1907,35 @@ def ai_summary(report: dict, cfg: dict) -> dict:
     totals = dict(report["totals"])
     totals["total_work_impulse"] = kg(totals.get("total_work_impulse"))
     totals["work_unit"] = WU
-    plan = [{**{k: v for k, v in i.items() if k != "last"}, "last_day_best": kg(i.get("last"))}
+    plan = [{**{k: v for k, v in i.items() if k not in ("last", "target_peak_kg")},
+             "last_day_best": kg(i.get("last")), "target_peak": kg(i.get("target_peak_kg"))}
             for i in report["session_plan"]]
+    texts = lambda items: [" ".join(x["text"].values()).strip() for x in (items or []) if x]
+    ns = (report.get("plan") or {}).get("next_session")
+    next_session = None
+    if ns:                                   # the engine's plan of record: present it, do not re-plan
+        next_session = {
+            "date": ns["date"], "days_from_today": ns["days_from_today"], "session_type": ns["session_type"],
+            "regions": ns["regions"], "est_minutes": ns["est_minutes"], "why_this_date": texts(ns["why_this_date"]),
+            "fresh_benchmark_exercise": ns["benchmark"], "effort_caps": ns["effort_caps"],
+            "exercises": [{
+                "order": x["order"], "name": x["name"], "new_for_the_athlete": x["new"], "sets": x["sets"],
+                "target_rule": x["target_rule"], "target_peak": kg(x["target_peak_kg"]),
+                "target_concentric_mean": kg(x["target_con_mean_kg"]), "base_peak": kg(x["base_kg"]), "base_date": x["base_date"],
+                "effort": x["effort_target"]["label"], "inroad_min_pct": x["effort_target"]["inroad_min"],
+                "rest_before_min": x["rest_before_min"], "aid_in_use": x["aid"], "aid_suggested": x["aid_hint"],
+                "expected_loss_vs_fresh_pct": x["expected_loss_pct"],
+                "settings": ({**{k: v for k, v in x["settings"].items() if k != "rom_cm"}, "rom": cm(x["settings"].get("rom_cm"))}
+                             if x.get("settings") else None),
+                "why": texts(x["why_selected"] + [x.get("interp"), x.get("context_note")] + x["order_rules"]),
+            } for x in ns["exercises"]],
+            "order_notes": texts(ns.get("order_notes")),
+            "limiters": {m: {"status": b["status"], "share_of_usual_pct": b["share_pct"], "exercises": [r["name"] for r in b["by_exercise"]]}
+                         for m, b in (ns.get("limiter_budget") or {}).items()},
+            "aid_hints": texts(ns.get("aid_hints")),
+            "week_outlook": [{"date": w["date"], "type": w["session_type"], "regions": w["regions"], "exercises": w["exercises"]}
+                             for w in (report.get("plan") or {}).get("week_plan", [])],
+        }
 
     return {
         "today": today,
@@ -2012,6 +2055,10 @@ def ai_summary(report: dict, cfg: dict) -> dict:
         "limiter_conflicts": report.get("limiter_conflicts", []),
         "totals": totals,
         "session_plan": plan,
+        "next_session": next_session,
+        "plan_profile": {k: v for k, v in ((report.get("plan") or {}).get("profile") or {}).items() if k != "commitment_options"},
+        "plan_vs_actual": ({k: v for k, v in report["plan_vs_actual"].items() if k not in ("exercises", "interp")}
+                           if report.get("plan_vs_actual") else None),
     }
 
 
@@ -2151,10 +2198,24 @@ def ai_system_prompt(cfg: dict) -> str:
         "lighter week is due, with the rule; suggest a deload ONLY when "
         "suggested is true, and then describe it (same exercises, ~70 % force, "
         "no inroad, one week).\n"
+        "NEXT SESSION (final): next_session is the plan of record - its date "
+        "(which may be later than today: why_this_date says why), the exercises "
+        "in the order to perform them, sets, target_peak, effort (inroad_min_pct), "
+        "rest_before_min, aids and the reasons ('why'). target_rule: step = "
+        "progressing and the last set was a real one -> the small step is already "
+        "in target_peak; hold_reach_effort = same force, but finish the set; hold "
+        "/ retest_fresh = match the base; plateau_add_set = a second set, same "
+        "target; light_day / sub_max_* / new_exercise = no all-out set. "
+        "fresh_benchmark_exercise is done before anything that loads its muscles "
+        "- its value is the clean progress measurement. expected_loss_vs_fresh_pct "
+        "is already allowed for in the target. Present this plan exactly (same "
+        "exercises, order, targets, sets); add tempo / pauses from its settings and "
+        "one cue per row. plan_vs_actual = what the athlete did with the previous "
+        "plan.\n"
         "TWO KINDS OF INPUT - keep them apart: (1) all precomputed facts "
         "(last_session comparisons, trends, load_and_recovery, readiness_today, "
         "coach, ROM validity, session flags, limiter_conflicts, "
-        "restriction_checks, session_plan) are FINAL - do not recompute, "
+        "restriction_checks, next_session) are FINAL - do not recompute, "
         "contradict or override them. (2) session_sequences is RAW MATERIAL: for "
         "each of the last training days the working sets in time order with the "
         "rest before each set, peak and mean force, duration, reps, ROM, "
@@ -2208,15 +2269,17 @@ def ai_system_prompt(cfg: dict) -> str:
         "simply ready (sore, not ready, limited), then one line 'Ready today: ...' "
         "listing the ready exercises. Write muscles in plain words (elbow "
         "flexors, upper back, ...), never as identifiers with underscores.\n"
-        "## 3. Plan for today (or: Plan for <next_earliest> when nothing is ready)\n"
-        "A table: | # | Exercise | Target | Effort | Tempo / pauses | Rest after | Cue | "
-        "- 4 to 6 rows in the order to perform them (large muscle groups first, "
-        "limiter rules, restrictions, focus). Target = the concrete force from "
-        "coach.targets with unit, or 'sub-max' / 'gentle'; Effort = the inroad "
-        "target or 'stop 2 reps short'; Tempo / pauses = reps, s per direction, "
-        "end / return pause; Rest after = minutes; Cue = one short technique or "
-        "intent cue. Below the table one line on when to train next if not "
-        "today, and the deload verdict if coach.deload.suggested is true.\n"
+        "## 3. Next training - <next_session.date, weekday>\n"
+        "One line: when and why (from why_this_date, in your words, with the "
+        "numbers). Then a table: | # | Exercise | Target | Effort | Tempo / pauses "
+        "| Rest before | Cue | - the rows of next_session.exercises in their "
+        "order. Target = target_peak with unit (add 'x2' for two sets), or "
+        "'sub-max' / 'gentle'; Effort = the inroad target or 'stop 2 reps short'; "
+        "Tempo / pauses = reps, s per direction, end / return pause; Rest before "
+        "= minutes; Cue = one short technique or intent cue. Below the table: the "
+        "fresh benchmark exercise and why it matters, a limiter / aid hint if "
+        "there is one, the week outlook in one line, and the deload verdict if "
+        "coach.deload.suggested is true.\n"
         "## 4. Progress & milestones\n"
         "3-4 bullets with numbers: trends on comparable days, new PBs, adherence "
         "(this week x of y, streak), the nearest round marks, the work total.\n"
