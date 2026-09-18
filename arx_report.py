@@ -1674,6 +1674,7 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "con_top3_kg": s.get("con_top3_kg"), "ecc_top3_kg": s.get("ecc_top3_kg"),
             "ecc_con_ratio": s.get("ecc_con_ratio"), "pacing_deficit_pct": s.get("pacing_deficit_pct"),
             "best_rep": s.get("best_rep"), "tut": s.get("tut"), "drops_mid": s.get("drops_mid"),
+            "context": s.get("context"), "position": s.get("position"),   # fresh | preloaded | repeat within the visit
             "pause_end_s": s.get("pause_end_s"), "pause_return_s": s.get("pause_return_s"),
             "limiters_pre_fatigued": seq.get("limiters_pre_fatigued", []),
             "prev": ({"date": prev["date"], "id": prev["id"], "max_kg": prev["kg"],

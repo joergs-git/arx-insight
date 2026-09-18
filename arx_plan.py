@@ -15,7 +15,8 @@ ONE plan, derived from the athlete's own data instead of rules of thumb:
             exercise free of anything that loads its muscles before it (never measured fresh comes
             first, then the oldest fresh measurement). Twins (same target muscles) are not doubled
             in a full-body session. With 3+ sessions a week a session covers only the most due
-            regions, so the others are ready the next day - a rotating split.
+            movement groups (Push / Pull / Drive), so the others are ready the next day - a
+            rotating split that keeps every helper muscle with the exercises it helps in.
   order     All permutations (<= 720) are scored by what each exercise is expected to lose to the
             ones before it: the athlete's MEASURED order effects where they exist, catalog priors
             otherwise (arx_evidence). Rest between two exercises changes that loss only when the
@@ -65,6 +66,7 @@ DUE_INTERVAL_RANGE = (3.0, 7.0)  # days after which a muscle is "due" (7 x split
 COVER_DAYS = 28                # no direct work for this long = a coverage gap
 REDUNDANCY = 0.7               # score multiplier (1 - REDUNDANCY x overlap) after a similar pick
 TWIN_OVERLAP = 0.99            # same target muscles = twins: never doubled in a full-body session
+MAX_PER_REGION = 2             # exercises per body region in one session (3 on a split day or a "more" region)
 NEW_WEIGHT = 0.5               # a known exercise wins a tie against a never-performed one
 MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
 TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
@@ -351,20 +353,25 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
     return out
 
 
-def theme_regions(cands: list[dict], pool: list[dict], spw: int) -> list[str] | None:
-    """With 3+ sessions a week: the most due regions of that day (a half / a third of the regions
-    the athlete trains), so the others are ready the day after. None = full body."""
+def theme_groups(cands: list[dict], pool: list[dict], spw: int) -> list[str] | None:
+    """With 3+ sessions a week a session covers only the most due movement groups (Push / Pull /
+    Drive of the catalog), so the others are ready the day after. Groups, not body regions: a
+    group keeps a muscle together with the exercises it helps in (biceps with the rows, triceps
+    with the presses) - split the other way round, yesterday's curl would limit today's row.
+    None = full body."""
     k_split = split_factor(spw)
+    known = sum(1 for c in pool if not c["new"] and c["restriction"] != "avoid")
+    while k_split > 1 and known < MIN_READY_EXERCISES * k_split:          # too few exercises to split them up
+        k_split -= 1
     if k_split == 1:
         return None
-    trained = {r for c in pool if not c["new"] for r in c["regions"]}      # regions the athlete really trains
+    trained = {c["group"] for c in pool if not c["new"]}                  # what the athlete really does
     best: dict = {}
     for c in cands:
-        if c["score"] > 0:
-            for r in c["regions"]:
-                best[r] = max(best.get(r, 0.0), c["score"])
-    k = max(1, math.ceil(len(trained | {r for r in best if r not in trained and any(not c["new"] for c in cands if r in c["regions"])}) / k_split))
-    return sorted(sorted(best, key=lambda r: (-best[r], r))[:k])
+        if c["score"] > 0:                         # a never-performed exercise alone does not make a group "due"
+            best[c["group"]] = max(best.get(c["group"], 0.0), c["score"] * (0.01 if c["new"] else 1.0))
+    k = max(1, math.ceil(len(trained | {g for g in best if any(not c["new"] for c in cands if c["group"] == g)}) / k_split))
+    return sorted(sorted(best, key=lambda g: (-best[g], g))[:k])
 
 
 def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, max_new: int = 1) -> tuple[list[dict], list[dict]]:
@@ -373,13 +380,13 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
     Twins are skipped in a full-body session; at most max_new never-performed exercises (one - a
     whole starter session only for an athlete without a history), and only for a focus region or
     a slot no known exercise wants (else it is listed as "closes a gap")."""
-    left = [dict(c) for c in cands if theme is None or set(c["regions"]) & set(theme) or not c["regions"]]
+    left = [dict(c) for c in cands if theme is None or c["group"] in theme]
     known = sum(1 for c in left if not c["new"])
     for c in left:                                 # a never-performed exercise serves a focus or fills a free
         if c["new"] and known >= size and not any(focus.get(r) == "more" for r in c["regions"]):
             c["score"], c["gap_only"] = 0.0, True  # slot - it never displaces what the athlete already does
-    chosen, dropped = [], [{"name": c["name"], "reason": "other_regions_today", "score": c["score"], "new": c["new"]}
-                           for c in cands if theme is not None and c["regions"] and not set(c["regions"]) & set(theme)]
+    chosen, dropped = [], [{"name": c["name"], "reason": "other_groups_today", "score": c["score"], "new": c["new"]}
+                           for c in cands if theme is not None and c["group"] not in theme]
     while left and len(chosen) < size:
         left.sort(key=lambda c: (-c["score"], c["name"]))
         pick = left.pop(0)
@@ -387,8 +394,17 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
             left.insert(0, pick)
             break
         chosen.append(pick)
+        per_region: dict = {}
+        for x in chosen:
+            for r in x["regions"]:
+                per_region[r] = per_region.get(r, 0) + 1
         keep = []
         for c in left:
+            # a split day concentrates on fewer regions, so it may go one deeper - like a focus region
+            full = [r for r in c["regions"] if per_region.get(r, 0) >= MAX_PER_REGION + (1 if (theme is not None or focus.get(r) == "more") else 0)]
+            if full and len(full) == len(c["regions"]):
+                dropped.append({"name": c["name"], "reason": "region_full", "with": full[0], "score": c["score"], "new": c["new"]})
+                continue
             union = _targets(pick) | _targets(c)
             overlap = len(_targets(pick) & _targets(c)) / len(union) if union else 0.0
             wide = theme is not None or any(focus.get(r) == "more" for r in c["regions"])
@@ -620,14 +636,14 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
                    today: date) -> dict | None:
     """What could be trained on that day (no order yet) + how complete that session would be."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
-    theme = theme_regions(cands, pool, spw)
+    theme = theme_groups(cands, pool, spw)
     starter = sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX       # no history yet: a first session
     chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else 1)
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
     if len(ready) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
         return None
-    want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and set(c["regions"]) & set(theme))))
+    want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and c["group"] in theme)))
     fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
     return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2)}
 
@@ -831,7 +847,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         return {"algo": PLAN_ALGO_VERSION, "today": {"train_today": False, "trained_today": trained_today,
                                                      "interp": item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)},
                 "profile": profile_out, "next_session": None, "today_session": None, "week_plan": [], "week_strip": [],
-                "date_options": []}
+                "cadence_note": None, "date_options": []}
     best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
     session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
     d1 = best["date"]
@@ -847,7 +863,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         why.append(item("date_checkin_low", {"score": score_today, "k": len(today_opt["chosen"])}, cfg))
     n_ready = sum(1 for it in session["exercises"] if it["status"] == "ready")
     why.append(item("date_recovery", {"k": n_ready, "total": len(session["exercises"]), "on_date": d1.isoformat()}, cfg))
-    waiting = sorted(((v["ready_on"], m) for m, v in state.items() if (v.get("ready_on") or "") > earliest.isoformat()
+    used = {m for it in session["exercises"] for m in it["muscles"]}
+    waiting = sorted(((v["ready_on"], m) for m, v in state.items() if m in used and (v.get("ready_on") or "") > earliest.isoformat()
                       and v["ready_on"] <= d1.isoformat()), reverse=True)
     if waiting and d1 > earliest:
         why.append(item("date_waited_for", {"muscle": waiting[0][1], "ready_date": waiting[0][0]}, cfg))
@@ -858,7 +875,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     why.append(item("date_cadence", {"spw": spw, "ideal": round(ideal_gap, 1), "gap": best["gap_days"]}, cfg)
                if best["gap_days"] is not None else item("date_first", {"spw": spw}, cfg))
     wk_done = week_counts.get(d1.isocalendar()[:2], 0)
-    why.append(item("date_week", {"done": wk_done, "spw": spw, "nth": wk_done + 1}, cfg))
+    why.append(item("date_week", {"done": wk_done, "spw": spw, "nth": wk_done + 1,
+                                  "week_date": (d1 - timedelta(days=d1.weekday())).isoformat()}, cfg))
     if best["habit"]:
         why.append(item("date_habit", {"weekday": d1.weekday()}, cfg))
     fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best["fill"] + 0.25), None)
@@ -893,12 +911,20 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         done = {it["name"] for it in cur["exercises"]}       # by then: measured fresh / no longer new
         pool_ = [dict(c, new=False if c["name"] in done else c["new"],
                       last_fresh=cur["date"] if c["name"] == cur["benchmark"] else c["last_fresh"]) for c in pool_]
-        nxt = [o for o in options(prev + timedelta(days=1), prev, st8, counts, pool_, False) if o["date"] <= horizon]
+        nxt = options(prev + timedelta(days=1), prev, st8, counts, pool_, False)
         if not nxt:
             break
         pick = max(nxt, key=lambda o: (o["score"], -o["date"].toordinal()))
+        if pick["date"] > horizon:                 # the best next date lies beyond what the week plan shows
+            break
         sessions.append(finish_session(pick, cfg, ev, commitment, None, age, transition, repeat_loss))
         prev = pick["date"]
+    # honest about the cadence: what the recovery rules allow may be less than what was asked for
+    first = date.fromisoformat(sessions[0]["date"])
+    in_7_days = sum(1 for x in sessions if (date.fromisoformat(x["date"]) - first).days < 7)
+    cadence_note = None
+    if in_7_days < spw and len(sessions) > 1:
+        cadence_note = item("cadence_limited", {"spw": spw, "possible": in_7_days}, cfg)
     # readiness per region for every day of the horizon, as it is on the morning of that day
     strip, roll = [], state
     by_date = {s["date"]: s for s in sessions}
@@ -930,6 +956,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                   "interp": item("today_train" if d1 == today else "today_rest",
                                  {"next_date": d1.isoformat(), "days": (d1 - today).days, "weekday": d1.weekday()}, cfg)},
         "profile": profile_out, "next_session": session, "week_plan": [compact(s) for s in sessions], "week_strip": strip,
+        "cadence_note": cadence_note,
         "date_options": [{"date": o["date"].isoformat(), "weekday": o["date"].weekday(), "score": o["score"], "fill": o["fill_effective"],
                           "gap_days": o["gap_days"], "exercises": [c["name"] for c in o["chosen"]],
                           "limited": [c["name"] for c in o["chosen"] if c["status"] == "limited"]} for o in opts],

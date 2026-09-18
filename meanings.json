@@ -396,8 +396,8 @@
    "de": "Deine frische Messung dieser Übung ist die älteste (zuletzt {last_date}); Fortschritt lässt sich nur an frischen Sätzen beurteilen."
   },
   "action": {
-   "en": "Today it is done before anything that loads the same muscles - this number counts.",
-   "de": "Heute kommt sie vor allem, was dieselben Muskeln belastet - diese Zahl zählt."
+   "en": "In this session it is done before anything that loads the same muscles - this number counts.",
+   "de": "In dieser Einheit kommt sie vor allem, was dieselben Muskeln belastet - diese Zahl zählt."
   }
  },
  "sel_benchmark_never": {
@@ -406,8 +406,8 @@
    "de": "An {k} Trainingstagen nie frisch gemessen: immer kam vorher etwas für dieselben Muskeln, das echte Niveau ist also unbekannt."
   },
   "action": {
-   "en": "Today it is done before anything that loads the same muscles - your first clean reference value.",
-   "de": "Heute kommt sie vor allem, was dieselben Muskeln belastet - dein erster sauberer Referenzwert."
+   "en": "In this session it is done before anything that loads the same muscles - your first clean reference value.",
+   "de": "In dieser Einheit kommt sie vor allem, was dieselben Muskeln belastet - dein erster sauberer Referenzwert."
   }
  },
  "order_means_first": {
@@ -422,8 +422,8 @@
  },
  "order_benchmark": {
   "meaning": {
-   "en": "{exercise} is today's clean measurement: nothing before it loads its muscles.",
-   "de": "{exercise} ist heute die saubere Messung: nichts davor belastet ihre Muskeln."
+   "en": "{exercise} is the clean measurement of this session: nothing before it loads its muscles.",
+   "de": "{exercise} ist die saubere Messung dieser Einheit: nichts davor belastet ihre Muskeln."
   },
   "action": {
    "en": "Compare this value with your last fresh one - that is your real progress.",
@@ -496,8 +496,8 @@
    "de": "Fortschritt auf {n} vergleichbaren Tagen und der letzte Satz ging bis in echte Ermüdung ({last_pct} Abfall)."
   },
   "action": {
-   "en": "Next small step: {target_kg} (+{step_pct} on {base_kg} from {base_date}), same range, tempo and pauses.",
-   "de": "Nächster kleiner Schritt: {target_kg} (+{step_pct} auf {base_kg} vom {base_date}), gleicher Bewegungsweg, gleiches Tempo, gleiche Pausen."
+   "en": "Next small step: +{step_pct} on {base_kg} ({base_date}) - target {target_kg}, same range, tempo and pauses.",
+   "de": "Nächster kleiner Schritt: +{step_pct} auf {base_kg} ({base_date}) - Ziel {target_kg}, gleicher Bewegungsweg, gleiches Tempo, gleiche Pausen."
   }
  },
  "plan_hold_effort": {
@@ -532,8 +532,8 @@
  },
  "plan_retest_fresh": {
   "meaning": {
-   "en": "Today this exercise is measured fresh (last fresh value: {base_kg} on {base_date}).",
-   "de": "Heute wird diese Übung frisch gemessen (letzter frischer Wert: {base_kg} am {base_date})."
+   "en": "In this session the exercise is measured fresh (last fresh value: {base_kg} on {base_date}).",
+   "de": "In dieser Einheit wird die Übung frisch gemessen (letzter frischer Wert: {base_kg} am {base_date})."
   },
   "action": {
    "en": "Match or beat it with full effort and a force drop of at least {effort_pct} - this is your real progress check.",
@@ -542,12 +542,12 @@
  },
  "plan_hold": {
   "meaning": {
-   "en": "No clear trend yet on comparable days.",
-   "de": "Auf vergleichbaren Tagen noch kein klarer Trend."
+   "en": "No clear trend yet on comparable days (reference: {base_kg} from {base_date}).",
+   "de": "Auf vergleichbaren Tagen noch kein klarer Trend (Referenz: {base_kg} vom {base_date})."
   },
   "action": {
-   "en": "Match {target_kg} (from {base_date}) with the same settings and take the set to a drop of at least {effort_pct}.",
-   "de": "{target_kg} (vom {base_date}) mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Abfall führen."
+   "en": "Reach {target_kg} with the same settings and take the set to a force drop of at least {effort_pct}.",
+   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Kraftabfall führen."
   }
  },
  "plan_context_adjusted": {
@@ -632,8 +632,8 @@
  },
  "date_week": {
   "meaning": {
-   "en": "That week you have {done} of {spw} sessions so far.",
-   "de": "In dieser Woche hast du bisher {done} von {spw} Einheiten."
+   "en": "In the week from {week_date} you have {done} of {spw} sessions so far.",
+   "de": "In der Woche ab {week_date} hast du bisher {done} von {spw} Einheiten."
   },
   "action": {
    "en": "This would be session {nth}.",
@@ -692,8 +692,8 @@
  },
  "budget_ok": {
   "meaning": {
-   "en": "{muscle} helps in {k} exercises of this session: {share_pct} of what you usually put on it.",
-   "de": "{muscle} hilft in {k} Übungen dieser Einheit mit: {share_pct} dessen, was du ihm sonst zumutest."
+   "en": "{muscle} is a helper {k}x in this session: {share_pct} of what you usually put on it.",
+   "de": "{muscle} ist in dieser Einheit {k}-mal Helfer: {share_pct} dessen, was du ihm sonst zumutest."
   },
   "action": {
    "en": "Within your usual range - it should hold.",
@@ -702,8 +702,8 @@
  },
  "budget_high": {
   "meaning": {
-   "en": "{muscle} helps in {k} exercises of this session: {share_pct} of what you usually put on it.",
-   "de": "{muscle} hilft in {k} Übungen dieser Einheit mit: {share_pct} dessen, was du ihm sonst zumutest."
+   "en": "{muscle} is a helper {k}x in this session: {share_pct} of what you usually put on it.",
+   "de": "{muscle} ist in dieser Einheit {k}-mal Helfer: {share_pct} dessen, was du ihm sonst zumutest."
   },
   "action": {
    "en": "More than usual - it may give out before the target muscles do. Keep the most important of these exercises first, or move one to the next session.",
@@ -712,8 +712,8 @@
  },
  "budget_unknown": {
   "meaning": {
-   "en": "{muscle} helps in {k} exercises of this session.",
-   "de": "{muscle} hilft in {k} Übungen dieser Einheit mit."
+   "en": "{muscle} is a helper {k}x in this session.",
+   "de": "{muscle} ist in dieser Einheit {k}-mal Helfer."
   },
   "action": {
    "en": "Too few sessions yet to know your usual load on it.",
@@ -732,8 +732,8 @@
  },
  "aid_hint": {
   "meaning": {
-   "en": "{exercise} is for other muscles - {muscle} is only a means there, and {k} exercises of this session hang on it.",
-   "de": "{exercise} zielt auf andere Muskeln - {muscle} ist dort nur Mittel zum Zweck, und {k} Übungen dieser Einheit hängen daran."
+   "en": "{exercise} is for other muscles - {muscle} is only a means there, and it is a helper {k}x in this session.",
+   "de": "{exercise} zielt auf andere Muskeln - {muscle} ist dort nur Mittel zum Zweck und in dieser Einheit {k}-mal Helfer."
   },
   "action": {
    "en": "Use {aid} on {exercise}: the target muscles can work to their limit and {muscle} stays fresh for the exercises that need it. Switch it on in your profile so the analysis knows.",
@@ -1038,6 +1038,16 @@
   "action": {
    "en": "At this pace it will not be reached in time: move the date, or give it more - a second set or another weekly session are the levers.",
    "de": "In diesem Tempo wird es nicht rechtzeitig erreicht: Datum verschieben oder mehr investieren - ein zweiter Satz oder eine weitere Wocheneinheit sind die Hebel."
+  }
+ },
+ "cadence_limited": {
+  "meaning": {
+   "en": "You asked for {spw} sessions a week; with your exercises and this effort, recovery allows about {possible} in seven days.",
+   "de": "Du möchtest {spw} Einheiten pro Woche; mit deinen Übungen und dieser Ausbelastung lässt die Erholung etwa {possible} in sieben Tagen zu."
+  },
+  "action": {
+   "en": "More sessions need more different muscles to rotate through (further exercises), a grip aid on the dead lifts - or sets that stop short of the limit. More is not better here: a muscle grows while it rests.",
+   "de": "Mehr Einheiten brauchen mehr verschiedene Muskeln zum Durchwechseln (weitere Übungen), eine Griffhilfe bei den Dead Lifts - oder Sätze, die vor dem Limit enden. Mehr ist hier nicht besser: Ein Muskel wächst in der Pause."
   }
  }
 }

@@ -144,8 +144,24 @@ class What(unittest.TestCase):
         week = report(rows, "2026-09-18", sessions_per_week=4, session_minutes=25)["plan"]["week_plan"]
         self.assertGreaterEqual(len(week), 4)
         self.assertTrue(all(w["session_type"] == "split" for w in week))
-        first, second = set(week[0]["regions"]), set(week[1]["regions"])
-        self.assertNotEqual(first, second)                               # other regions the next time
+        first, second = set(week[0]["exercises"]), set(week[1]["exercises"])
+        self.assertFalse(first & second)                                 # other muscles the next time
+        # a helper muscle stays with the exercises it helps in: no curl on the day before the rows
+        for a, b in zip(week, week[1:]):
+            if "Biceps Curl" in a["exercises"] and (date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days < 3:
+                self.assertFalse({"Row", "Pull Down"} & set(b["exercises"]), (a, b))
+
+    def test_the_week_plan_never_takes_a_worse_date_to_fill_the_horizon(self):
+        week = report(history([ROW, PRESS, SQUAT]), "2026-09-16", sessions_per_week=1)["plan"]["week_plan"]
+        gaps = [(date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days for a, b in zip(week, week[1:])]
+        self.assertTrue(all(g >= 6 for g in gaps), gaps)
+
+    def test_a_cadence_the_recovery_rules_cannot_deliver_is_said_openly(self):
+        rows = history([ROW, PRESS, SQUAT])
+        plan = report(rows, "2026-09-18", sessions_per_week=6, session_minutes=25)["plan"]
+        self.assertEqual(plan["cadence_note"]["code"], "cadence_limited")
+        self.assertLess(plan["cadence_note"]["params"]["possible"], 6)
+        self.assertIsNone(report(rows, "2026-09-18", sessions_per_week=2)["plan"]["cadence_note"])
 
 
 class Order(unittest.TestCase):
