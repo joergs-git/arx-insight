@@ -123,7 +123,10 @@ def _purge_snapshots(everything: bool = False) -> None:
         newest = snap is _SNAPS[-1]
         if snap["users"] <= 0 and (everything or not newest or now - snap["made"] > SNAPSHOT_TTL_S):
             shutil.rmtree(snap["dir"], ignore_errors=True)
-            _SNAPS.remove(snap)
+            if everything or not os.path.exists(snap["dir"]):
+                _SNAPS.remove(snap)                  # else: still locked (Windows) - the next purge tries again
+            else:
+                snap["made"] = 0.0                   # never reuse it, keep trying to delete it
 
 
 def _janitor() -> None:
@@ -194,7 +197,14 @@ def write_json_atomic(path: str, data) -> None:
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, path)
+        for attempt in range(6):                     # Windows refuses the rename while a reader (or a virus
+            try:                                     # scanner) has the target open for a moment - wait it out
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.05)
     finally:
         if os.path.exists(tmp):
             try:

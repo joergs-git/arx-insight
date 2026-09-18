@@ -1,10 +1,11 @@
 """v0.3.1 engine fixes: hidden sets, ROM-gated personal bests, detraining flag, temp-copy hygiene,
 typed AI errors and a payload without free text or kg leaking into an lb payload."""
-import os, re, tempfile, time, unittest
+import json, os, re, tempfile, time, unittest
 from datetime import date, datetime, timedelta
 
 from tests import fixtures as fx
 import arx_report as core
+import arx_base as base
 
 ROW, PRESS, SQUAT = 3, 23, 19
 
@@ -98,6 +99,45 @@ class TempCopies(unittest.TestCase):
             for d in (old, new):
                 if os.path.exists(d):
                     os.rmdir(d)
+
+
+class SharedSnapshot(unittest.TestCase):
+    """The app's shared database copy: private data - it must go as soon as nobody needs it."""
+    def _snap(self, age_s, users=0):
+        d = tempfile.mkdtemp(prefix=core.TEMP_PREFIX)
+        snap = {"src": "x", "sig": (1, 1), "dir": d, "path": os.path.join(d, "arx_copy.fdb"), "made": time.time() - age_s, "users": users}
+        base._SNAPS.append(snap)
+        return snap
+
+    def setUp(self):
+        base._SNAPS.clear()
+
+    def tearDown(self):
+        base.drop_snapshots()
+
+    def test_only_the_fresh_newest_copy_survives_and_a_copy_in_use_is_never_removed(self):
+        old_idle, old_busy, newest = self._snap(5), self._snap(5, users=1), self._snap(1)
+        with base._SNAP_LOCK:
+            base._purge_snapshots()
+        self.assertEqual([os.path.isdir(x["dir"]) for x in (old_idle, old_busy, newest)], [False, True, True])
+        newest["made"] -= base.SNAPSHOT_TTL_S + 1                # nobody uses it and its time is up
+        old_busy["users"] = 0
+        with base._SNAP_LOCK:
+            base._purge_snapshots()
+        self.assertEqual((base._SNAPS, os.path.isdir(newest["dir"]), os.path.isdir(old_busy["dir"])), ([], False, False))
+
+    def test_shutdown_removes_everything(self):
+        a, b = self._snap(1, users=1), self._snap(0)
+        base.drop_snapshots()
+        self.assertFalse(os.path.isdir(a["dir"]) or os.path.isdir(b["dir"]))
+
+    def test_settings_are_written_atomically(self):
+        path = os.path.join(tempfile.mkdtemp(), "goals.json")
+        base.write_json_atomic(path, {"1": {"goal": {"muscle": 0.6}}})
+        base.write_json_atomic(path, {"1": {"goal": {"muscle": 0.7}}})
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["1"]["goal"]["muscle"], 0.7)
+        self.assertEqual(os.listdir(os.path.dirname(path)), ["goals.json"])     # no temp file left behind
 
 
 class AiErrors(unittest.TestCase):
