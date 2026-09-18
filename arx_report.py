@@ -27,7 +27,8 @@ from datetime import datetime, date, timedelta
 # shared base (moved out in v0.4.0; re-exported here so callers of arx_report keep working)
 from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS,
                       open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
-                      EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile)
+                      EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile,
+                      shared_connection, drop_snapshots, write_json_atomic)
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
@@ -1829,6 +1830,9 @@ def build_report(con, cfg: dict) -> dict:
                               sequences_all, profile,
                               lambda name, joints: exercise_restriction(name, restrictions, joints))
     planner.apply_to_coach(coach, plan)
+    # strictly optional: rough body trends and the measurable target from the goal interview
+    body = history.body_trends(cfg.get("body_log"), hist_report["progress_factors"], cfg)
+    goal_progress = history.goal_progress(cfg.get("target"), exercises, hist_report["progress_factors"], body, today, cfg)
     unmapped = sorted({str(e["ex"]) for e in exercises if str(e["ex"]) not in catalog})
 
     return {
@@ -1864,7 +1868,10 @@ def build_report(con, cfg: dict) -> dict:
         "approach": approach,
         "plan": plan,                            # next_session (date, why, order, targets), week_plan, profile
         "plan_vs_actual": planner.plan_vs_actual(cfg.get("_plan_ledger"), last_session, cfg),
-        "profile": {"sex": profile["sex"], "age_band": profile["age_band"]},
+        "profile": {"sex": profile["sex"], "age_band": profile["age_band"], "outcome": cfg.get("outcome"),
+                    "experience": cfg.get("experience"), "target": cfg.get("target")},
+        "body": body,                            # None unless the athlete entered body values (optional)
+        "goal_progress": goal_progress,          # None without a measurable target
         "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
         "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
@@ -2077,6 +2084,13 @@ def ai_summary(report: dict, cfg: dict) -> dict:
         "totals": totals,
         "session_plan": plan,
         "next_session": next_session,
+        # age band + sex: shared by default (owner's choice), switch ai_share_profile; never a name or birth date
+        "athlete_profile": ({"age_band": (report.get("profile") or {}).get("age_band"), "sex": (report.get("profile") or {}).get("sex"),
+                             "primary_outcome": (report.get("profile") or {}).get("outcome"),
+                             "experience": (report.get("profile") or {}).get("experience")}
+                            if cfg.get("ai_share_profile", True) else None),
+        # body log: RELATIVE changes only, and only when the athlete switched it on
+        "body_changes": ((report.get("body") or {}).get("relative_changes") or None) if cfg.get("ai_share_body") else None,
         "plan_profile": {k: v for k, v in ((report.get("plan") or {}).get("profile") or {}).items() if k != "commitment_options"},
         "plan_vs_actual": ({k: v for k, v in report["plan_vs_actual"].items() if k not in ("exercises", "interp")}
                            if report.get("plan_vs_actual") else None),

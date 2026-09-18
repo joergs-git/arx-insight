@@ -11,7 +11,7 @@ Public domain / CC0. No warranty. Not medical advice.
 """
 
 from __future__ import annotations
-import os, time, shutil, tempfile
+import os, time, json, shutil, tempfile, threading, contextlib
 from datetime import datetime, date
 
 
@@ -96,6 +96,111 @@ def open_readonly(db_path: str):
         shutil.rmtree(tmp, ignore_errors=True)
         raise
     return con, tmp
+
+
+# --- one shared snapshot for the requests of a few seconds (the app) --------------------------------------
+# Every request used to copy the whole database (the report twice, the user search once per
+# keystroke). The app now shares ONE copy: it is reused while it is younger than SNAPSHOT_TTL_S and
+# the source file looks unchanged. The TTL is deliberately short - NTFS updates a file's mtime
+# lazily while the ARX app keeps it open, so "unchanged" alone must never keep a snapshot alive.
+# A snapshot is removed as soon as nobody uses it and a newer one exists or its TTL has passed -
+# a copy of private training data must not linger.
+SNAPSHOT_TTL_S = 30
+_SNAP_LOCK = threading.Lock()
+_SNAPS: list[dict] = []          # newest last: {src, sig, dir, path, made, users}
+
+
+def _signature(path: str) -> tuple:
+    st_ = os.stat(path)
+    return st_.st_mtime_ns, st_.st_size
+
+
+def _purge_snapshots(everything: bool = False) -> None:
+    """Remove snapshots nobody uses: all but the newest, and the newest once its TTL has passed.
+    Call with the lock held."""
+    now = time.time()
+    for snap in list(_SNAPS):
+        newest = snap is _SNAPS[-1]
+        if snap["users"] <= 0 and (everything or not newest or now - snap["made"] > SNAPSHOT_TTL_S):
+            shutil.rmtree(snap["dir"], ignore_errors=True)
+            _SNAPS.remove(snap)
+
+
+def _janitor() -> None:
+    with _SNAP_LOCK:
+        _purge_snapshots()
+        if _SNAPS:                                   # still in use or still fresh: look again later
+            _arm_janitor()
+
+
+def _arm_janitor() -> None:
+    t = threading.Timer(SNAPSHOT_TTL_S + 5, _janitor)
+    t.daemon = True
+    t.start()
+
+
+def drop_snapshots() -> None:
+    """Remove every shared snapshot (app shutdown)."""
+    with _SNAP_LOCK:
+        for snap in _SNAPS:
+            snap["users"] = 0
+        _purge_snapshots(everything=True)
+
+
+@contextlib.contextmanager
+def shared_connection(db_path: str):
+    """A connection to the shared read-only COPY of the database (see above). Use as
+    'with shared_connection(path) as con:' - the connection is closed and the snapshot released
+    on exit, whatever happens."""
+    from firebird.driver import connect, driver_config  # imported late on purpose
+
+    lib = locate_fbclient()
+    if lib:
+        driver_config.fb_client_library.value = lib
+    with _SNAP_LOCK:
+        now, sig = time.time(), _signature(db_path)
+        snap = _SNAPS[-1] if _SNAPS else None
+        if not (snap and snap["src"] == db_path and snap["sig"] == sig and now - snap["made"] <= SNAPSHOT_TTL_S):
+            tmp = tempfile.mkdtemp(prefix=TEMP_PREFIX)
+            try:
+                copy = os.path.join(tmp, "arx_copy.fdb")
+                shutil.copy2(db_path, copy)
+            except Exception:
+                shutil.rmtree(tmp, ignore_errors=True)
+                raise
+            snap = {"src": db_path, "sig": sig, "dir": tmp, "path": copy, "made": now, "users": 0}
+            _SNAPS.append(snap)
+            if len(_SNAPS) == 1:
+                _arm_janitor()
+        snap["users"] += 1
+    con = None
+    try:
+        con = connect(snap["path"], user="SYSDBA")   # embedded: no password required
+        yield con
+    finally:
+        try:
+            if con is not None:
+                con.close()
+        finally:
+            with _SNAP_LOCK:
+                snap["users"] -= 1
+                _purge_snapshots()
+
+
+def write_json_atomic(path: str, data) -> None:
+    """Write JSON via a temp file + rename, so a crash or a second writer never leaves half a
+    file behind (settings, goals, check-ins and the plan ledger live in such files)."""
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 def sweep_stale_copies(max_age_s: float = STALE_COPY_SECONDS) -> int:

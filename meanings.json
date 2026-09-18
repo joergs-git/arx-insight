@@ -899,5 +899,145 @@
    "en": "Controlled and clearly below your old {base_kg}; from the second session on the normal targets apply again.",
    "de": "Kontrolliert und klar unter deinen alten {base_kg}; ab der zweiten Einheit gelten wieder die normalen Ziele."
   }
+ },
+ "body_pending": {
+  "meaning": {
+   "en": "Body values: {n} entry so far.",
+   "de": "Körperwerte: bisher {n} Eintrag."
+  },
+  "action": {
+   "en": "A trend needs two readings a few weeks apart - same time of day, same conditions. Entirely optional.",
+   "de": "Ein Trend braucht zwei Messungen im Abstand einiger Wochen - gleiche Tageszeit, gleiche Bedingungen. Völlig freiwillig."
+  }
+ },
+ "body_stable": {
+  "meaning": {
+   "en": "Body weight is steady ({weight_spct} in {span_days} days) - within normal day-to-day variation.",
+   "de": "Das Körpergewicht ist stabil ({weight_spct} in {span_days} Tagen) - im Rahmen normaler Tagesschwankungen."
+  },
+  "action": {
+   "en": "With steady weight, rising strength is the sign of progress to watch.",
+   "de": "Bei stabilem Gewicht ist steigende Kraft das Fortschrittszeichen, auf das es ankommt."
+  }
+ },
+ "body_trend_only": {
+  "meaning": {
+   "en": "Body weight: {weight_spct} in {span_days} days. A rough trend - single readings vary by a kilo or more.",
+   "de": "Körpergewicht: {weight_spct} in {span_days} Tagen. Ein grober Trend - Einzelmessungen schwanken um ein Kilo und mehr."
+  },
+  "action": {
+   "en": "Read it together with your strength numbers once enough comparable days exist.",
+   "de": "Zusammen mit deinen Kraftwerten lesen, sobald genug vergleichbare Tage vorliegen."
+  }
+ },
+ "body_lighter_strength_holds": {
+  "meaning": {
+   "en": "You are getting lighter ({weight_spct} in {span_days} days) while your strength index is at {strength_spct}.",
+   "de": "Du wirst leichter ({weight_spct} in {span_days} Tagen), während dein Kraftindex bei {strength_spct} liegt."
+  },
+  "action": {
+   "en": "Strength that holds while weight falls means you are mostly not losing muscle - keep the sets hard, that is what protects it.",
+   "de": "Kraft, die bei fallendem Gewicht hält, heißt: Du verlierst überwiegend keine Muskulatur - die Sätze hart halten, genau das schützt sie."
+  }
+ },
+ "body_losing_strength": {
+  "meaning": {
+   "en": "Weight ({weight_spct}) and strength ({strength_spct}) are both falling over {span_days} days.",
+   "de": "Gewicht ({weight_spct}) und Kraft ({strength_spct}) fallen beide über {span_days} Tage."
+  },
+  "action": {
+   "en": "That pattern suggests the deficit is too large or recovery too short: slow the weight loss down and keep the effort in the sets. Not medical advice.",
+   "de": "Dieses Muster spricht für ein zu großes Defizit oder zu wenig Erholung: die Gewichtsabnahme verlangsamen und die Ausbelastung in den Sätzen halten. Kein medizinischer Rat."
+  }
+ },
+ "body_gain_with_strength": {
+  "meaning": {
+   "en": "Weight {weight_spct} and strength {strength_spct} over {span_days} days are rising together.",
+   "de": "Gewicht {weight_spct} und Kraft {strength_spct} steigen über {span_days} Tage gemeinsam."
+  },
+  "action": {
+   "en": "That is what building looks like; a waist reading now and then shows how much of it is muscle.",
+   "de": "So sieht Aufbau aus; eine gelegentliche Taillenmessung zeigt, wie viel davon Muskulatur ist."
+  }
+ },
+ "body_gain_with_waist": {
+  "meaning": {
+   "en": "Weight ({weight_spct}) and waist ({waist_spct}) are both up over {span_days} days.",
+   "de": "Gewicht ({weight_spct}) und Taille ({waist_spct}) sind über {span_days} Tage beide gestiegen."
+  },
+  "action": {
+   "en": "Part of the gain is probably not muscle. Training stays the same - the lever here is food, not the plan.",
+   "de": "Ein Teil der Zunahme ist vermutlich keine Muskulatur. Das Training bleibt gleich - der Hebel liegt hier beim Essen, nicht im Plan."
+  }
+ },
+ "target_no_data": {
+  "meaning": {
+   "en": "Your target: {exercise} - no comparable value to measure it against yet.",
+   "de": "Dein Ziel: {exercise} - noch kein vergleichbarer Wert, an dem es sich messen lässt."
+  },
+  "action": {
+   "en": "It appears here as soon as the data exists.",
+   "de": "Es erscheint hier, sobald die Daten vorliegen."
+  }
+ },
+ "target_reached": {
+  "meaning": {
+   "en": "Target reached.",
+   "de": "Ziel erreicht."
+  },
+  "action": {
+   "en": "Set the next one in your profile - a goal that is met stops pulling.",
+   "de": "Setz dir im Profil das nächste - ein erreichtes Ziel zieht nicht mehr."
+  }
+ },
+ "target_open": {
+  "meaning": {
+   "en": "{gap_pct} to go to your target.",
+   "de": "Noch {gap_pct} bis zu deinem Ziel."
+  },
+  "action": {
+   "en": "Add a date in your profile and the app tells you whether your pace is enough.",
+   "de": "Trag im Profil ein Datum ein, dann sagt dir die App, ob dein Tempo reicht."
+  }
+ },
+ "target_date_passed": {
+  "meaning": {
+   "en": "The date of your target has passed; {gap_pct} are still missing.",
+   "de": "Das Datum deines Ziels ist vorbei; es fehlen noch {gap_pct}."
+  },
+  "action": {
+   "en": "Set a new date - or a smaller step.",
+   "de": "Neues Datum setzen - oder einen kleineren Schritt."
+  }
+ },
+ "target_no_rate": {
+  "meaning": {
+   "en": "{gap_pct} to go until {until_date}: that needs {need_spct} per week.",
+   "de": "Noch {gap_pct} bis {until_date}: Das braucht {need_spct} pro Woche."
+  },
+  "action": {
+   "en": "Your own rate is not measurable yet (too few comparable days) - it appears here soon.",
+   "de": "Dein eigenes Tempo ist noch nicht messbar (zu wenige vergleichbare Tage) - es erscheint hier bald."
+  }
+ },
+ "target_on_track": {
+  "meaning": {
+   "en": "{gap_pct} to go until {until_date}: needs {need_spct} per week - your measured rate is {own_spct}.",
+   "de": "Noch {gap_pct} bis {until_date}: nötig sind {need_spct} pro Woche - dein gemessenes Tempo ist {own_spct}."
+  },
+  "action": {
+   "en": "On track. Keep the rhythm and the settings.",
+   "de": "Auf Kurs. Rhythmus und Einstellungen beibehalten."
+  }
+ },
+ "target_behind": {
+  "meaning": {
+   "en": "{gap_pct} to go until {until_date}: needs {need_spct} per week - your measured rate is {own_spct}.",
+   "de": "Noch {gap_pct} bis {until_date}: nötig sind {need_spct} pro Woche - dein gemessenes Tempo ist {own_spct}."
+  },
+  "action": {
+   "en": "At this pace it will not be reached in time: move the date, or give it more - a second set or another weekly session are the levers.",
+   "de": "In diesem Tempo wird es nicht rechtzeitig erreicht: Datum verschieben oder mehr investieren - ein zweiter Satz oder eine weitere Wocheneinheit sind die Hebel."
+  }
  }
 }

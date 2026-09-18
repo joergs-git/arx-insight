@@ -50,6 +50,8 @@ ROLE_WEIGHT = {"target": 1.0, "limiter": 0.5}     # a limiter works, but only as
 REGION_NAMES = {"legs": ("Legs", "Beine"), "back": ("Back", "Rücken"), "chest": ("Chest", "Brust"),
                 "shoulders": ("Shoulders", "Schultern"), "arms": ("Arms", "Arme"), "grip": ("Grip", "Griff")}
 AID_NAMES = {"hooks": ("lifting hooks", "Zughaken"), "straps": ("lifting straps", "Zugschlaufen")}
+BODY_NAMES = {"weight_kg": ("Body weight", "Körpergewicht"), "arm_cm": ("Upper arm", "Oberarm"), "chest_cm": ("Chest", "Brust"),
+              "waist_cm": ("Waist", "Taille"), "thigh_cm": ("Thigh", "Oberschenkel"), "fat_pct": ("Body fat", "Körperfett")}
 WEEKDAY_NAMES = (("Monday", "Montag"), ("Tuesday", "Dienstag"), ("Wednesday", "Mittwoch"), ("Thursday", "Donnerstag"),
                  ("Friday", "Freitag"), ("Saturday", "Samstag"), ("Sunday", "Sonntag"))
 
@@ -104,8 +106,8 @@ def _fmt(key: str, val, imperial: bool, lang: str):
     if key == "muscle":
         names = MUSCLE_NAMES.get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
-    if key in ("region", "aid"):
-        names = (REGION_NAMES if key == "region" else AID_NAMES).get(str(val))
+    if key in ("region", "aid", "metric"):
+        names = {"region": REGION_NAMES, "aid": AID_NAMES, "metric": BODY_NAMES}[key].get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
     if key == "weekday" and isinstance(val, int) and 0 <= val <= 6:
         return WEEKDAY_NAMES[val][1 if lang == "de" else 0]
@@ -588,3 +590,112 @@ def build_history(work, sets_all, exercises, sequences_all, catalog, today, cfg,
     findings = build_findings(exercises, work, progress, ev, last_session, load, windows, sets_all, catalog, today, cfg)
     return {"windows": windows, "progress_factors": progress, "strength_index_series": series,
             "findings": findings, "time_efficiency": time_efficiency(windows, progress, cfg)}
+
+
+# =============================================================================
+# Optional body log and the measurable target (goal interview)
+# =============================================================================
+BODY_FIELDS = ("weight_kg", "arm_cm", "chest_cm", "waist_cm", "thigh_cm", "fat_pct")
+BODY_MIN_SPAN_DAYS = 21        # below this two readings are just two readings
+BODY_NOISE_PCT = 1.5           # weight / girth changes below this are within day-to-day and tape noise (app default)
+BODY_FAT_NOISE_POINTS = 2.0    # consumer scales: about 2 percentage points error for a CHANGE (science.json)
+STRENGTH_NOISE_PCT = 3.0
+
+
+def body_trends(body_log: list[dict] | None, progress: dict, cfg: dict) -> dict | None:
+    """Rough trends of the OPTIONAL body log - None when nothing was entered (the report then shows
+    nothing at all). Per metric: first / last / change; one cautious sentence on what weight, waist
+    and the strength index say together. relative_changes is all the AI may ever see of it."""
+    entries = sorted((e for e in (body_log or []) if e.get("date") and any(e.get(k) is not None for k in BODY_FIELDS)),
+                     key=lambda e: e["date"])
+    if not entries:
+        return None
+    metrics, relative = {}, {}
+    for k in BODY_FIELDS:
+        vals = [(e["date"], float(e[k])) for e in entries if e.get(k) is not None]
+        if not vals:
+            continue
+        (d0, v0), (d1, v1) = vals[0], vals[-1]
+        span = (date.fromisoformat(d1) - date.fromisoformat(d0)).days
+        change = round(v1 - v0, 1)
+        pct = round((v1 / v0 - 1) * 100, 1) if v0 else None
+        noise = abs(change) < BODY_FAT_NOISE_POINTS if k == "fat_pct" else abs(pct or 0) < BODY_NOISE_PCT
+        metrics[k] = {"n": len(vals), "first": v0, "last": v1, "first_date": d0, "last_date": d1, "span_days": span,
+                      "change": change, "change_pct": pct, "within_noise": noise, "enough": len(vals) >= 2 and span >= BODY_MIN_SPAN_DAYS,
+                      "series": [{"date": d, "value": v} for d, v in vals]}
+        if metrics[k]["enough"]:
+            relative[k] = {"change_pct": pct if k != "fat_pct" else None, "change_points": change if k == "fat_pct" else None,
+                           "span_days": span, "within_noise": noise}
+    w, waist = metrics.get("weight_kg"), metrics.get("waist_cm")
+    strength = (progress or {}).get("overall", {}).get("change_pct")
+    code, params = "body_pending", {"n": max(m["n"] for m in metrics.values())}
+    if w and w["enough"]:
+        params = {"weight_spct": w["change_pct"], "span_days": w["span_days"], "strength_spct": strength,
+                  "waist_spct": waist["change_pct"] if (waist and waist["enough"]) else None}
+        down, up = w["change_pct"] <= -BODY_NOISE_PCT, w["change_pct"] >= BODY_NOISE_PCT
+        if down and strength is not None and strength <= -STRENGTH_NOISE_PCT:
+            code = "body_losing_strength"
+        elif down and strength is not None:
+            code = "body_lighter_strength_holds"
+        elif up and waist and waist["enough"] and waist["change_pct"] >= BODY_NOISE_PCT:
+            code = "body_gain_with_waist"
+        elif up and strength is not None and strength >= STRENGTH_NOISE_PCT:
+            code = "body_gain_with_strength"
+        else:
+            code = "body_stable" if not (down or up) else "body_trend_only"
+    return {"entries": entries, "metrics": metrics, "relative_changes": relative, "interp": item(code, params, cfg)}
+
+
+def goal_progress(target: dict | None, exercises: list[dict], progress: dict, body: dict | None, today: date, cfg: dict) -> dict | None:
+    """Where the athlete stands against the measurable target from the goal interview:
+    {kind: force | body_weight | waist, exercise?, value, date?}. Force targets are judged on
+    comparable days only; the pace needed is set against the athlete's own measured rate."""
+    if not target or target.get("value") in (None, "") or target.get("kind") not in ("force", "body_weight", "waist"):
+        return None
+    goal = float(target["value"])
+    out = {"kind": target["kind"], "exercise": target.get("exercise"), "target": goal, "date": target.get("date"),
+           "current": None, "gap_pct": None, "days_left": None, "needed_pct_per_week": None, "own_pct_per_week": None}
+    if target.get("date"):
+        try:
+            out["days_left"] = (date.fromisoformat(target["date"]) - today).days
+        except ValueError:
+            out["date"] = None
+    lower_is_better = False
+    if target["kind"] == "force":
+        e = next((x for x in exercises if x["name"] == target.get("exercise")), None)
+        row = next((p for p in (progress or {}).get("exercises", []) if p["name"] == target.get("exercise")), None)
+        comparable = [o for o in (e or {}).get("occ", []) if o.get("comparable")]
+        out["current"] = comparable[-1]["kg"] if comparable else None
+        out["own_pct_per_week"] = (row or {}).get("rate_pct_per_week")
+        unit_key = "kg"
+    else:
+        m = ((body or {}).get("metrics") or {}).get("weight_kg" if target["kind"] == "body_weight" else "waist_cm")
+        out["current"] = m["last"] if m else None
+        lower_is_better = bool(m) and goal < m["first"]
+        if m and m["enough"] and m["span_days"]:
+            out["own_pct_per_week"] = round(m["change_pct"] / (m["span_days"] / 7.0), 2)
+        unit_key = "kg" if target["kind"] == "body_weight" else "cm"
+    params = {"exercise": out["exercise"], f"target_{unit_key}": goal, f"current_{unit_key}": out["current"], "until_date": out["date"]}
+    if out["current"] is None:
+        code = "target_no_data"
+    else:
+        gap = (goal / out["current"] - 1) * 100
+        out["gap_pct"] = round(gap, 1)
+        reached = gap >= 0 if lower_is_better else gap <= 0
+        params["gap_pct"] = abs(out["gap_pct"])
+        if reached:
+            code = "target_reached"
+        elif out["days_left"] is None or out["days_left"] <= 0:
+            code = "target_open" if out["days_left"] is None else "target_date_passed"
+        else:
+            need = gap / (out["days_left"] / 7.0)
+            out["needed_pct_per_week"] = round(need, 2)
+            own = out["own_pct_per_week"]
+            params.update({"need_spct": out["needed_pct_per_week"], "own_spct": own, "weeks": round(out["days_left"] / 7.0, 1)})
+            if own is None:
+                code = "target_no_rate"
+            else:
+                code = "target_on_track" if (own <= need if lower_is_better else own >= need) else "target_behind"
+    out["status"] = code.replace("target_", "")
+    out["interp"] = item(code, params, cfg)
+    return out
