@@ -222,6 +222,9 @@
       <input type="number" id="setFreq" min="1" max="7" value="2"></div>
     <div class="field"><label id="s_key">Anthropic API key (optional, for AI analysis)</label>
       <input type="password" id="setKey" placeholder="sk-ant-..."></div>
+    <div class="field"><label id="s_share">What the AI coach may see</label>
+      <div class="tiles" id="setShare" style="grid-template-columns:1fr 1fr"></div>
+      <div class="foot" id="s_share_sub" style="margin-top:8px"></div></div>
     <button class="btn" id="setupSave" style="width:100%">Save & start</button>
   </div>
 </div></div>
@@ -351,7 +354,7 @@ const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"applica
 // HTML-escape everything that comes from the database or the network before it goes into innerHTML
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
-let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
+let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false};
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null;
 const KEY_URL="https://console.anthropic.com/settings/keys";
@@ -393,6 +396,7 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
+  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body};
   if(!b.configured){openSettings("search");return;}
   // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
   const deep=new URLSearchParams(location.search).get("user");
@@ -422,12 +426,20 @@ function openSettings(origin){
   [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
   [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
   $("#setFreq").value=CFG.sessions_per_week||2;
+  $("#s_share").textContent=de?"Was der KI-Coach sehen darf":"What the AI coach may see";
+  $("#s_share_sub").textContent=de?"Nie gesendet werden: Namen, Geburtsdatum, Größe, Gewicht, Notizen. Gesendet werden nur zusammengefasste Trainingszahlen - und das hier, wenn eingeschaltet.":"Never sent: names, date of birth, height, weight, notes. Only aggregated training numbers are sent - plus the following when switched on.";
+  renderShare();
   $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
   show("setup");
 }
+function renderShare(){ const de=CFG.language==="de";
+  const t=(k,on,h,sub)=>`<button data-k="${k}" aria-pressed="${on}">${on?'✓ ':''}${h}<small>${sub}</small></button>`;
+  $("#setShare").innerHTML=t("profile",SHARE.profile,de?"Altersgruppe + Geschlecht":"Age band + sex",de?'z. B. "50-59, männlich" - für altersgerechte Hinweise':'e.g. "50-59, male" - for age-appropriate advice')
+    +t("body",SHARE.body,de?"Körperwerte (nur relativ)":"Body values (relative only)",de?'z. B. "Gewicht -1,7 % in 38 Tagen" - nie absolute Werte':'e.g. "weight -1.7 % in 38 days" - never absolute values'); }
+$("#setShare").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;SHARE[b.dataset.k]=!SHARE[b.dataset.k];renderShare();});
 $("#setupSave").addEventListener("click",async()=>{
   const lang=$("#setLang [aria-pressed=true]").dataset.v, units=$("#setUnits [aria-pressed=true]").dataset.v;
-  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value};
+  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value,ai_share_profile:SHARE.profile,ai_share_body:SHARE.body};
   const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
   CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;

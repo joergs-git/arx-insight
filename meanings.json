@@ -1049,5 +1049,15 @@
    "en": "More sessions need more different muscles to rotate through (further exercises), a grip aid on the dead lifts - or sets that stop short of the limit. More is not better here: a muscle grows while it rests.",
    "de": "Mehr Einheiten brauchen mehr verschiedene Muskeln zum Durchwechseln (weitere Übungen), eine Griffhilfe bei den Dead Lifts - oder Sätze, die vor dem Limit enden. Mehr ist hier nicht besser: Ein Muskel wächst in der Pause."
   }
+ },
+ "date_week_last_chance": {
+  "meaning": {
+   "en": "It is the last day on which this week's target of {spw} sessions can still be met ({done} done).",
+   "de": "Es ist der letzte Tag, an dem das Wochenziel von {spw} Einheiten noch erreichbar ist ({done} erledigt)."
+  },
+  "action": {
+   "en": "Weeks on target are what add up - this one is still within reach.",
+   "de": "Wochen im Soll sind das, was sich summiert - diese ist noch zu schaffen."
+  }
  }
 }

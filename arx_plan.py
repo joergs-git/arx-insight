@@ -57,7 +57,8 @@ DATE_SEARCH_DAYS = 10          # the next session is searched within this many d
 MIN_READY_EXERCISES = 2        # fewer ready exercises are not worth a session
 CADENCE_W = 0.35               # date score: deviation from the ideal gap (in ideal gaps) ...
 CADENCE_FREE_DAYS = 0.5        # ... beyond this many days
-WEEK_W = 0.15                  # date score: the week's session target is still open
+WEEK_W = 0.15                  # date score: the week's session target is still open ...
+WEEK_LAST_W = 0.15             # ... and this is one of the last days on which it can still be met
 HABIT_W = 0.10                 # date score: the athlete's usual weekday (only with a real pattern)
 HABIT_MIN_DAYS, HABIT_SHARE = 8, 0.75
 BAND_FILL = {"moderate": 0.85, "light_or_rest": 0.6}      # a session on a poor day is worth less
@@ -829,11 +830,14 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                 continue
             gap = (d - prev).days if prev else None
             off = max(0.0, abs(gap - ideal_gap) - CADENCE_FREE_DAYS) / ideal_gap if gap is not None else 0.0
-            open_week = counts.get(d.isocalendar()[:2], 0) < spw
+            missing = spw - counts.get(d.isocalendar()[:2], 0)     # sessions the week of d still needs
+            open_week = missing > 0
+            last_chance = open_week and (6 - d.weekday()) < missing and counts.get(d.isocalendar()[:2], 0) > 0
             fill = sel["fill"] * BAND_FILL.get(b, 1.0)
-            score = fill - CADENCE_W * off + (WEEK_W if open_week else 0.0) + (HABIT_W if d.weekday() in habit else 0.0)
-            out.append(dict(sel, band=b, gap_days=gap, open_week=open_week, habit=d.weekday() in habit, score=round(score, 3),
-                            fill_effective=round(fill, 2)))
+            score = (fill - CADENCE_W * off + (WEEK_W if open_week else 0.0) + (WEEK_LAST_W if last_chance else 0.0)
+                     + (HABIT_W if d.weekday() in habit else 0.0))
+            out.append(dict(sel, band=b, gap_days=gap, open_week=open_week, last_chance=last_chance, habit=d.weekday() in habit,
+                            score=round(score, 3), fill_effective=round(fill, 2)))
         return out
 
     opts = options(earliest, last_day, state, week_counts, pool, True)
@@ -877,6 +881,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     wk_done = week_counts.get(d1.isocalendar()[:2], 0)
     why.append(item("date_week", {"done": wk_done, "spw": spw, "nth": wk_done + 1,
                                   "week_date": (d1 - timedelta(days=d1.weekday())).isoformat()}, cfg))
+    if best["last_chance"]:
+        why.append(item("date_week_last_chance", {"spw": spw, "done": wk_done}, cfg))
     if best["habit"]:
         why.append(item("date_habit", {"weekday": d1.weekday()}, cfg))
     fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best["fill"] + 0.25), None)

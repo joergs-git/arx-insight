@@ -66,6 +66,12 @@ class ProfileRoutes(ServerCase):
         self.assertNotIn("aids", rec)
         self.assertEqual(rec["outcome"], "strength")
 
+    def test_nonsense_in_the_basic_fields_cannot_break_the_planner(self):
+        body = {"user_id": 1, "goal": {"muscle": "lots", "strength": 7, "evil": 1}, "sessions_per_week": "every day"}
+        self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)
+        rec = app.read_json(app.GOALS, {})["1"]
+        self.assertEqual((rec["goal"], rec["sessions_per_week"]), ({"strength": 1.0}, 2))
+
     def test_body_log_is_optional_one_entry_per_day_and_deletable(self):
         today = core._today({}).isoformat()
         post = lambda b: call(self.port, "/api/body", method="POST", body=dict(b, user_id=1), headers=OK)

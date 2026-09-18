@@ -35,7 +35,11 @@ and shows you what actually happened — and what to do next.
 
 - 🔁 **Last session first** — the exercises you just did, in the order performed, each against the previous time you did them: the force curve with the previous set as a dashed ghost, peak / mean force / inroad / ROM deltas, a new-PB badge, and a note when tempo or pauses changed between the two sets (they shift force values). Below: the session table and whether the day before was too close for the muscles you hit again.
 - 🧹 **Only real sets count** — machine tests, familiarisation sets, aborted attempts and false starts (the same exercise restarted a minute later with more reps) are recognised and excluded from every number. The report says how many and why.
-- 🔥 **Effort / inroad** — did the set reach deep fatigue, or were the early reps sub-maximal? Measured per rep, the same definition the curve shows.
+- 🔥 **Effort / inroad** — did the set reach deep fatigue, or were the early reps sub-maximal? Since v0.4.0 measured on the **concentric and eccentric phase of every rep** (time-weighted means, the turnaround spike of a phase left out) instead of single peak values; a set that merely started low no longer reads as "fatigue", and one eccentric spike no longer reads as "deep".
+- 🔬 **Inside the set** — concentric and eccentric strength apart (mean of your three best reps, robust against pause and tempo changes), fatigue per phase, the best rep, a start that was too cautious, force by third of the range, holds that were programmed but not really held.
+- 🧪 **Your own evidence, with n** — every set knows its context within the visit: *fresh*, *pre-loaded* (an earlier exercise used the same muscles) or a *repeat* set. From that the app measures what an exercise really loses after another one, what a second set delivers, whether rest or position matters **for you** — each with the number of observations and a confidence label, blended with a general estimate while n is small, and never extrapolated (a "rest effect" must beat shuffled data before it is believed). Progress is judged on comparable days only: same range, tempo, protocol and grip-aid state, no learning days.
+- 📈 **Progress factors per exercise** — your own baseline = 1.00, concentric and eccentric separately, status (*progressing · stable · plateau · regressing · lower but pre-loaded · too early*), a rate per week only when the data carries it, how often you reached your effort target — and a strength index across exercises. **No number without "what does this mean for me?" and "what follows?"**: every KPI, finding and plan decision carries both sentences (English / German, in your units), without any AI.
+- 🚩 **What stands out** — ranked findings: effort target missed, new comparable bests, range drift, changed settings, order and repeat effects, plateaus, neglected muscles, a missed weekly target, unsteady force … each with meaning → action.
 - 🧭 **Progress per exercise** — best set per day, "vs last time", trend and a cautious forecast, on two axes (last sessions / last days).
 - 📏 **Range-of-motion validity** — force is only compared between days that used the same ROM (within 5 % of the exercise's reference). Days with a different ROM are shown but excluded from trend and forecast, and the exercise gets a visible ROM warning instead of a fake trend. A deliberately shortened range on a restricted exercise becomes the new baseline instead of a nag.
 - 🧠 **Muscle-level recovery** — readiness is judged per muscle, not by the calendar or by Push/Pull/Drive: a set loads its target muscles at the effort it reached and its limiters one level lighter; a muscle is ready again when the rest its last hard load required has passed (deep 3 days, moderate 2, sub-max 1). Two sessions on consecutive days are fine when they used different muscles. Per exercise you see *ready*, *limited* (a limiter such as the grip is not fresh — train sub-max) or *not ready*, each with a date.
@@ -44,11 +48,14 @@ and shows you what actually happened — and what to do next.
 - 🧾 **Session sequence** — the order of your sets within each day, the rest before each one, machine pauses, work density, false starts, and rule-based flags: too many sets, a scattered full-body day on a split plan, the same exercise or muscle hit again within 5 minutes, and a density shift that betrays changed pause/tempo settings (only against a consistent baseline).
 - 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
 - 🧍 **Whole-body index** — a self-referenced score of how close you are to your own bests (ROM-comparable days only), across Push / Pull / Drive.
-- 🗓️ **Next-session plan** — a ~15-minute, muscle-group-balanced suggestion; in **Auto** mode only recovered exercises, limited ones last with the reason, and a rest day only when nothing is recovered.
-- 🎯 **Focus & approach** — prefer upper body or arms and it de-emphasizes or drops legs; choose **Auto** (auto-regulates by readiness), **Full body**, or a **Split**.
+- 🗓️ **ONE plan: when, what, in which order, with which targets** (v0.4.0) — the muscle-level recovery model is rolled forward day by day: the next date is where a full session is possible *and* your weekly rhythm is met best, with every reason spelled out ("you trained today", "triceps: 18 days without direct work", "last day on which this week's target can still be met"). Exercises are chosen by how overdue their muscles are, your focus per body region and coverage gaps; twins for the same muscles are not doubled. Every session keeps **one exercise as a clean measurement** (nothing before it loads its muscles — never-measured-fresh first), because progress can only be judged on fresh sets. The order is the cheapest of all permutations, using **your measured order effects** where they exist; "a helper before the exercise that targets it" (Row before Biceps Curl) stays a hard rule. Targets come from your last comparable value, are lowered by the expected loss when something loads the same muscles first, take a small step only when you are progressing *and* the last set was a real one, and turn a plateau into a second set instead of a bigger number. Plus rests, a **helper-muscle budget** (grip & co.) against what you usually do, a note when your change-over times cost you minutes, a 10-day outlook (1–2 sessions a week = full body, 3+ = a rotating Push / Pull / Drive split that keeps every helper with its exercises) — and an honest word when the cadence you asked for is more than recovery allows. A **plan ledger** remembers what was recommended; the next report shows *plan vs what you did*.
+- 🎯 **Goals asked up front** — a four-question interview: what you want most, your time (sessions × minutes), **time or effort — what do you want to pay with?** (four profiles, each with its price in minutes per week; the app recommends one) and your experience. Optional: focus per body region (more / less / off), a **measurable target** (force on an exercise, body weight or waist, with a date — the app says whether your own measured pace is enough) and **grip aids** per exercise.
+- 🪝 **Grip aids (hooks / straps)** — switch them on per exercise and the grip stops counting as that exercise's limiter in recovery, evidence, order and budget; days with and without an aid are never compared with each other. The plan suggests an aid only where studies show a benefit (dead lifts), not for pull-downs.
+- ⚖️ **Body values — entirely optional** — weight, waist, arm, chest, thigh, body fat: any subset, whenever you like, no reminders. Shown as a rough trend with its measurement noise, read together with your strength index. Nothing entered = nothing shown.
+- 📚 **Science base** — `science.json`: 19 topics, 101 references (meta-analyses, position stands, RCTs), each retrieved from PubMed and cross-checked via Crossref, with the rule of thumb, how *this app* applies it and what does **not** transfer to a motor-driven machine. Every planner default cites its entry (a test enforces it); where the evidence contradicted a planned default it was changed — e.g. **no extra rest days by age alone**, and "maintain" cuts volume but keeps the effort. Your own measured data always outranks a textbook default.
 - ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid* (which exercises a joint touches is editable per exercise in `exercises.json`), and the plan won't push it. A "limits respected?" box lists sets of the last 14 days that went hard on a careful exercise, jumped in the eccentric, or trained an avoided one — a mirror, not a diagnosis.
 - ⏱️ **Training time & work** — motivational totals (sessions = real visits), per week / month / year.
-- 🤖 **AI coach** using **your own** Claude API key (only aggregated, name-free numbers are sent) — a whiteboard, not a wall of text: **1)** last session vs the previous time, **2)** today (check-in verdict, what is recovered and from when), **3)** the plan as a table with a concrete force target per exercise, effort, tempo / pauses, rest and a cue, **4)** progress & milestones (PBs, adherence to your weekly target, the next round marks, work total, deload signal), **5)** one focus point. It also receives the ordered session sequences and may point out patterns the rules don't cover; the computed facts stay the ground truth. Answers are cached per day, so a reload does not bill again. Cost is tunable via `ai_effort` (low … max, default medium).
+- 🤖 **AI coach** using **your own** Claude API key (only aggregated, name-free numbers are sent; since v0.4.0 it presents the engine's plan of record instead of inventing its own, and may see an age band + sex — switchable in ⚙ Settings) — a whiteboard, not a wall of text: **1)** last session vs the previous time, **2)** today (check-in verdict, what is recovered and from when), **3)** the plan as a table with a concrete force target per exercise, effort, tempo / pauses, rest and a cue, **4)** progress & milestones (PBs, adherence to your weekly target, the next round marks, work total, deload signal), **5)** one focus point. It also receives the ordered session sequences and may point out patterns the rules don't cover; the computed facts stay the ground truth. Answers are cached per day, so a reload does not bill again. Cost is tunable via `ai_effort` (low … max, default medium).
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** when a new version ships, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
 <p align="center"><i>Example report (anonymized):</i></p>
@@ -58,7 +65,7 @@ and shows you what actually happened — and what to do next.
   <img src="docs/readiness.png" alt="Check-in score and muscle-level readiness" width="80%">
   <img src="docs/checkin.png" alt="The 20-second daily check-in" width="60%">
   <img src="docs/progress.png" alt="Progress per exercise with ROM validity, and the whole-body factor" width="80%">
-  <img src="docs/plan.png" alt="Rule-based next-session plan with readiness, and the machine settings check" width="60%">
+  <img src="docs/next-training.png" alt="The plan: when and why, exercises in order with targets, effort, rests, the clean measurement of the session, and the next 10 days" width="60%">
 </p>
 
 ## Install on Windows (plug and play)
@@ -99,18 +106,30 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 
 | Piece | Role |
 |---|---|
-| `arx_report.py` | Read-only engine: opens a **copy** of the Firebird DB, computes every metric, optionally calls Claude |
+| `arx_report.py` | Read-only engine: opens a **copy** of the Firebird DB, assembles the report, optionally calls Claude |
+| `arx_base.py` | Shared base: data directory, units, read-only DB access (one short-lived shared snapshot for the app) |
+| `arx_detail.py` | What happened **inside** a set: phases per rep, time-weighted means, effort v3 (cached per set) |
+| `arx_evidence.py` | Context of every set (fresh / pre-loaded / repeat), your measured order / repeat / limiter / rest effects with n |
+| `arx_history.py` | Weekly / monthly windows, progress factors, findings, optional body trends and target progress |
+| `arx_plan.py` | The ONE plan: date, selection, clean measurement, order, targets, helper budget, week plan, plan ledger |
 | `arx_app.py` | Tiny local web server + the touch UI in `web/` |
-| `exercises.json` | ARX Omni catalog: exercise code → name / muscle group / compound-isolation |
-| `config.json`, `goals.json` | Your settings and per-person goals (kept **out** of git) |
+| `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids, plus a small library of exercises nobody has mapped yet |
+| `meanings.json` | The "what it means → what to do" sentences for every code (English / German) |
+| `science.json` | The evidence behind the planner's defaults, with verified references |
+| `config.json`, `goals.json`, `plans.json` | Your settings, per-person profiles / check-ins / optional body log, and the plan ledger (kept **out** of git) |
+| `tests/` | `python -m unittest discover -s tests -t .` — synthetic data only |
 
 The ARX database is never modified — the tool always works on a temporary copy.
 
 ## Privacy
 
 Everything runs on your machine. Your API key lives only in the local, git-ignored `config.json`.
-The AI request contains **only aggregated, name-free metrics** — never a person's name. The
-database, your keys, goals and generated reports are all git-ignored.
+The AI request contains **only aggregated, name-free metrics** — never a person's name, date of
+birth, height, weight or free-text note. Two things are switchable in ⚙ Settings: an **age band +
+sex** ("50-59, male"; on by default, for age-appropriate advice) and **relative body changes**
+("weight −1.7 % in 38 days"; off by default, never absolute values). The database, your keys,
+profiles, check-ins, the optional body log, the plan ledger and generated reports are all
+git-ignored and never leave the machine.
 
 ## Disclaimer
 
@@ -150,8 +169,9 @@ aggregated, name-free numbers — never a person's name.
 
 **Do I need the key at all?**
 No. Everything except the coach's text works without it: last session comparison, force curves,
-progress, muscle-level readiness, check-in, load & recovery, the rule-based plan. The key only
-powers the AI coach board on the right (and in the PDF).
+progress factors and findings with their explanations, muscle-level readiness, check-in, load &
+recovery, the full plan (date, order, targets, week outlook). The key only powers the AI coach
+board on the right (and in the PDF).
 
 **What methodology does it use?**
 Force (kg/lb) is the progress measure on an adaptive-resistance machine, not "weight". Effort is
@@ -160,17 +180,22 @@ judged by **inroad** — the force decline across a set. Progress compares the *
 with the **same range of motion**: on an adaptive-resistance machine a shorter ROM stays in the
 strong part of the movement and yields a higher peak, so force values from differing ROMs are not
 comparable and are excluded from trend and forecast (fewer than 3 comparable days → no trend).
-Effort is measured per rep (BeginRep/EndRep segmentation), the same definition the force curve
-shows. Recovery is **effort-conditioned and muscle-level**: a set loads its target muscles at the
+Effort is measured per rep and per phase: the machine's own phase markers split every rep into
+its concentric and eccentric half (encoder rising = concentric), each half is averaged over time
+without the turnaround spike of its first second, and the set's fatigue is the decline of that
+combined series from its best stretch in the first half to the last reps (deep ≥ 20 %, moderate
+≥ 10 %). Recovery is **effort-conditioned and muscle-level**: a set loads its target muscles at the
 effort it reached (deep → 3 days of rest, moderate → 2, sub-max → 1) and its limiters one level
 lighter; an exercise is ready when its target muscles are. Consecutive training days are fine
 when different muscles were used. The **daily check-in** (sleep, energy, soreness, resting heart
 rate, pain — subjective wellness is a well-supported load monitor) can override the calendar.
 Within a day the **sequence** is analysed too: rest between sets, work density per wall-clock
 minute, repeats of the same exercise or of the same limiting muscle (grip, elbow flexors, triceps,
-lower back …) within a few minutes. The session plan follows classic ordering (large muscle groups
-first, and an exercise that merely *uses* a limiter before one that *targets* it); the **Auto**
-approach auto-regulates by readiness. The AI coach adds the individualized whiteboard on top:
+lower back …) within a few minutes. The plan (v0.4.0) rolls that recovery model forward to find
+the date, orders the session by what each exercise is expected to lose to the ones before it (your
+measured effects first, general estimates otherwise; an exercise that merely *uses* a limiter always
+before one that *targets* it) and cites `science.json` for every default. The AI coach adds the
+individualized whiteboard on top:
 concrete targets from progressive overload (only where the last set showed room), effort by goal,
 adherence, milestones and a deload signal (weeks of consistent training that meet falling numbers
 or poor readiness).
@@ -194,12 +219,57 @@ ended early with too few reps, and false starts (the same exercise restarted wit
 more reps). They would otherwise show up as bogus bests, fatigued "repeats" or short-rest flags. The
 report states the count per reason; nothing is deleted.
 
-**How does the coach pick a target?**
-From the last ROM-comparable best of that exercise: if the trend is up and the last set stopped
-short of real fatigue (inroad under 20 %), it asks for 2 % more force; otherwise the same force,
-but taken to the inroad your goal asks for (muscle ≥ 20 %, strength 10–20 %). Careful or limited
+**How does the plan pick a target?** *(v0.4.0)*
+From your last **comparable** value of that exercise (same range, tempo, protocol and grip-aid
+state — fresh days when you have two of them). A step of 1–3 % (your own rate) only when the
+exercise is progressing **and** the last set reached your effort target; a set that stopped short
+gets the same force and "finish it" instead; a plateau with honest effort gets a second set; the
+session's clean measurement says "match or beat your reference, this becomes your baseline". If
+the exercise is planned after one that loads the same muscles, the target is lowered by the
+expected loss — your measured one where it exists — and says so. Careful, limited and new
 exercises get "sub-max" instead of a number. The rules and thresholds sit at the top of
-`arx_report.py`.
+`arx_plan.py`, each with its `science.json` entry.
+
+**Why is the next session on that day?** *(v0.4.0)*
+The reasons are listed under the date: what is recovered by then, what is overdue, your weekly
+rhythm (7 ÷ sessions per week), whether the week's target is still open, a poor check-in. If you
+are standing in the gym anyway, *Training today anyway?* shows the session that fits today.
+
+**What is the "fresh measurement" (◎) in the plan?**
+Progress can only be judged when nothing before a set has loaded its muscles. Many exercises are
+never measured that way — a Pull Down that always follows the Row, for example. So every session
+gives one exercise the clean slot, never-measured-fresh first, then the oldest measurement.
+
+**What are the four "time or effort" profiles?**
+*Least time, full effort* (one all-out set per exercise, one exercise per trained body region),
+*Balanced* (one hard set, a plateau gets a second one), *More time, less brutal* (sets stop short
+of the limit, a second set on the main exercises makes up for it) and *Maintain only* (fewer
+exercises, no steps — but the sets stay hard, because intensity is what preserves an adaptation).
+Each shows its price in minutes per week; leave it on *Automatic* and the app picks one from your
+goal, time and experience. A low / medium / max scale is deliberately not asked: with one set per
+exercise effort is a requirement, not a taste, and most people would pick the comfortable middle.
+
+**I use lifting hooks or straps — does that matter?**
+Yes. Switch them on per exercise in the profile (*Grip aids*): from that day the grip no longer
+counts as that exercise's limiter, and days with and without the aid are no longer compared —
+otherwise the jump that came with the hooks would look like progress.
+
+**Do I have to enter my body weight or measurements?**
+No — never. *Body values* is an optional, collapsed card in the profile; nothing reminds you. With
+two readings a few weeks apart you get a rough trend, read together with your strength index.
+Scales and tape measures vary more than real change does, so only the trend counts.
+
+**The report shows "Unknown exercise codes" — what now?**
+Someone performed an exercise that `exercises.json` does not know yet. Add an entry with the code
+as the key (name, group, kind, `targets`, `limiters`, `joints`) — copy a similar exercise; if it is
+already listed under `_library`, move it up and give it the code. Until then it counts as
+"Exercise <code>" and cannot take part in recovery or planning properly.
+
+**Where do the recommendations come from — sport science or the app's taste?**
+Both, and they are kept apart. `science.json` holds the evidence (verified references, evidence
+level, what does not transfer to a motor-driven machine — no controlled trial of a one-set, all-out,
+motor-driven protocol exists yet, and the file says so). Every planner default cites its entry.
+Your own measured data outranks any default, and a default is labelled as one.
 
 **Why does an exercise say "no trend · ROM"?**
 Its range of motion changed between sessions by more than 5 %, so the force values of those days

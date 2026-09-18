@@ -537,11 +537,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"error": "bad_user_id"}, code=400)
         if u.path == "/api/goal":                          # per-user profile / goal interview
             profile = clean_profile(data, STATE["catalog"], core._today({}))
+            try:                                           # the planner divides by it - keep it a sane number
+                spw = max(1, min(7, int(data.get("sessions_per_week", 2))))
+            except (TypeError, ValueError):
+                spw = 2
+            goal = {k: max(0.0, min(1.0, float(v))) for k, v in (data.get("goal") or {}).items()
+                    if k in ("muscle", "strength", "conditioning") and isinstance(v, (int, float)) and not isinstance(v, bool)}
 
             def change(goals):
                 rec = goals.get(str(uid), {})
-                rec["goal"] = data.get("goal", {})
-                rec["sessions_per_week"] = data.get("sessions_per_week", 2)
+                rec["goal"] = goal
+                rec["sessions_per_week"] = spw
                 if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off (pre-0.4)
                 if "approach" in data: rec["approach"] = data["approach"] # full | split | auto
                 if "language" in data:                                     # "" clears -> device default
