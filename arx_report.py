@@ -14,10 +14,14 @@ Nothing is ever written back to the ARX database. We copy the file first and
 open the copy, so a running ARX app is never disturbed.
 
 Public domain / CC0. No warranty. Not medical advice.
+
+v0.3.1: temp DB copies are cleaned up when the connection fails (+ sweep of stale copies), sets the
+ARX app hides from its own stats are excluded and reported, PB flags are ROM-gated, the detraining
+flag looks at the current gap only, and a failed AI call can no longer take the report down with it.
 """
 
 from __future__ import annotations
-import os, sys, json, gzip, shutil, tempfile, argparse, statistics as st
+import os, sys, json, gzip, time, shutil, tempfile, argparse, statistics as st
 from datetime import datetime, date, timedelta
 
 
@@ -116,18 +120,50 @@ def locate_fbclient() -> str | None:
     return None
 
 
+TEMP_PREFIX = "arx_ro_"         # temp folders holding a COPY of the (private) ARX database
+STALE_COPY_SECONDS = 3600       # a copy older than this belongs to a crashed / killed run
+
+
 def open_readonly(db_path: str):
-    """Return (connection, tempdir). Opens a COPY so the original is untouched."""
+    """Return (connection, tempdir). Opens a COPY so the original is untouched.
+
+    The copy contains private training data, so it must never be left behind: when the copy or
+    the connection fails (missing client library, locked file, ...) the temp folder is removed
+    before the error is passed on. Callers remove it after closing the connection."""
     from firebird.driver import connect, driver_config  # imported late on purpose
 
     lib = locate_fbclient()
     if lib:
         driver_config.fb_client_library.value = lib
-    tmp = tempfile.mkdtemp(prefix="arx_ro_")
-    copy = os.path.join(tmp, "arx_copy.fdb")
-    shutil.copy2(db_path, copy)
-    con = connect(copy, user="SYSDBA")   # embedded: no password required
+    tmp = tempfile.mkdtemp(prefix=TEMP_PREFIX)
+    try:
+        copy = os.path.join(tmp, "arx_copy.fdb")
+        shutil.copy2(db_path, copy)
+        con = connect(copy, user="SYSDBA")   # embedded: no password required
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
     return con, tmp
+
+
+def sweep_stale_copies(max_age_s: float = STALE_COPY_SECONDS) -> int:
+    """Remove DB copies that an earlier run left behind (crash, killed console window).
+    Only folders with our prefix that are older than max_age_s are touched, so a report that is
+    being built right now by another process keeps its copy. Returns the number removed."""
+    root, removed, now = tempfile.gettempdir(), 0, time.time()
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return 0
+    for name in names:
+        path = os.path.join(root, name)
+        try:
+            if name.startswith(TEMP_PREFIX) and os.path.isdir(path) and now - os.path.getmtime(path) > max_age_s:
+                shutil.rmtree(path, ignore_errors=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 def blob_bytes(v) -> bytes:
@@ -156,7 +192,9 @@ def classify_set(sec: float, reps: int, concentric: float, eccentric: float,
       short        fewer than MIN_REPS reps or under MIN_SECONDS - a machine
                    test, familiarisation or positioning set, not training
     A fifth status, false_start, is assigned afterwards by flag_false_starts()
-    because it needs the NEXT set of the same exercise. A timed protocol that
+    because it needs the NEXT set of the same exercise. A sixth, hidden, is set
+    by load_sets() for a set that would count but was hidden from the statistics
+    in the ARX app itself (HIDEFROMSTATS) - the athlete's own verdict wins. A timed protocol that
     ends on the clock after 11-14 reps carries the ended-early event too but
     has plenty of reps, so it stays a working set. Returns (status, reason).
     """
@@ -183,7 +221,7 @@ def flag_false_starts(sets: list[dict]) -> None:
         ss.sort(key=lambda s: s["date"])
         for a, b in zip(ss, ss[1:]):
             ta, tb = _ts(a["date"]), _ts(b["date"])
-            if ta is None or tb is None or a["status"] == "no_data":
+            if ta is None or tb is None or a["status"] in ("no_data", "hidden"):
                 continue
             gap_min = (tb - (ta + a["seconds"])) / 60.0
             if gap_min <= RESTART_GAP_MIN and b["reps"] > a["reps"]:
@@ -198,7 +236,7 @@ def load_sets(con, user_id: int) -> list[dict]:
     cur.execute(
         '''select id, exercisedate, "SESSION", exercise, protocol, maxload,
                   concentricmax, eccentricmax, intensity, elapsedseconds,
-                  repschemedata, eventstreamdata
+                  repschemedata, eventstreamdata, hidefromstats
            from "ExerciseSet"
            where user_id = ? and deleted is false
            order by exercisedate''',
@@ -238,6 +276,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         e = float(r["ECCENTRICMAX"] or 0)
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
         status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
+        if status == "working" and r.get("HIDEFROMSTATS"):
+            # hidden from the statistics in the ARX app itself: not training in the athlete's
+            # own judgement. Sets that are already excluded keep their more specific status.
+            status, reason = "hidden", "hidden from stats in the ARX app"
 
         out.append({
             "id": r["ID"],
@@ -247,7 +289,7 @@ def load_sets(con, user_id: int) -> list[dict]:
             "protocol": r["PROTOCOL"],
             "reps": reps,
             "ended_early": ended_early,
-            "status": status,                  # working | short | aborted | no_data (| false_start)
+            "status": status,                  # working | short | aborted | no_data | hidden (| false_start)
             "reason": reason,                  # why it is not a working set ("" when it is)
             "rom_cm": rom_cm,
             "pause_end_s": pause_end,          # programmed hold at the end position
@@ -485,15 +527,23 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         comparable = bool(prev and prev["rom_cm"] and last["rom_cm"]
                           and abs(last["rom_cm"] - prev["rom_cm"]) / prev["rom_cm"] <= ROM_TOLERANCE)
         pb = max(o["kg"] for o in occ)
+        # A personal best only means something among comparable days: a shorter ROM stays in the
+        # strong part of the movement and "beats" the PB for free. pb_comparable = best ROM-valid
+        # day; last_is_pb = the latest day is ROM-valid and reaches it, with an earlier comparable
+        # day to beat (a first or lone comparable day is a baseline, not a record).
+        pb_comparable = max((o["kg"] for o in valid), default=None)
+        last_is_pb = bool(len(valid) >= 2 and occ[-1]["rom_valid"] and occ[-1]["kg"] >= pb_comparable - 0.01)
         out.append({
             "ex": ex,
-            "name": meta.get("name", f"Übung {ex}"),
+            "name": meta.get("name", f"Exercise {ex}"),
             "group": meta.get("group", "?"),
             "kind": meta.get("kind", "?"),
             "targets": list(meta.get("targets") or []),     # muscles the exercise is for
             "limiters": list(meta.get("limiters") or []),   # what gives out first (a means, not the goal)
             "joints": list(meta.get("joints") or []),       # body parts a restriction can hit
             "pb": pb,
+            "pb_comparable": pb_comparable,             # best among ROM-comparable days (None if none)
+            "last_is_pb": last_is_pb,                   # latest day = comparable record (see above)
             "n": len(occ),                              # number of training DAYS
             "total_sets": len(ss),                      # all sets across all days
             "multi_set_days": sum(1 for o in occ if o["sets"] > 1),
@@ -847,7 +897,7 @@ def _load_analysis(work: list[dict], catalog: dict, exercises: list[dict], today
     history, not today's state:
       overload_risk    a hard-on-hard conflict inside the window, or the
                        check-in reports an elevated resting HR plus strong soreness
-      detraining_risk  more than DETRAINING_GAP_DAYS since the last session
+      detraining_risk  more than DETRAINING_GAP_DAYS since the last session (today's gap only)
       underload        two or more sessions in the window, none moderate or harder
       ok               otherwise
     History totals are kept for the AI. The final judgement is the AI's, with
@@ -876,8 +926,8 @@ def _load_analysis(work: list[dict], catalog: dict, exercises: list[dict], today
     strong_sore = any(v == "strong" for v in (ci.get("soreness") or {}).values())
     if w_conflicts or (ci.get("rhr_status") == "elevated" and strong_sore):
         flag = "overload_risk"
-    elif days and (today_ord - ords[-1] > DETRAINING_GAP_DAYS or (gaps and gaps[-1] > DETRAINING_GAP_DAYS)):
-        flag = "detraining_risk"
+    elif days and today_ord - ords[-1] > DETRAINING_GAP_DAYS:
+        flag = "detraining_risk"                 # the CURRENT gap - a long gap in the past is history
     elif len(w_days) >= 2 and len(w_light) == len(w_days):
         flag = "underload"
     else:
@@ -1428,8 +1478,8 @@ def _coach_facts(exercises: list[dict], recovery: dict, goal: dict, days: list[s
         rows.append(row)
 
     since = (today - timedelta(days=14)).isoformat()
-    recent_pbs = [e["name"] for e in exercises
-                  if e["n"] >= 2 and e["last_date"] >= since and e["last"] >= e["pb"] - 0.01]
+    # ROM-gated and strictly inside the window (a day exactly 14 days back is history)
+    recent_pbs = [e["name"] for e in exercises if e.get("last_is_pb") and e["last_date"] > since]
     work = (totals or {}).get("total_work_impulse") or 0
     adherence = _adherence(days, sessions_per_week, today)
 
@@ -1610,7 +1660,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "delta_mean_pct": (round((s["mean_force_kg"] - prev["mean_force_kg"]) / prev["mean_force_kg"] * 100, 1)
                                if (prev and prev.get("mean_force_kg")) else None),
             "delta_comparable": comparable,
-            "is_pb": len(occ) >= 2 and s["max_kg"] >= pb - 0.01,
+            # ROM-gated (see _exercise_series): only the day's best set on a comparable day counts
+            "is_pb": bool(e.get("last_is_pb") and occ and occ[-1]["date"] == day["date"]
+                          and s["max_kg"] >= (e.get("pb_comparable") or 0) - 0.01),
             "pb_kg": pb,
             "delta_vs_pb_pct": round((s["max_kg"] - pb) / pb * 100, 1) if pb else None,
             "settings_changed": changed,
@@ -1663,7 +1715,7 @@ def build_report(con, cfg: dict) -> dict:
     cache = load_effort_cache()
     for s in work:                       # attach name/group + effort/inroad
         m = catalog.get(str(s["exercise"]), {})
-        s["name"] = m.get("name", f"Übung {s['exercise']}")
+        s["name"] = m.get("name", f"Exercise {s['exercise']}")
         s["group"] = m.get("group", "?")
         e = set_effort(con, s["id"], cache)
         s["inroad"] = e["inroad"]
@@ -1807,6 +1859,15 @@ def ai_summary(report: dict, cfg: dict) -> dict:
     rec = load.get("recovery") or {}
     coach = report.get("coach") or {}
     rd = report.get("readiness")
+    if rd:                                   # free text may name people - it never leaves the machine
+        rd = {k: v for k, v in rd.items() if k != "note"}
+    # everything below is in the athlete's units - no kg leaking into an lb payload
+    WU = f"{FU}*s"                           # unit of the summed impulse ("work")
+    totals = dict(report["totals"])
+    totals["total_work_impulse"] = kg(totals.get("total_work_impulse"))
+    totals["work_unit"] = WU
+    plan = [{**{k: v for k, v in i.items() if k != "last"}, "last_day_best": kg(i.get("last"))}
+            for i in report["session_plan"]]
 
     return {
         "today": today,
@@ -1860,13 +1921,15 @@ def ai_summary(report: dict, cfg: dict) -> dict:
             "adherence": coach.get("adherence"),
             "milestones": {
                 "pbs_last_14_days": (coach.get("milestones") or {}).get("pbs_last_14_days", []),
-                "work_total_impulse": (coach.get("milestones") or {}).get("work_total_kg_s"),
-                "next_work_mark_impulse": (coach.get("milestones") or {}).get("next_work_mark_kg_s"),
+                "work_total_impulse": kg((coach.get("milestones") or {}).get("work_total_kg_s")),
+                "next_work_mark_impulse": kg((coach.get("milestones") or {}).get("next_work_mark_kg_s")),
+                "work_unit": WU,
                 "round_mark_step": kg((coach.get("milestones") or {}).get("round_mark_step_kg")),
             },
             "deload": coach.get("deload"),
         },
-        "restriction_checks": [{**c, "eccentric": kg(c.get("eccentric_kg")),
+        "restriction_checks": [{**{k: v for k, v in c.items() if k not in ("eccentric_kg", "prev_eccentric_kg")},
+                                "eccentric": kg(c.get("eccentric_kg")),
                                 "prev_eccentric": kg(c.get("prev_eccentric_kg"))}
                                for c in report.get("restriction_checks", [])],
         "exercises": [{
@@ -1922,8 +1985,8 @@ def ai_summary(report: dict, cfg: dict) -> dict:
             } for x in d["sets"]],
         } for d in report.get("session_sequences", [])],
         "limiter_conflicts": report.get("limiter_conflicts", []),
-        "totals": report["totals"],
-        "session_plan": report["session_plan"],
+        "totals": totals,
+        "session_plan": plan,
     }
 
 
@@ -2140,11 +2203,56 @@ def ai_system_prompt(cfg: dict) -> str:
     )
 
 
+class AIError(Exception):
+    """A failed coach call with a short machine-readable code, so the UI can say what happened
+    (and what to do) instead of showing the "API key missing" hint for every failure."""
+    def __init__(self, code: str, message: str = ""):
+        super().__init__(message or code)
+        self.code, self.message = code, (message or code)
+
+    def info(self) -> dict:
+        return {"code": self.code, "message": self.message[:300]}
+
+
+def classify_ai_error(exc: Exception) -> AIError:
+    """Map an exception of the Anthropic SDK to an AIError code. Most specific class first
+    (APITimeoutError is a subclass of APIConnectionError). Never raises itself."""
+    if isinstance(exc, AIError):
+        return exc
+    msg = str(getattr(exc, "message", "") or exc)
+    try:
+        import anthropic
+    except ImportError:
+        return AIError("sdk_missing", msg)
+    body = getattr(exc, "body", None)
+    err = (body.get("error") if isinstance(body, dict) else None) or {}
+    etype = err.get("type") if isinstance(err, dict) else None
+    if isinstance(err, dict) and err.get("message"):
+        msg = str(err["message"])                # the API's own sentence instead of the raw repr
+    table = (("APITimeoutError", "timeout"), ("APIConnectionError", "network"),
+             ("AuthenticationError", "invalid_key"), ("PermissionDeniedError", "forbidden"),
+             ("NotFoundError", "model_unavailable"), ("RateLimitError", "rate_limit"),
+             ("BadRequestError", "bad_request"), ("InternalServerError", "server_error"))
+    if etype == "billing_error":
+        return AIError("no_credit", msg)
+    if etype == "overloaded_error" or getattr(exc, "status_code", None) == 529:
+        return AIError("overloaded", msg)
+    for cls_name, code in table:
+        cls = getattr(anthropic, cls_name, None)
+        if cls is not None and isinstance(exc, cls):
+            return AIError(code, msg)
+    if isinstance(exc, getattr(anthropic, "APIStatusError", ())):
+        return AIError("server_error" if (getattr(exc, "status_code", 0) or 0) >= 500 else "api_error", msg)
+    return AIError("unknown", msg)
+
+
 def ai_narrative(report: dict, cfg: dict) -> str | None:
     """Ask Claude to coach: review the last session, judge today's readiness,
     write the whiteboard (see ai_summary / ai_system_prompt). Key stays local;
     the model sees only aggregated, name-free metrics. Cost is steered by the
     'ai_effort' config option (low | medium | high | xhigh | max, default medium).
+    Returns None without a key; raises AIError (see classify_ai_error) when the call fails -
+    callers must catch it so that a failed AI call never costs the athlete the report.
     """
     key = cfg.get("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -2152,22 +2260,36 @@ def ai_narrative(report: dict, cfg: dict) -> str | None:
     try:
         from anthropic import Anthropic
     except ImportError:
-        return None
+        raise AIError("sdk_missing", "the 'anthropic' package is not installed - run the installer again")
 
     client = Anthropic(api_key=key)
     model = cfg.get("model", "claude-opus-5")   # override in config if desired
     effort = str(cfg.get("ai_effort") or AI_EFFORT_DEFAULT).lower()
     if effort not in AI_EFFORT_LEVELS:
         effort = AI_EFFORT_DEFAULT
-    msg = client.messages.create(
-        model=model,
-        max_tokens=16000,                        # room for adaptive thinking + the whole board
-        thinking={"type": "adaptive"},           # on by default for Opus 5 / Fable
-        output_config={"effort": effort},        # coaching is analysis; user-tunable via 'ai_effort'
-        system=ai_system_prompt(cfg),
-        messages=[{"role": "user", "content": json.dumps(ai_summary(report, cfg), ensure_ascii=False)}],
-    )
-    return "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+    try:
+        msg = client.messages.create(
+            model=model,
+            max_tokens=16000,                        # room for adaptive thinking + the whole board
+            thinking={"type": "adaptive"},           # on by default for Opus 5 / Fable
+            output_config={"effort": effort},        # coaching is analysis; user-tunable via 'ai_effort'
+            system=ai_system_prompt(cfg),
+            messages=[{"role": "user", "content": json.dumps(ai_summary(report, cfg), ensure_ascii=False)}],
+        )
+    except Exception as exc:                         # network, key, rate limit, ... -> a code the UI explains
+        raise classify_ai_error(exc) from exc
+    text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+    stop = getattr(msg, "stop_reason", None)
+    if stop == "refusal":
+        raise AIError("refusal", "the model declined to answer")
+    if stop == "max_tokens":                         # cut off: say so instead of passing it off as complete
+        if not text.strip():
+            raise AIError("truncated", "the answer hit the token limit before any text was written")
+        note = ("Antwort am Token-Limit abgeschnitten - in den Einstellungen einen geringeren KI-Aufwand wählen oder neu laden."
+                if cfg.get("language", "en") == "de" else
+                "Answer cut off at the token limit - choose a lower AI effort in Settings or reload.")
+        text = text.rstrip() + "\n\n---\n" + note
+    return text
 
 
 # =============================================================================
@@ -2198,11 +2320,16 @@ def main():
     cfg.setdefault("user_id", cfg.get("user_id", 1))
     cfg["_catalog"] = load_catalog(args.catalog)   # code -> {name, group, kind}
 
+    sweep_stale_copies()                         # leftovers of crashed runs hold private data
     con, tmp = open_readonly(args.db)
     try:
         report = build_report(con, cfg)
         if args.ai:
-            report["ai_narrative"] = ai_narrative(report, cfg)
+            try:                                  # a failed AI call must never cost the report
+                report["ai_narrative"] = ai_narrative(report, cfg)
+            except AIError as err:
+                report["ai_narrative"], report["ai_error"] = None, err.info()
+                print(f"AI narrative failed ({err.code}): {err.message}", file=sys.stderr)
     finally:
         con.close()
         shutil.rmtree(tmp, ignore_errors=True)

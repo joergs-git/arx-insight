@@ -97,7 +97,7 @@
   .seg button{border:0;background:var(--panel);color:var(--ink2);font-size:18px;font-weight:600;padding:0 20px;min-height:56px}
   .seg button[aria-pressed=true]{background:var(--accent);color:#fff}
   .grid-prog{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}@media(max-width:760px){.grid-prog{grid-template-columns:1fr}}
-  .excard{background:var(--panel);border:2px solid var(--rule);border-radius:6px;padding:16px 18px}
+  .excard{background:var(--panel);border:2px solid var(--rule);border-radius:6px;padding:16px 18px;color:var(--ink)}
   .excard .n{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
   .excard .exname{font-family:var(--disp);font-size:22px;font-weight:600;text-transform:uppercase}
   .excard .cur{font-family:var(--disp);font-weight:700;font-size:30px}.excard .cur small{font-size:.42em;color:var(--ink3)}
@@ -284,8 +284,14 @@
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const api=(p)=>fetch(p).then(r=>r.json());
-const post=(p,b)=>fetch(p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
+// Every /api call carries the X-ARX-Token header: the server rejects requests without it, and a
+// foreign web page cannot add a custom header - so nobody else can read data or trigger a billed
+// AI call. "local" on this machine (v0.6.0 puts the phone's access token here).
+const HDR={"X-ARX-Token":"local"};
+const api=(p)=>fetch(p,{headers:HDR}).then(r=>r.json());
+const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
+// HTML-escape everything that comes from the database or the network before it goes into innerHTML
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
@@ -373,9 +379,9 @@ $("#q").addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(runSearch
 $("#q").addEventListener("focus",runSearch);
 async function runSearch(){
   const list=await api("/api/users?q="+encodeURIComponent($("#q").value));
-  $("#results").innerHTML=list.map(u=>`<button class="urow" data-id="${u.id}" data-name="${u.name}">
-    <div><div class="un">${u.name}</div><div class="um">${u.gender||''} ${u.birthdate?('· *'+u.birthdate):''}</div></div>
-    <div class="um">${T().created} ${u.created||'—'}</div></button>`).join("");
+  $("#results").innerHTML=list.map(u=>`<button class="urow" data-id="${esc(u.id)}" data-name="${esc(u.name)}">
+    <div><div class="un">${esc(u.name)}</div><div class="um">${esc(u.gender||'')} ${u.birthdate?('· *'+esc(u.birthdate)):''}</div></div>
+    <div class="um">${T().created} ${esc(u.created||'—')}</div></button>`).join("");
 }
 $("#results").addEventListener("click",async e=>{
   const b=e.target.closest(".urow");if(!b)return;
@@ -568,7 +574,7 @@ function updateBannerHtml(){
 
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
-  if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+r.error+'</p>';return;}
+  if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+esc(r.error)+(r.detail?' — '+esc(r.detail):'')+'</p>';return;}
   // ?anon=1 hides the real name (for screenshots you want to share)
   const anon=new URLSearchParams(location.search).get("anon")==="1";
   $("#r_name").textContent=anon?(de0?"Athlet":"Athlete"):r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
@@ -586,7 +592,7 @@ function renderReport(){
     <div class="kpi"><div class="label">${de0?'Exz./Konz.':'Ecc./Con.'}</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
   // sets that do not count (tests, aborts, false starts) - said openly, never hidden
-  const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data']};
+  const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data'],hidden:[de0?'in ARX ausgeblendet':'hidden in ARX',de0?'in ARX ausgeblendet':'hidden in ARX']};
   const exl=Object.entries(r.sets_excluded||{}).filter(([,n])=>n>0).map(([k,n])=>`${n} ${(exNames[k]||[k,k])[n>1?0:1]}`);
   const exclLine=exl.length?`<p class="foot" style="margin:6px 0 0">${r.sets_total-r.sets_working} ${de0?'Sätze nicht gewertet':'sets not counted'}: ${exl.join(', ')}. ${de0?'Nur echte Arbeitssätze fließen in Bestwerte, Trend, Belastung und Plan ein.':'Only real working sets feed bests, trends, load and the plan.'}</p>`:'';
 
@@ -681,7 +687,7 @@ function lastSessionHtml(r){
     trans=`<p class="foot" style="margin:10px 0 0">↔ ${tr.gap_days} ${de?(tr.gap_days===1?'Tag nach':'Tage nach'):(tr.gap_days===1?'day after':'days after')} ${tr.prev_date}: ${trans}.</p>`;
   }
   const fs=ls.false_starts?` · ${ls.false_starts} ${de?(ls.false_starts>1?'Fehlstarts':'Fehlstart'):(ls.false_starts>1?'false starts':'false start')}`:'';
-  const flags=(ls.flags||[]).map(f=>`<span class="chip flat" title="${f.detail||''}">${f.type.replace(/_/g,' ')}</span>`).join(' ');
+  const flags=(ls.flags||[]).map(f=>`<span class="chip flat" title="${esc(f.detail||'')}">${esc(f.type.replace(/_/g,' '))}</span>`).join(' ');
   return `<section><div class="eyebrow">${t.last}</div><h2 class="sec">${ls.date} · ${ls.working_sets} ${de?'Sätze':'sets'} · ${ls.wall_minutes} min</h2>
     <p class="lead">${de?'Deine Übungen in Ausführungsreihenfolge, jede gegen das letzte Mal.':'Your exercises in the order performed, each against the last time you did them.'} ${de?'Gestrichelt = die vorige Kurve.':'Dashed = the previous curve.'}</p>
     ${cards}
@@ -729,7 +735,7 @@ function readinessHtml(l){
   const chips=muscles.map(([m,v])=>{
     const col=!v.ready?'var(--accent)':(v.sore==='mild'?'var(--warn)':'var(--good)');
     const txt=!v.ready?`${de?'ab':'from'} ${(v.ready_on||'').slice(5)}`:(v.sore==='mild'?(de?'leichter Muskelkater':'mild soreness'):(de?'bereit':'ready'));
-    return `<span class="chip" style="border:1px solid ${col};color:${col};background:transparent;margin:0" title="${v.reason||''}">${mname(m)} · ${txt}</span>`;}).join(' ');
+    return `<span class="chip" style="border:1px solid ${col};color:${col};background:transparent;margin:0" title="${esc(v.reason||'')}">${mname(m)} · ${txt}</span>`;}).join(' ');
   const list=(arr,col,label,fmt)=>arr.length?`<div style="margin-top:8px"><b style="color:${col}">${label}:</b> ${arr.map(fmt).join(', ')}</div>`:'';
   return `<div class="panel" style="margin-top:12px"><div class="eyebrow" style="margin-bottom:8px">${de?'Bereitschaft heute':'Readiness today'} · ${l.today||''}</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
@@ -976,6 +982,30 @@ function mdToHtml(md){
   }
   flushTable(); closeList(); return html;
 }
+// A failed coach call explains itself (and offers a retry) instead of looking like a missing key.
+// Codes come from the server (arx_report.classify_ai_error); "app_offline" is set here.
+const AI_ERR={
+  invalid_key:["Der API-Schlüssel wurde abgelehnt. Bitte unter ⚙ Einstellungen prüfen.","The API key was rejected. Please check it under ⚙ Settings."],
+  no_credit:["Das API-Guthaben ist aufgebraucht (Anthropic Console → Billing).","The API credit is used up (Anthropic Console → Billing)."],
+  forbidden:["Dieser API-Schlüssel darf das eingestellte Modell nicht nutzen.","This API key is not allowed to use the configured model."],
+  model_unavailable:["Das eingestellte KI-Modell ist nicht verfügbar. Modell in der config.json prüfen.","The configured AI model is not available. Check the model in config.json."],
+  bad_request:["Der KI-Dienst hat die Anfrage abgelehnt.","The AI service rejected the request."],
+  rate_limit:["Zu viele Anfragen in kurzer Zeit. Bitte in einer Minute erneut versuchen.","Too many requests. Please try again in a minute."],
+  overloaded:["Der KI-Dienst ist gerade überlastet. Bitte gleich noch einmal versuchen.","The AI service is overloaded right now. Please try again shortly."],
+  server_error:["Der KI-Dienst meldet einen Fehler. Bitte später erneut versuchen.","The AI service reports an error. Please try again later."],
+  network:["Keine Verbindung zum KI-Dienst. Internetverbindung prüfen.","No connection to the AI service. Check the internet connection."],
+  timeout:["Der KI-Dienst hat zu lange gebraucht. Bitte erneut versuchen.","The AI service took too long. Please try again."],
+  refusal:["Das Modell hat die Antwort abgelehnt.","The model declined to answer."],
+  truncated:["Die Antwort wurde am Token-Limit abgeschnitten. Geringeren KI-Aufwand wählen.","The answer hit the token limit. Choose a lower AI effort."],
+  sdk_missing:["Das Python-Paket „anthropic“ fehlt. Bitte „Install ARX Insight“ erneut ausführen.","The Python package 'anthropic' is missing. Please run 'Install ARX Insight' again."],
+  app_offline:["Die App antwortet nicht. Läuft das ARX-Insight-Fenster noch?","The app does not answer. Is the ARX Insight window still running?"],
+  unknown:["Die KI-Analyse ist fehlgeschlagen.","The AI analysis failed."]};
+function aiErrorHtml(err){const de=CFG.language==="de", m=AI_ERR[err.code]||AI_ERR.unknown;
+  return `<div class="placeholder"><b style="color:var(--warn)">⚠ ${de?'KI-Coach nicht verfügbar':'AI coach unavailable'}</b><br>${de?m[0]:m[1]}
+    ${err.message&&err.message!==err.code?`<br><span class="foot">${esc(err.message)}</span>`:''}
+    <br><br><span class="foot">${de?'Der Report links ist vollständig – er braucht die KI nicht.':'The report on the left is complete – it does not need the AI.'}</span>
+    <br><br><button class="btn ghost" onclick="retryAI()" style="font-size:17px;min-height:48px;padding:10px 16px">↻ ${de?'Erneut versuchen':'Try again'}</button></div>`;}
+function retryAI(){ if(!REPORT) return; REPORT.ai_error=null; REPORT.ai_narrative=null; autoLoadAI(); }
 function renderAISide(loading){
   const box=$("#aibox"); if(!box) return; const de=CFG.language==="de";
   if(SPIN_T){clearInterval(SPIN_T);SPIN_T=null;}
@@ -986,14 +1016,16 @@ function renderAISide(loading){
     return;
   }
   if(REPORT.ai_narrative){ box.innerHTML=aiHeader()+`<div class="badge" style="margin-bottom:12px">${T().aitag}</div>`+mdToHtml(REPORT.ai_narrative); return; }
+  if(REPORT.ai_error){ box.innerHTML=aiHeader()+aiErrorHtml(REPORT.ai_error); return; }
   box.innerHTML=aiHeader()+`<div class="placeholder">${de?'Für die automatische KI-Analyse und die Empfehlung zur nächsten Einheit fehlt ein Claude API-Schlüssel. Trage ihn unter ⚙ Einstellungen ein.':'An AI analysis and next-session recommendation need a Claude API key. Add it under ⚙ Settings.'}<br><br><a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">${de?'Schlüssel bei Anthropic holen ↗':'Get a key from Anthropic ↗'}</a></div>`;
 }
 async function autoLoadAI(){
   if(REPORT.ai_narrative){ renderAISide(); return; }
   if(!HAS_KEY){ renderAISide(); return; }
   renderAISide(true);
-  try{ const r=await api("/api/report?user_id="+CUR.id+"&ai=1"); REPORT.ai_narrative=r.ai_narrative||null; }
-  catch(e){ REPORT.ai_narrative=null; }
+  try{ const r=await api("/api/report?user_id="+CUR.id+"&ai=1"); REPORT.ai_narrative=r.ai_narrative||null;
+       REPORT.ai_error=r.ai_error||(r.error?{code:"unknown",message:r.detail||r.error}:null); }
+  catch(e){ REPORT.ai_narrative=null; REPORT.ai_error={code:"app_offline",message:""}; }
   renderAISide();
 }
 </script>

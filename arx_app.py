@@ -20,9 +20,14 @@ key stays in config.json (git-ignored) and is only used server-side.
 
 Run:  python arx_app.py --db "<path to DB.FDB4>"   then open http://localhost:8765
 Public domain / CC0. Not medical advice.
+
+v0.3.1: exactly ONE app process (exclusive bind on Windows + instance file + takeover of an older
+version), every /api call must carry the X-ARX-Token header (no cross-site requests), POST bodies
+are validated, a future check-in date can no longer wipe the history, and an AI failure is reported
+as such instead of breaking the report.
 """
 from __future__ import annotations
-import os, sys, json, time, argparse, threading, webbrowser
+import os, sys, json, time, shutil, socket, secrets, argparse, threading, subprocess, webbrowser
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -38,6 +43,24 @@ WEB = os.path.join(HERE, "web", "index.html")
 CHECKIN_KEEP_DAYS = 60        # daily check-ins older than this are pruned from goals.json
 CHECKIN_FIELDS = ("sleep", "energy", "soreness", "rhr", "pain", "note")
 
+# ---- request safety -----------------------------------------------------------------------------
+# Every /api call must carry this header. A web page from another origin cannot add a custom header
+# without a CORS preflight, and this server never grants one - so no foreign page can read data,
+# write settings or trigger a billed AI call. Value "local" on this machine (from v0.6.0 the phone's
+# access token travels in the same header). /api/bootstrap stays open: it holds no personal data and
+# older app versions probe it to find a running instance.
+TOKEN_HEADER = "X-ARX-Token"
+OPEN_PATHS = ("/api/bootstrap",)
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")   # Host allow-list: stops DNS-rebinding pages
+MAX_BODY = 64 * 1024                              # POST bodies are small JSON objects
+
+# ---- single instance ------------------------------------------------------------------------------
+# Who is running: {pid, port, version, folder, secret, started}. Written after a successful bind and
+# marked as stopped (pid/port None) on a clean exit - the file itself stays, it also tells the next
+# start that a version with the exclusive bind has run here before. A newer version reads the secret
+# from here to ask this one to quit.
+INSTANCE = os.path.join(core.data_dir(), "instance.json")
+
 REPO_URL = "https://github.com/joergs-git/arx-insight"
 RAW_VERSION_URL = "https://raw.githubusercontent.com/joergs-git/arx-insight/main/VERSION"
 
@@ -48,18 +71,23 @@ def app_version() -> str:
     except Exception:
         return "0.0.0"
 
+def vparts(v: str) -> list[int]:
+    """'0.3.1' -> [0, 3, 1] for version comparisons (non-numeric parts are ignored)."""
+    return [int(x) for x in str(v or "").split(".") if x.isdigit()]
+
+
 def check_update(current: str) -> dict:
     """Best-effort: is a newer VERSION on GitHub? Never blocks for long."""
     try:
         with urllib.request.urlopen(RAW_VERSION_URL, timeout=3) as r:
             latest = r.read().decode("utf-8").strip()
-        def parts(v): return [int(x) for x in v.split(".") if x.isdigit()]
-        newer = parts(latest) > parts(current)
+        newer = vparts(latest) > vparts(current)
         return {"latest": latest, "update_available": newer, "url": REPO_URL}
     except Exception:
         return {"latest": current, "update_available": False, "url": REPO_URL}
 
-STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None}
+STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None, "secret": ""}
+UPDATE_CHECKED = threading.Event()   # set once the background update check has finished
 
 
 # ---- small JSON file helpers -------------------------------------------------
@@ -88,7 +116,7 @@ def search_users(query: str) -> list[dict]:
         rows = cur.fetchall()
     finally:
         con.close()
-        import shutil; shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
     q = (query or "").strip().lower()
     out = []
     for uid, fn, ln, gender, dob, created in rows:
@@ -149,10 +177,11 @@ def make_report(user_id: int, with_ai: bool) -> dict:
         report["created"] = info["created"]
         report["user"] = info
         if with_ai:
-            report["ai_narrative"] = cached_narrative(report, cfg)
+            # a failed AI call must never cost the athlete the report: text or a typed error
+            report["ai_narrative"], report["ai_error"] = cached_narrative(report, cfg)
     finally:
         con.close()
-        import shutil; shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
     return report
 
 
@@ -181,13 +210,18 @@ def _ai_cache_key(report: dict, cfg: dict) -> str:
     return hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
 
 
-def cached_narrative(report: dict, cfg: dict) -> str | None:
+def cached_narrative(report: dict, cfg: dict) -> tuple[str | None, dict | None]:
+    """(text, error). Only successful answers are cached; a failure comes back as
+    {code, message} (see core.classify_ai_error) so the UI can explain it and offer a retry."""
     key = _ai_cache_key(report, cfg)
     cache = read_json(AI_CACHE, {})
     hit = cache.get(key)
     if isinstance(hit, dict) and hit.get("text"):
-        return hit["text"]
-    text = core.ai_narrative(report, cfg)
+        return hit["text"], None
+    try:
+        text = core.ai_narrative(report, cfg)
+    except Exception as exc:                       # AIError or anything unexpected inside the SDK
+        return None, core.classify_ai_error(exc).info()
     if text:
         cache[key] = {"text": text, "stored": time.strftime("%Y-%m-%dT%H:%M:%S"), "user": cfg.get("user_id")}
         if len(cache) > AI_CACHE_KEEP:                      # drop the oldest entries
@@ -197,7 +231,7 @@ def cached_narrative(report: dict, cfg: dict) -> str | None:
             write_json(AI_CACHE, cache)
         except Exception:
             pass
-    return text
+    return text, None
 
 
 # ---- HTTP handler ------------------------------------------------------------
@@ -211,6 +245,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(code)
             self.send_header("Content-Type", ctype + ("; charset=utf-8" if "json" in ctype or "html" in ctype else ""))
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            if "json" in ctype:
+                self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
         except (ConnectionError, OSError):
@@ -218,13 +255,74 @@ class Handler(BaseHTTPRequestHandler):
             # the multi-second AI request is in flight) - harmless, ignore quietly
             pass
 
+    # -- request checks (see TOKEN_HEADER / LOCAL_HOSTS / MAX_BODY above) ---------------------
+    def _loopback(self) -> bool:
+        return self.client_address[0] in ("127.0.0.1", "::1")
+
+    def _guard(self, path: str) -> bool:
+        """Checks that run before any handler. Returns False after having answered."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host:                                           # browsers always send it
+            name = host[1:host.index("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0]
+            if name not in LOCAL_HOSTS:
+                self._send({"error": "misdirected", "detail": "unknown Host"}, code=421)
+                return False
+        if path.startswith("/api/") and path not in OPEN_PATHS and not self.headers.get(TOKEN_HEADER):
+            self._send({"error": "forbidden", "detail": f"missing {TOKEN_HEADER} header"}, code=403)
+            return False
+        return True
+
+    def _read_json(self) -> dict | None:
+        """Parse a POST body. Anything but a small JSON object is answered with 4xx (-> None):
+        a form or text/plain post is what a foreign web page could send without a preflight."""
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            self._send({"error": "unsupported_media_type"}, code=415)
+            return None
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if length < 0 or length > MAX_BODY:
+            self._send({"error": "bad_length"}, code=413 if length > MAX_BODY else 411)
+            return None
+        try:
+            data = json.loads(self.rfile.read(length) or b"{}")
+        except Exception:
+            data = None
+        if not isinstance(data, dict):
+            self._send({"error": "bad_json"}, code=400)
+            return None
+        return data
+
+    @staticmethod
+    def _uid(value) -> int | None:
+        """A user id from a query string or a JSON body (None when it is not a number)."""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def do_GET(self):
         u = urlparse(self.path)
-        q = parse_qs(u.query)
+        if not self._guard(u.path):
+            return
+        try:
+            self._get(u, parse_qs(u.query))
+        except Exception as e:                             # never a traceback page, never a hang
+            print(f"GET {u.path} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            self._send({"error": type(e).__name__, "detail": str(e)[:300]}, code=500)
+
+    def _get(self, u, q):
         if u.path in ("/", "/index.html"):
             with open(WEB, "rb") as f:
                 return self._send(f.read(), ctype="text/html")
         if u.path == "/api/bootstrap":
+            # Our own page waits a moment for the update check (so the banner is there on the first
+            # paint); a probe by another instance - "?probe=1", or an older version without the
+            # header - is answered at once, otherwise it would take us for a foreign program.
+            if self.headers.get(TOKEN_HEADER) and "probe" not in q:
+                UPDATE_CHECKED.wait(2.5)
             cfg = read_json(CONFIG, {})
             return self._send({
                 "configured": bool(cfg.get("anthropic_api_key") or cfg.get("units") or cfg.get("language")),
@@ -234,6 +332,7 @@ class Handler(BaseHTTPRequestHandler):
                 "has_key": bool(cfg.get("anthropic_api_key")),
                 "catalog": STATE["catalog"],
                 "version": STATE["version"],
+                "pid": os.getpid(),                         # lets a newer instance verify whom it replaces
                 "update": STATE["update"],
             })
         if u.path == "/api/users":
@@ -248,18 +347,36 @@ class Handler(BaseHTTPRequestHandler):
             day = q.get("date", [core._today({}).isoformat()])[0]
             return self._send(checkin_payload(goals.get(uid, {}), day))
         if u.path == "/api/report":
-            uid = int(q.get("user_id", ["0"])[0])
+            uid = self._uid(q.get("user_id", [None])[0])
+            if uid is None:
+                return self._send({"error": "bad_user_id"}, code=400)
             ai = q.get("ai", ["0"])[0] == "1"
-            try:
-                return self._send(make_report(uid, ai))
-            except Exception as e:
-                return self._send({"error": type(e).__name__, "detail": str(e)[:300]}, code=500)
+            return self._send(make_report(uid, ai))
         return self._send({"error": "not found"}, code=404)
 
     def do_POST(self):
         u = urlparse(self.path)
-        length = int(self.headers.get("Content-Length", 0))
-        data = json.loads(self.rfile.read(length) or b"{}")
+        if not self._guard(u.path):
+            return
+        data = self._read_json()
+        if data is None:
+            return
+        try:
+            self._post(u, data)
+        except Exception as e:
+            print(f"POST {u.path} failed: {type(e).__name__}: {e}", file=sys.stderr)
+            self._send({"error": type(e).__name__, "detail": str(e)[:300]}, code=500)
+
+    def _post(self, u, data):
+        if u.path == "/api/shutdown":                      # a newer instance asks us to quit
+            # only from this machine and only with the secret from instance.json - a web page or
+            # another device must never be able to stop the app
+            if not self._loopback() or not secrets.compare_digest(str(data.get("secret") or ""), STATE["secret"] or "-"):
+                return self._send({"error": "forbidden"}, code=403)
+            srv = STATE.get("server")
+            if srv:
+                threading.Thread(target=srv.shutdown, daemon=True).start()
+            return self._send({"ok": True})
         if u.path == "/api/config":                        # global setup screen
             cfg = read_json(CONFIG, {})
             for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
@@ -267,9 +384,13 @@ class Handler(BaseHTTPRequestHandler):
                     cfg[k] = data[k]
             write_json(CONFIG, cfg)
             return self._send({"ok": True})
+        # everything below belongs to one person
+        uid = self._uid(data.get("user_id"))
+        if uid is None:
+            return self._send({"error": "bad_user_id"}, code=400)
         if u.path == "/api/goal":                          # per-user profile / goal screen
             goals = read_json(GOALS, {})
-            rec = goals.get(str(data["user_id"]), {})
+            rec = goals.get(str(uid), {})
             rec["goal"] = data.get("goal", {})
             rec["sessions_per_week"] = data.get("sessions_per_week", 2)
             if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off
@@ -280,49 +401,136 @@ class Handler(BaseHTTPRequestHandler):
             for opt in ("height_cm", "weight_kg", "notes"):            # optional profile fields
                 if opt in data and data[opt] not in ("", None):
                     rec[opt] = data[opt]
-            goals[str(data["user_id"])] = rec              # keep any restrictions
+            goals[str(uid)] = rec                          # keep any restrictions
             write_json(GOALS, goals)
-            return self._send({"ok": True})
-        if u.path == "/api/shutdown":                      # a newer instance asks us to quit
-            srv = STATE.get("server")
-            if srv:
-                threading.Thread(target=srv.shutdown, daemon=True).start()
             return self._send({"ok": True})
         if u.path == "/api/restrictions":                  # injury / limitation screen
             goals = read_json(GOALS, {})
-            rec = goals.get(str(data["user_id"]), {})
+            rec = goals.get(str(uid), {})
             rec["restrictions"] = data.get("restrictions", {})   # {part: ok|careful|avoid}
-            goals[str(data["user_id"])] = rec
+            goals[str(uid)] = rec
             write_json(GOALS, goals)
             return self._send({"ok": True})
         if u.path == "/api/checkin":                       # daily check-in screen
+            # The date comes from the client, the clock is ours: accept today +-1 day only (midnight,
+            # a late entry) and prune relative to the SERVER's today - a far-future date used to
+            # delete the whole check-in history.
+            today = core._today({})
+            try:
+                day = date.fromisoformat(str(data.get("date") or today.isoformat()))
+            except ValueError:
+                return self._send({"error": "bad_date"}, code=400)
+            if abs((day - today).days) > 1:
+                return self._send({"error": "bad_date", "detail": "check-ins are for today"}, code=400)
             goals = read_json(GOALS, {})
-            rec = goals.get(str(data["user_id"]), {})
-            day = data.get("date") or core._today({}).isoformat()
+            rec = goals.get(str(uid), {})
             entry = {k: data[k] for k in CHECKIN_FIELDS if k in data}
             try:
                 entry["rhr"] = int(entry["rhr"]) if entry.get("rhr") not in ("", None) else None
             except (TypeError, ValueError):
                 entry["rhr"] = None
             cis = rec.setdefault("checkins", {})
-            cis[day] = entry
-            cutoff = (date.fromisoformat(day) - timedelta(days=CHECKIN_KEEP_DAYS)).isoformat()
+            cis[day.isoformat()] = entry
+            cutoff = (today - timedelta(days=CHECKIN_KEEP_DAYS)).isoformat()
             for d in [d for d in cis if d < cutoff]:      # keep the file small
                 del cis[d]
-            goals[str(data["user_id"])] = rec
+            goals[str(uid)] = rec
             write_json(GOALS, goals)
-            return self._send({"ok": True, "date": day})
+            return self._send({"ok": True, "date": day.isoformat()})
         return self._send({"error": "not found"}, code=404)
 
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True                    # don't let worker threads block shutdown
+    # http.server sets SO_REUSEADDR. On Windows that option lets a SECOND process bind a port that
+    # is already listening - bind() never fails there, so two app instances ran side by side and
+    # the takeover logic in main() was never reached. Windows gets an exclusive bind instead;
+    # elsewhere SO_REUSEADDR only skips the TIME_WAIT delay, which is what we want.
+    allow_reuse_address = (os.name != "nt")
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
     def handle_error(self, request, client_address):
         # a browser closing the tab mid-response raises ConnectionAborted/Reset -
         # that's normal and not worth a scary traceback; only log real errors
         if issubclass(sys.exc_info()[0] or Exception, (ConnectionError, OSError)):
             return
         super().handle_error(request, client_address)
+
+
+# ---- single instance: probe, take over, register ---------------------------------------------------
+def probe(port: int, timeout: float = 1.5) -> dict | None:
+    """Is one of OUR servers listening on this port? -> its bootstrap info (version, pid) or None."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/bootstrap?probe=1", headers={TOKEN_HEADER: "local"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            d = json.loads(r.read())
+        return d if isinstance(d, dict) and "catalog" in d else None
+    except Exception:
+        return None
+
+
+def start_decision(running_version: str, mine: str) -> str:
+    """'reuse' the running app when it is the same or a newer version (a stray double-click, or an
+    old Desktop shortcut after an update - never a silent downgrade), 'replace' an older one."""
+    return "reuse" if vparts(running_version) >= vparts(mine) else "replace"
+
+
+def request_shutdown(port: int, secret: str) -> bool:
+    """Ask a running instance to quit. Versions before 0.3.1 ignore the extra fields."""
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/shutdown", method="POST",
+            data=json.dumps({"secret": secret or ""}).encode("utf-8"),
+            headers={"Content-Type": "application/json", TOKEN_HEADER: "local"})
+        urllib.request.urlopen(req, timeout=2).read()
+        return True
+    except Exception:
+        return False
+
+
+def kill_process(pid: int) -> None:
+    """Last resort when an older instance does not react to the shutdown request."""
+    try:
+        if os.name == "nt":                                # /T = with child processes, /F = force
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=10)
+        else:
+            import signal
+            os.kill(pid, signal.SIGTERM)
+    except Exception:
+        pass
+
+
+def write_instance(port: int) -> None:
+    try:
+        write_json(INSTANCE, {"pid": os.getpid(), "port": port, "version": STATE["version"], "folder": HERE,
+                              "secret": STATE["secret"], "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    except Exception:
+        pass
+
+
+def mark_stopped() -> None:
+    """Clean exit: mark OUR entry in instance.json as stopped (a successor may already have
+    written its own entry - that one must stay untouched)."""
+    try:
+        if read_json(INSTANCE, {}).get("pid") == os.getpid():
+            write_json(INSTANCE, {"pid": None, "port": None, "version": STATE["version"], "folder": HERE,
+                                  "stopped": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    except Exception:
+        pass
+
+
+def set_console_title(title: str) -> None:
+    """Windows: name the console window, so nobody wonders what that black window is."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleTitleW(title)
+        except Exception:
+            pass
 
 
 def main():
@@ -338,20 +546,12 @@ def main():
     STATE["db"] = db
     STATE["catalog"] = core.load_catalog(args.catalog)
     STATE["version"] = app_version()
-    STATE["update"] = check_update(STATE["version"])   # one-off, 3 s cap
+    STATE["secret"] = secrets.token_urlsafe(16)
+    set_console_title(f"ARX Insight {STATE['version']} - close this window to stop")
 
-    # Single instance with update-takeover:
-    #  * same version already running  -> just open the browser (stray double-click)
-    #  * a DIFFERENT/older version running (e.g. right after an update) -> tell it to
-    #    quit and take over the port, so the old process never lingers
-    #  * some other program on the port -> try the next port
-    def ours_version(port):
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/bootstrap", timeout=1.5) as r:
-                d = json.loads(r.read())
-                return d.get("version", "?") if "catalog" in d else None
-        except Exception:
-            return None
+    def open_browser(port):
+        if not args.no_browser:
+            webbrowser.open(f"http://localhost:{port}")
 
     def try_bind(port):
         try:
@@ -359,38 +559,77 @@ def main():
         except OSError:
             return None
 
-    srv, port = None, args.port
-    for p in range(args.port, args.port + 6):
-        s = try_bind(p)
-        if s:
-            srv, port = s, p; break
-        ver = ours_version(p)
-        if ver is None:
-            continue                                   # not us -> next port
-        if ver == STATE["version"]:
-            print(f"ARX Insight is already running at http://localhost:{p} - opening it.")
-            if not args.no_browser:
-                webbrowser.open(f"http://localhost:{p}")
+    # Exactly ONE app process:
+    #  * the same or a NEWER version is already running -> say so, open it, quit (a stray
+    #    double-click, or an old Desktop shortcut after an update - never a silent downgrade)
+    #  * an OLDER version is running (the usual case right after an update) -> ask it to quit, wait
+    #    for the port, kill it as a last resort; its console window closes with it
+    #  * some other program owns the port -> try the next port
+    # instance.json names the port of a running instance directly; otherwise a port is probed when
+    # it cannot be bound. On the very first start of a version with the exclusive bind on Windows
+    # (no instance.json yet) the default port is probed BEFORE binding: an instance older than
+    # 0.3.1 may hold it non-exclusively, and the probe does not depend on how Windows treats that.
+    inst = read_json(INSTANCE, {})
+    ports = list(range(args.port, args.port + 6))
+    known = inst.get("port") if (isinstance(inst.get("port"), int) and inst.get("pid")) else None
+    if known and known not in ports:
+        ports.insert(0, known)
+
+    srv, port = None, None
+    for p in ports:
+        running = probe(p) if (p == known or (os.name == "nt" and p == args.port and not inst)) else None
+        s = None if running else try_bind(p)
+        if s is None and running is None:
+            running = probe(p)
+            if running is None:
+                continue                                   # not us -> next port
+        if running is None:
+            srv, port = s, p
+            break
+        ver = running.get("version", "?")
+        if start_decision(ver, STATE["version"]) == "reuse":
+            print(f"ARX Insight {ver} is already running at http://localhost:{p} - opening it.")
+            print("Only one ARX Insight runs at a time. This window closes in a moment.")
+            open_browser(p)
+            time.sleep(2.5)
             return
-        print(f"Replacing a running ARX Insight (v{ver}) on port {p} ...")
-        try:
-            urllib.request.urlopen(urllib.request.Request(
-                f"http://127.0.0.1:{p}/api/shutdown", method="POST"), timeout=2).read()
-        except Exception:
-            pass
-        for _ in range(24):                            # wait up to ~6 s for the port to free
+        print(f"Replacing the running ARX Insight {ver} on port {p} with {STATE['version']} ...")
+        request_shutdown(p, inst.get("secret") if inst.get("port") == p else "")
+        for i in range(24):                                # wait up to ~6 s for the port to free
             time.sleep(0.25)
             s = try_bind(p)
             if s:
-                srv, port = s, p; break
-        if srv:
+                break
+        if s is None and inst.get("port") == p and inst.get("pid") and running.get("pid") == inst.get("pid"):
+            print("The old instance does not react - closing it.")
+            kill_process(int(inst["pid"]))
+            for i in range(20):
+                time.sleep(0.25)
+                s = try_bind(p)
+                if s:
+                    break
+        if s:
+            srv, port = s, p
             break
-        if not args.no_browser:                        # couldn't take over -> open the old one
-            webbrowser.open(f"http://localhost:{p}")
+        print(f"Could not take over port {p}. Close the old ARX Insight window and start again.")
+        open_browser(p)                                    # couldn't take over -> open the old one
+        time.sleep(4)
         return
     if srv is None:
         sys.exit("Could not find a free port for ARX Insight.")
     STATE["server"] = srv                              # so /api/shutdown can stop us
+    write_instance(port)
+
+    removed = core.sweep_stale_copies()                # DB copies of crashed runs hold private data
+    if removed:
+        print(f"Removed {removed} leftover temporary database copies.")
+    def update_check():                                # one-off, 3 s cap - in the background, so the
+        try:                                           # server answers (and can be probed) at once
+            if not os.environ.get("ARX_NO_UPDATE_CHECK"):
+                STATE["update"] = check_update(STATE["version"])
+        finally:
+            UPDATE_CHECKED.set()
+    threading.Thread(target=update_check, daemon=True).start()
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
@@ -400,6 +639,9 @@ def main():
         srv.serve_forever()
     except KeyboardInterrupt:
         srv.shutdown()
+    finally:
+        srv.server_close()                             # free the port at once for a successor
+        mark_stopped()
 
 
 if __name__ == "__main__":
