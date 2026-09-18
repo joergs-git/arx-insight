@@ -157,6 +157,10 @@ CATALOG = {
            "limiters": ["grip", "elbow_flexors"], "joints": ["shoulder", "elbow", "wrist", "lower_back"]},
     "4":  {"name": "Pull Down", "group": "Pull", "kind": "compound", "targets": ["lats", "upper_back"],
            "limiters": ["grip", "elbow_flexors"], "joints": ["shoulder", "elbow", "wrist"]},
+    "10": {"name": "Dead Lift", "group": "Drive", "kind": "compound", "targets": ["glutes", "hamstrings", "quads"],
+           "limiters": ["grip", "lower_back"], "joints": ["hip", "knee", "lower_back", "wrist"]},
+    "11": {"name": "Biceps Curl", "group": "Pull", "kind": "isolation", "targets": ["elbow_flexors"],
+           "limiters": ["grip"], "joints": ["elbow", "wrist"]},
     "19": {"name": "Belt Squat", "group": "Drive", "kind": "compound", "targets": ["quads", "glutes"],
            "limiters": [], "joints": ["knee", "hip", "lower_back"]},
     "23": {"name": "Horizontal Press", "group": "Push", "kind": "compound", "targets": ["chest"],
@@ -167,6 +171,7 @@ CATALOG = {
 def cfg(today: str, **extra) -> dict:
     """A report config like arx_app.make_report builds it (fixed 'today' for reproducible results)."""
     base = {"user_id": 1, "alias": "Athlete", "goal": {"muscle": 0.6, "strength": 0.3, "conditioning": 0.1},
-            "sessions_per_week": 2, "units": "metric", "language": "en", "_today": today, "_catalog": CATALOG}
+            "sessions_per_week": 2, "units": "metric", "language": "en", "_today": today, "_catalog": CATALOG,
+            "_no_detail_cache": True}      # generated sets reuse ids and dates - never cache their detail
     base.update(extra)
     return base
