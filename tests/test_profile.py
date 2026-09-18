@@ -10,6 +10,7 @@ from tests.test_app_safety import ServerCase, call, HDR, JSON
 import arx_app as app
 import arx_history as hist
 import arx_report as core
+import arx_ai as ai
 
 TODAY = date(2026, 9, 18)
 CATALOG = dict(fx.CATALOG, **{"10": dict(fx.CATALOG["10"], aids=["hooks", "straps"])})
@@ -116,7 +117,7 @@ class BodyAndTarget(unittest.TestCase):
         r = core.build_report(fx.FakeDB(self.rows([1, 1.02, 1.05])), fx.cfg("2026-09-01"))
         self.assertIsNone(r["body"])
         self.assertIsNone(r["goal_progress"])
-        self.assertIsNone(core.ai_summary(r, fx.cfg("2026-09-01"))["body_changes"])
+        self.assertNotIn("body_relative_changes", ai.build_payload(r, fx.cfg("2026-09-01"))["history"])
 
     def test_trends_need_time_and_the_ai_sees_relative_changes_only(self):
         log = [{"date": "2026-08-01", "weight_kg": 84.0, "waist_cm": 94.0}, {"date": "2026-08-10", "weight_kg": 83.6},
@@ -131,10 +132,11 @@ class BodyAndTarget(unittest.TestCase):
         self.assertEqual((m["weight_kg"]["n"], m["weight_kg"]["change"], m["weight_kg"]["enough"]), (3, -2.1, True))
         self.assertFalse(m["fat_pct"]["enough"])                                       # one reading is no trend
         self.assertEqual(r["body"]["interp"]["code"], "body_lighter_strength_holds")
-        shared = core.ai_summary(r, cfg)["body_changes"]
+        shared = ai.build_payload(r, cfg)["history"]["body_relative_changes"]
         self.assertEqual(set(shared), {"weight_kg", "waist_cm"})
         self.assertNotIn("84", json.dumps(shared))                                     # no absolute body value leaves the machine
-        self.assertIsNone(core.ai_summary(r, dict(cfg, ai_share_body=False))["body_changes"])
+        self.assertNotIn("body_relative_changes", ai.build_payload(r, dict(cfg, ai_share_body=False))["history"])
+        self.assertNotIn("84", ai.dumps_payload(ai.build_payload(r, dict(cfg, ai_share_body=False))["profile"]))
         one = hist.body_trends(log[:1], {}, cfg)
         self.assertEqual(one["interp"]["code"], "body_pending")
 
@@ -155,10 +157,12 @@ class BodyAndTarget(unittest.TestCase):
         rows = self.rows([1, 1.02, 1.05])
         users = {1: ("f", datetime(1979, 3, 2))}
         r = core.build_report(fx.FakeDB(rows, users), fx.cfg("2026-09-01", outcome="muscle"))
-        p = core.ai_summary(r, fx.cfg("2026-09-01"))["athlete_profile"]
+        p = ai.build_payload(r, fx.cfg("2026-09-01"))["profile"]
         self.assertEqual((p["age_band"], p["sex"], p["primary_outcome"]), ("40-49", "female", "muscle"))
-        self.assertNotIn("1979", json.dumps(core.ai_summary(r, fx.cfg("2026-09-01"))))
-        self.assertIsNone(core.ai_summary(r, fx.cfg("2026-09-01", ai_share_profile=False))["athlete_profile"])
+        self.assertNotIn("1979", ai.dumps_payload(ai.build_payload(r, fx.cfg("2026-09-01"))))
+        off = ai.build_payload(r, fx.cfg("2026-09-01", ai_share_profile=False))["profile"]
+        self.assertNotIn("age_band", off)
+        self.assertNotIn("sex", off)
 
 
 if __name__ == "__main__":

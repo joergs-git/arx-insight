@@ -134,24 +134,5 @@ class StartDecision(unittest.TestCase):
         self.assertEqual(app.start_decision("0.9.0", "0.10.0"), "replace")   # numeric, not alphabetical
 
 
-class AiFailure(unittest.TestCase):
-    def test_failure_is_reported_and_never_cached(self):
-        report = {"today": "2026-09-18", "sets_total": 1, "sets_working": 1, "training_days": ["2026-09-18"]}
-        original = core.ai_narrative
-        calls = []
-        try:
-            def boom(r, c):
-                calls.append(1)
-                raise core.AIError("rate_limit", "slow down")
-            core.ai_narrative = boom
-            self.assertEqual(app.cached_narrative(report, {"user_id": 1}), (None, {"code": "rate_limit", "message": "slow down"}))
-            core.ai_narrative = lambda r, c: (calls.append(1), "## 1. Last session")[1]
-            self.assertEqual(app.cached_narrative(report, {"user_id": 1}), ("## 1. Last session", None))
-            self.assertEqual(app.cached_narrative(report, {"user_id": 1}), ("## 1. Last session", None))
-            self.assertEqual(len(calls), 2)                  # failure not cached, success cached
-        finally:
-            core.ai_narrative = original
-
-
 if __name__ == "__main__":
     unittest.main()

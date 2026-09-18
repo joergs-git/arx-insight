@@ -91,6 +91,9 @@ BUDGET_TOLERANCE = 1.15        # planned limiter load above this share of the us
 BUDGET_MIN_SESSIONS = 3
 AID_MIN_EXERCISES = 3          # this many exercises on one limiter also trigger an aid hint
 HIT_RATE_OK = 0.5              # below: the effort is the problem, not the volume
+DECISION_DATES = 5             # feasible dates offered to the coach
+TARGET_LEEWAY_PCT = 5.0        # the coach may move a force target this far from the engine's
+REST_MAX_MIN = 10.0
 LEDGER_MAX = 40                # plans kept per athlete
 TARGET_HIT_SHARE = 0.98        # actual >= this share of the target = target met
 FOCUS_WEIGHT = {"more": 1.5, "normal": 1.0, "less": 0.6, "off": 0.0}
@@ -673,7 +676,9 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
         return None
     want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and c["group"] in theme)))
     fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
-    return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2), "manual": bool(only_groups)}
+    return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2), "manual": bool(only_groups),
+            "candidates": [{"name": c["name"], "status": c["status"], "new": c["new"], "restriction": c["restriction"], "group": c["group"]}
+                           for c in cands]}
 
 
 def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | None, age: str | None,
@@ -881,7 +886,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         return {"algo": PLAN_ALGO_VERSION, "today": {"train_today": False, "trained_today": trained_today,
                                                      "interp": item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)},
                 "profile": profile_out, "next_session": None, "today_session": None, "week_plan": [], "week_strip": [],
-                "cadence_note": None, "date_options": []}
+                "cadence_note": None, "date_options": [], "decision_space": None}
     best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
     session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
     d1 = best["date"]
@@ -998,6 +1003,16 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         "date_options": [{"date": o["date"].isoformat(), "weekday": o["date"].weekday(), "score": o["score"], "fill": o["fill_effective"],
                           "gap_days": o["gap_days"], "exercises": [c["name"] for c in o["chosen"]],
                           "limited": [c["name"] for c in o["chosen"] if c["status"] == "limited"]} for o in opts],
+        # what a coach (the AI, v0.5.0) may change without breaking a rule: the feasible dates with everything
+        # trainable on them, the bounds for targets / sets / rests and the effort cap. check_rows() enforces it.
+        "decision_space": {
+            "dates": [{"date": o["date"].isoformat(), "candidates": o["candidates"]} for o in opts[:DECISION_DATES]],
+            "muscles": {c["name"]: c["muscles"] for c in pool},
+            "targets_kg": {it["name"]: it["target_peak_kg"] for it in session["exercises"]},
+            "bounds": {"target_pct": TARGET_LEEWAY_PCT, "sets_max": 1 if age in MINOR_BANDS else 2, "rest_max_min": REST_MAX_MIN,
+                       "rows_min": min(2, len(session["exercises"])), "rows_max": min(SESSION_MAX_EX, len(session["exercises"]) + 1)},
+            "effort_cap": effort_for(cfg, commitment, best["band"], age)[0]["label"],
+        },
     }
 
 
@@ -1072,6 +1087,55 @@ def check_plan(session: dict, pool: list[dict], state: dict, today: date, effort
         for b in seq[i + 1:]:
             if means_before_target(a, b):
                 problems.append({"code": "target_before_its_means", "exercise": a["name"], "detail": b["name"]})
+    return problems
+
+
+def check_rows(day: str, rows: list[dict], space: dict) -> list[dict]:
+    """The same rules as check_plan(), on the serialised decision space - for a plan that comes from
+    outside the engine (the AI coach). rows = [{exercise, sets, target_kg (None = no number), effort,
+    rest_before_min}]. -> [{code, exercise, detail}], empty when the plan is valid."""
+    problems = []
+    option = next((d for d in (space or {}).get("dates", []) if d["date"] == day), None)
+    if not option:
+        return [{"code": "date_not_feasible", "exercise": None, "detail": day}]
+    cands = {c["name"].lower(): c for c in option["candidates"]}
+    bounds, muscles = space["bounds"], space.get("muscles", {})
+    cap = EFFORT_RANK.get(space.get("effort_cap"), 3)
+    if not (bounds["rows_min"] <= len(rows) <= bounds["rows_max"]):
+        problems.append({"code": "row_count", "exercise": None, "detail": f"{bounds['rows_min']}-{bounds['rows_max']}"})
+    seen, seq = set(), []
+    for r in rows:
+        name = str(r.get("exercise") or "")
+        c = cands.get(name.lower())
+        if not c:
+            problems.append({"code": "not_trainable_that_day", "exercise": name})
+            continue
+        if c["name"] in seen:
+            problems.append({"code": "duplicate_exercise", "exercise": c["name"]})
+        seen.add(c["name"])
+        seq.append(c["name"])
+        effort, target = r.get("effort"), r.get("target_kg")
+        gentle = c["status"] == "limited" or c["restriction"] == "careful" or c["new"]
+        if gentle and (effort != "submax" or target):
+            problems.append({"code": "needs_submax", "exercise": c["name"], "detail": "limited" if c["status"] == "limited" else ("careful" if c["restriction"] == "careful" else "new")})
+        if effort not in EFFORT_TARGETS:
+            problems.append({"code": "unknown_effort", "exercise": c["name"], "detail": str(effort)})
+        elif EFFORT_RANK[effort] > cap:
+            problems.append({"code": "effort_above_cap", "exercise": c["name"], "detail": space.get("effort_cap")})
+        base = (space.get("targets_kg") or {}).get(c["name"])
+        if target and not gentle:
+            if base and abs(target / base - 1) * 100 > bounds["target_pct"] + 0.05:
+                problems.append({"code": "target_out_of_bounds", "exercise": c["name"], "detail": f"{base} +-{bounds['target_pct']} %"})
+            if not base:
+                problems.append({"code": "target_without_reference", "exercise": c["name"]})
+        if not (1 <= int(r.get("sets") or 0) <= bounds["sets_max"]):
+            problems.append({"code": "sets_out_of_bounds", "exercise": c["name"], "detail": f"1-{bounds['sets_max']}"})
+        if not (0 <= float(r.get("rest_before_min") or 0) <= bounds["rest_max_min"]):
+            problems.append({"code": "rest_out_of_bounds", "exercise": c["name"], "detail": f"0-{bounds['rest_max_min']}"})
+    for i, a in enumerate(seq):
+        for b in seq[i + 1:]:
+            if means_before_target({"muscles": muscles.get(a, {})}, {"muscles": muscles.get(b, {})}):
+                problems.append({"code": "target_before_its_means", "exercise": a, "detail": b})
     return problems
 
 

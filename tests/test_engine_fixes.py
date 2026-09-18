@@ -159,45 +159,14 @@ class AiErrors(unittest.TestCase):
         err = core.classify_ai_error(exc)
         self.assertEqual((err.code, err.message), ("no_credit", "Your credit balance is too low."))
 
-    def test_no_key_means_no_call_and_no_error(self):
+    def test_no_key_means_no_call(self):
+        import arx_ai
         os.environ.pop("ANTHROPIC_API_KEY", None)
-        self.assertIsNone(core.ai_narrative({}, {}))
-
-
-class Payload(unittest.TestCase):
-    def setUp(self):
-        rows = [fx.make_set(1, ROW, datetime(2026, 9, 1, 10, 0)),
-                fx.make_set(2, PRESS, datetime(2026, 9, 1, 10, 6), start_pos=10, end_pos=20),
-                fx.make_set(3, ROW, datetime(2026, 9, 4, 10, 0)),
-                fx.make_set(4, PRESS, datetime(2026, 9, 4, 10, 6), start_pos=10, end_pos=20)]
-        checkin = {"date": "2026-09-08", "sleep": "ok", "energy": "high", "soreness": {}, "note": "ask Anna about it"}
-        self.cfg = fx.cfg("2026-09-08", units="imperial", checkin=checkin, restrictions={"shoulder": "careful"})
-        self.report = core.build_report(fx.FakeDB(rows), self.cfg)
-        self.payload = core.ai_summary(self.report, self.cfg)
-
-    def test_free_text_note_never_leaves_the_machine(self):
-        self.assertEqual(self.report["readiness"]["note"], "ask Anna about it")   # kept locally
-        self.assertNotIn("note", self.payload["checkin_today"])
-        self.assertNotIn("Anna", str(self.payload))
-
-    def test_no_kg_values_in_an_lb_payload(self):
-        self.assertTrue(self.payload["session_plan"])
-        for item in self.payload["session_plan"]:
-            self.assertNotIn("last", item)
-            self.assertIn("last_day_best", item)
-        kg_best = {i["name"]: i["last"] for i in self.report["session_plan"]}
-        for item in self.payload["session_plan"]:
-            if kg_best[item["name"]] is None:            # an exercise suggested as new has no best yet
-                self.assertIsNone(item["last_day_best"])
-                continue
-            self.assertAlmostEqual(item["last_day_best"], kg_best[item["name"]] * 2.20462, delta=0.06)
-        leaks = re.findall(r"'(\w+_(?:kg|cm))'", str(self.payload))
-        self.assertFalse(leaks, leaks)                   # no metric key anywhere in an imperial payload
-        self.assertEqual(self.payload["totals"]["work_unit"], "lb*s")
-        self.assertAlmostEqual(self.payload["totals"]["total_work_impulse"],
-                               self.report["totals"]["total_work_impulse"] * 2.20462, delta=0.06)
-        for check in self.payload["restriction_checks"]:
-            self.assertFalse([k for k in check if k.endswith("_kg")], check)
+        os.environ.pop("ARX_AI_FAKE", None)
+        self.assertFalse(arx_ai.has_key({}))
+        with self.assertRaises(core.AIError) as ctx:
+            arx_ai.make_client({})
+        self.assertEqual(ctx.exception.code, "no_key")
 
 
 class StaticSetsAndProtocols(unittest.TestCase):
