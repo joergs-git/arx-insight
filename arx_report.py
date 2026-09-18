@@ -24,26 +24,12 @@ from __future__ import annotations
 import os, sys, json, gzip, time, shutil, tempfile, argparse, statistics as st
 from datetime import datetime, date, timedelta
 
+# shared base (moved out in v0.4.0; re-exported here so callers of arx_report keep working)
+from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS,
+                      open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit)
+import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 
-def data_dir() -> str:
-    """Stable per-user location for settings, goals and caches.
 
-    Kept OUTSIDE the program folder so re-downloading the app (a fresh ZIP)
-    never overwrites the user's settings, goals, venv or Firebird client.
-    Override with the ARX_DATA_DIR environment variable (the Windows launcher
-    sets it to %LOCALAPPDATA%\\ARXInsight)."""
-    d = os.environ.get("ARX_DATA_DIR")
-    if not d:
-        if os.name == "nt":
-            d = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ARXInsight")
-        else:
-            d = os.path.join(os.path.expanduser("~"), ".arx-insight")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-# --- unit conversions (ARX stores imperial internally) -----------------------
-LB_TO_KG = 0.45359237          # pounds  -> kilograms
-IN_TO_CM = 2.54                # inches  -> centimeters
 
 # --- a "real" working set must clear this noise filter ------------------------
 # A normal ARX set is ~8 reps over 80-190 s. Anything with fewer than MIN_REPS
@@ -56,12 +42,15 @@ RESTART_GAP_MIN = 3            # same exercise started again within this many mi
                                # with MORE reps -> the earlier one was a false start
 
 # --- effort / inroad classification --------------------------------------------
-# Bump EFFORT_ALGO_VERSION whenever set_effort's logic or these thresholds change:
-# the per-set effort cache is keyed by set id and would otherwise keep stale
-# results forever (a recorded set never changes, but our reading of it may).
-EFFORT_ALGO_VERSION = 2
-INROAD_DEEP = 20               # % force decline across reps -> genuinely deep fatigue
-INROAD_MODERATE = 8            # % ... -> moderate effort (unless the peaks were still rising)
+# Since v0.4.0 the effort of a set comes from arx_detail.effort_v3 (phase-resolved, time-weighted;
+# deep >= 20, moderate >= 10). The constants below belong to the LEGACY reading (v2: decline of the
+# whole-rep peak = of an eccentric spike); it survives as set["inroad_legacy"] and in set_effort()
+# for comparison only.
+EFFORT_ALGO_VERSION = detail.EFFORT_ALGO_VERSION
+INROAD_DEEP = 20               # legacy v2: % decline of the rep peaks -> deep
+INROAD_MODERATE = 8            # legacy v2: ... -> moderate (unless the peaks were still rising)
+LOW_FORCE_SHARE = 0.5          # a set below this share of the exercise's best peak nearby ...
+LOW_FORCE_DAYS = 28            # ... (within this many days) cannot count as a hard load
 
 # --- range-of-motion validity ---------------------------------------------------
 # Force on an adaptive-resistance machine depends on the position range the set
@@ -82,97 +71,6 @@ IDEAL_SETTINGS = {
     "pause_end_s": 3, "pause_return_s": 0, "pre_timer_s": 5,
     "note": "The 3 s end-position hold does not suit every exercise type.",
 }
-
-
-# =============================================================================
-# Firebird access
-# =============================================================================
-def locate_fbclient() -> str | None:
-    """Find the Firebird client library.
-
-    Priority: explicit env var, then the library that ships with the ARX app on
-    Windows (embedded mode), then a couple of common install locations. On the
-    machine running ARX this library is always present, because ARX itself uses
-    Firebird embedded.
-    """
-    env = os.environ.get("ARX_FBCLIENT")
-    if env and os.path.exists(env):
-        return env
-    candidates = [
-        # Windows: next to the ARX executable (embedded fbclient)
-        r"C:\Program Files\WindowsApps",  # searched below
-        r"C:\Program Files\Firebird\Firebird_5_0\fbclient.dll",
-        r"C:\Program Files\Firebird\Firebird_4_0\fbclient.dll",
-        # macOS / Linux
-        "/Library/Frameworks/Firebird.framework/Firebird",
-        "/opt/firebird/lib/libfbclient.so",
-        "/usr/lib/libfbclient.so",
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    # Windows: hunt for fbclient.dll inside the installed ARX package
-    wa = r"C:\Program Files\WindowsApps"
-    if os.path.isdir(wa):
-        for root, _dirs, files in os.walk(wa):
-            if "Arx" in root and "fbclient.dll" in files:
-                return os.path.join(root, "fbclient.dll")
-    return None
-
-
-TEMP_PREFIX = "arx_ro_"         # temp folders holding a COPY of the (private) ARX database
-STALE_COPY_SECONDS = 3600       # a copy older than this belongs to a crashed / killed run
-
-
-def open_readonly(db_path: str):
-    """Return (connection, tempdir). Opens a COPY so the original is untouched.
-
-    The copy contains private training data, so it must never be left behind: when the copy or
-    the connection fails (missing client library, locked file, ...) the temp folder is removed
-    before the error is passed on. Callers remove it after closing the connection."""
-    from firebird.driver import connect, driver_config  # imported late on purpose
-
-    lib = locate_fbclient()
-    if lib:
-        driver_config.fb_client_library.value = lib
-    tmp = tempfile.mkdtemp(prefix=TEMP_PREFIX)
-    try:
-        copy = os.path.join(tmp, "arx_copy.fdb")
-        shutil.copy2(db_path, copy)
-        con = connect(copy, user="SYSDBA")   # embedded: no password required
-    except Exception:
-        shutil.rmtree(tmp, ignore_errors=True)
-        raise
-    return con, tmp
-
-
-def sweep_stale_copies(max_age_s: float = STALE_COPY_SECONDS) -> int:
-    """Remove DB copies that an earlier run left behind (crash, killed console window).
-    Only folders with our prefix that are older than max_age_s are touched, so a report that is
-    being built right now by another process keeps its copy. Returns the number removed."""
-    root, removed, now = tempfile.gettempdir(), 0, time.time()
-    try:
-        names = os.listdir(root)
-    except OSError:
-        return 0
-    for name in names:
-        path = os.path.join(root, name)
-        try:
-            if name.startswith(TEMP_PREFIX) and os.path.isdir(path) and now - os.path.getmtime(path) > max_age_s:
-                shutil.rmtree(path, ignore_errors=True)
-                removed += 1
-        except OSError:
-            pass
-    return removed
-
-
-def blob_bytes(v) -> bytes:
-    """Normalize a Firebird blob value to bytes (text blobs come back as str)."""
-    if v is None:
-        return b""
-    if hasattr(v, "read"):
-        v = v.read()
-    return v.encode("latin1") if isinstance(v, str) else bytes(v)
 
 
 # =============================================================================
@@ -307,14 +205,6 @@ def load_sets(con, user_id: int) -> list[dict]:
     return out
 
 
-def _ts(s: str):
-    """ISO timestamp string -> epoch seconds (None if unparsable)."""
-    try:
-        return datetime.fromisoformat(s).timestamp()
-    except Exception:
-        return None
-
-
 def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
     """Decode the raw force/position curve and the event stream of one set.
 
@@ -400,14 +290,24 @@ def _downsample(curve: list[dict], n: int = CURVE_POINTS) -> list[dict]:
     return [curve[int(i * step)] for i in range(n)] + [curve[-1]]
 
 
-def set_curve(con, set_id: int) -> dict:
-    """Downsampled curve + per-rep peaks with their times + inroad of one set
-    (see load_curve) - what a force-curve card in the UI needs."""
+def set_curve(con, set_id: int, d: dict | None = None) -> dict:
+    """Downsampled curve + per-rep peaks with their times (curve markers) of one set, plus - from
+    its detail d (arx_detail) - what happened per repetition: concentric / eccentric mean force,
+    fatigue per phase, force by third of the range. inroad_pct is the SAME effort figure the
+    recovery model uses (effort v3), so a card and the plan can never disagree."""
     curve, events = load_curve(con, set_id)
     segs = rep_segments(curve, events)
     peaks = [s["peak"] for s in segs]
-    return {"curve": _downsample(curve), "rep_peaks": peaks,
-            "rep_times": [s["t"] for s in segs], "inroad_pct": _inroad(peaks)}
+    d = d or {}
+    reps = d.get("reps") or []
+    return {"curve": _downsample(curve), "rep_peaks": peaks, "rep_times": [s["t"] for s in segs],
+            "inroad_pct": d.get("inroad_v3") if d.get("inroad_v3") is not None else _inroad(peaks),
+            "rep_con": [r.get("con_mean") for r in reps], "rep_ecc": [r.get("ecc_mean") for r in reps],
+            "rep_hold": [r.get("hold_end_mean") if r.get("hold_end_mean") is not None else r.get("hold_start_mean")
+                         for r in reps],
+            "first_half": d.get("first_half"),
+            "con_thirds_kg": d.get("con_thirds_kg"), "ecc_thirds_kg": d.get("ecc_thirds_kg"),
+            "con_weak_third": d.get("con_weak_third"), "ecc_weak_third": d.get("ecc_weak_third")}
 
 
 # --- exercise catalog: code -> {name, group (Push/Pull/Drive), kind} ----------
@@ -419,20 +319,6 @@ def load_catalog(path: str) -> dict:
         return {k: v for k, v in raw.items() if not k.startswith("_")}
     except Exception:
         return {}
-
-
-def _linfit(xs, ys):
-    """Least-squares slope/intercept. The slope's unit follows xs: pass the
-    occurrence index for 'per training day occurrence', the day offset for 'per
-    calendar day' - the two differ by the training frequency (2-3x at 3 sessions
-    a week), so never mix them up."""
-    n = len(xs)
-    if n < 2:
-        return 0.0, (ys[0] if ys else 0.0)
-    mx, my = sum(xs) / n, sum(ys) / n
-    den = sum((x - mx) ** 2 for x in xs) or 1e-9
-    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den
-    return b, my - b * mx
 
 
 def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None) -> list[dict]:
@@ -479,6 +365,12 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
                     "id": b["id"],                          # the best set of that day
                     "rom_cm": b.get("rom_cm"),              # ROM of that day's best set
                     "inroad": b.get("inroad"), "effort": b.get("effort"),
+                    "inroad_legacy": b.get("inroad_legacy"),
+                    # phase-resolved strength of that set (mean of the 3 best rep means): robust
+                    # against pause / tempo changes, unlike the peak or the mean force
+                    "con_top3_kg": b.get("con_top3_kg"), "ecc_top3_kg": b.get("ecc_top3_kg"),
+                    "mov_kg": b.get("mov_kg"), "fatigue_con_pct": b.get("fatigue_con_pct"),
+                    "fatigue_ecc_pct": b.get("fatigue_ecc_pct"),
                     "mean_force_kg": b.get("mean_force_kg"), "eccentric_kg": b.get("eccentric_kg"),
                     "reps": b.get("reps"), "seconds": b.get("seconds"),
                     "pause_end_s": b.get("pause_end_s"), "pause_return_s": b.get("pause_return_s"),
@@ -686,16 +578,6 @@ SORENESS_REGIONS = {
     "arms": ["elbow_flexors", "triceps", "grip"],
     "shoulders": ["shoulders"],
 }
-
-
-def _today(cfg: dict) -> date:
-    """Today - overridable via cfg['_today'] or the ARX_TODAY environment
-    variable (ISO date) for reproducible tests and screenshots."""
-    t = (cfg or {}).get("_today") or os.environ.get("ARX_TODAY")
-    try:
-        return date.fromisoformat(t) if t else date.today()
-    except Exception:
-        return date.today()
 
 
 def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
@@ -1570,6 +1452,47 @@ def set_effort(con, set_id: int, cache: dict) -> dict:
     return result
 
 
+# set-level detail fields copied onto each working set (the per-rep rows stay in s["detail"])
+DETAIL_FIELDS = ("con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_kg", "mov_kg", "ecc_con_ratio",
+                 "fatigue_con_pct", "fatigue_ecc_pct", "output_change_pct", "pacing_deficit_pct", "best_rep",
+                 "hold_kg", "hold_rel", "drops_mid", "tut", "tempo", "arx_output", "borderline",
+                 "con_thirds_kg", "ecc_thirds_kg", "con_weak_third", "ecc_weak_third", "first_half")
+
+
+def attach_detail(s: dict, d: dict) -> None:
+    """Put the detail of a set (arx_detail.set_detail) onto the set: effort v3 becomes THE effort
+    (s["inroad"], s["effort"]) for recovery, plan and display; the v2 reading stays visible as
+    inroad_legacy / effort_legacy. A set without a usable curve is 'unknown' (treated as a moderate
+    load by the recovery model - better safe than sorry)."""
+    s["detail"] = d
+    s["detail_method"] = d.get("method", "none")
+    s["inroad_legacy"], s["effort_legacy"] = d.get("inroad_legacy"), d.get("effort_legacy", "unknown")
+    s["inroad"] = d.get("inroad_v3")
+    s["effort"] = d.get("effort", "unknown") if d.get("inroad_v3") is not None else "unknown"
+    for k in DETAIL_FIELDS:
+        s[k] = d.get(k)
+
+
+def cap_low_force(work: list[dict]) -> None:
+    """A set far below what the athlete can do is no hard load, however much its force fell.
+
+    Effort v3 is relative to the set itself: a familiarisation set at 40 % of the athlete's real
+    force can 'lose 30 %' and would count as deep - and block the muscle for three days. So a set
+    whose peak is below LOW_FORCE_SHARE of the best peak of that exercise within +-LOW_FORCE_DAYS is
+    capped at sub-maximal. Done at report time (never in the cache): it depends on other sets."""
+    by_ex: dict = {}
+    for s in work:
+        by_ex.setdefault(s["exercise"], []).append(s)
+    for ss in by_ex.values():
+        days = [(date.fromisoformat(x["date"][:10]).toordinal(), x["max_kg"]) for x in ss]
+        for s in ss:
+            o = date.fromisoformat(s["date"][:10]).toordinal()
+            best = max(kg for d, kg in days if abs(d - o) <= LOW_FORCE_DAYS)
+            s["effort_capped"] = None
+            if best and s["max_kg"] < LOW_FORCE_SHARE * best and s.get("effort") in ("deep", "moderate"):
+                s["effort_uncapped"], s["effort"], s["effort_capped"] = s["effort"], "submax", "low_force"
+
+
 def featured_settings(con, set_id: int, reps: int) -> dict:
     """Actual machine settings of one set (from REPSCHEMEDATA), so the report and
     the AI can compare them with IDEAL_SETTINGS."""
@@ -1650,11 +1573,19 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "concentric_kg": s["concentric_kg"], "eccentric_kg": s["eccentric_kg"],
             "reps": s["reps"], "seconds": s["seconds"], "rom_cm": s.get("rom_cm"),
             "inroad": s.get("inroad"), "effort": s.get("effort"),
+            "inroad_legacy": s.get("inroad_legacy"), "effort_capped": s.get("effort_capped"),
+            # inside the set: fatigue per phase, robust strength, pacing, time under tension
+            "fatigue_con_pct": s.get("fatigue_con_pct"), "fatigue_ecc_pct": s.get("fatigue_ecc_pct"),
+            "con_top3_kg": s.get("con_top3_kg"), "ecc_top3_kg": s.get("ecc_top3_kg"),
+            "ecc_con_ratio": s.get("ecc_con_ratio"), "pacing_deficit_pct": s.get("pacing_deficit_pct"),
+            "best_rep": s.get("best_rep"), "tut": s.get("tut"), "drops_mid": s.get("drops_mid"),
             "pause_end_s": s.get("pause_end_s"), "pause_return_s": s.get("pause_return_s"),
             "limiters_pre_fatigued": seq.get("limiters_pre_fatigued", []),
             "prev": ({"date": prev["date"], "id": prev["id"], "max_kg": prev["kg"],
                       "mean_force_kg": prev["mean_force_kg"], "reps": prev["reps"], "seconds": prev["seconds"],
-                      "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"]}
+                      "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"],
+                      "con_top3_kg": prev.get("con_top3_kg"), "ecc_top3_kg": prev.get("ecc_top3_kg"),
+                      "fatigue_con_pct": prev.get("fatigue_con_pct"), "fatigue_ecc_pct": prev.get("fatigue_ecc_pct")}
                      if prev else None),
             "delta_pct": round((s["max_kg"] - prev["kg"]) / prev["kg"] * 100, 1) if (prev and prev["kg"]) else None,
             "delta_mean_pct": (round((s["mean_force_kg"] - prev["mean_force_kg"]) / prev["mean_force_kg"] * 100, 1)
@@ -1675,14 +1606,16 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         if r["is_pb"] and chart_names:            # a new PB later in the session earns the third card
             chart_names[-1] = r["name"]
             break
+    detail_by_id = {x["id"]: x.get("detail") for x in work}
     for r in rows:
         if r["name"] not in chart_names:
             continue
         r["chart"] = True
-        r.update(set_curve(con, r["set_id"]))
+        r.update(set_curve(con, r["set_id"], detail_by_id.get(r["set_id"])))
         if r["prev"]:
-            pc = set_curve(con, r["prev"]["id"])
+            pc = set_curve(con, r["prev"]["id"], detail_by_id.get(r["prev"]["id"]))
             r["prev_curve"], r["prev_rep_peaks"], r["prev_rep_times"] = pc["curve"], pc["rep_peaks"], pc["rep_times"]
+            r["prev_rep_con"], r["prev_rep_ecc"] = pc["rep_con"], pc["rep_ecc"]
         r["settings"] = featured_settings(con, r["set_id"], r["reps"])
 
     transition = next((t for t in transitions if t["date"] == day["date"]), None)
@@ -1711,16 +1644,17 @@ def build_report(con, cfg: dict) -> dict:
     for s in sets:
         if not s["working"]:
             excluded[s["status"]] = excluded.get(s["status"], 0) + 1
-    # effort per set (real fatigue reached), cached by set id + algorithm version
-    cache = load_effort_cache()
-    for s in work:                       # attach name/group + effort/inroad
+    # what happened inside each set (phases per rep, effort v3) - decoded once, cached per set
+    dcache = detail.load_detail_cache()
+    n_cached = len(dcache)
+    for s in work:                       # attach name/group + detail + effort
         m = catalog.get(str(s["exercise"]), {})
         s["name"] = m.get("name", f"Exercise {s['exercise']}")
         s["group"] = m.get("group", "?")
-        e = set_effort(con, s["id"], cache)
-        s["inroad"] = e["inroad"]
-        s["effort"] = e["effort"]
-    save_effort_cache(cache)
+        attach_detail(s, detail.get_detail(con, s, dcache, s["mean_force_kg"] / LB_TO_KG))
+    if len(dcache) != n_cached:
+        detail.save_detail_cache(dcache)
+    cap_low_force(work)
 
     today = _today(cfg)
     checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
