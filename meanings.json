@@ -1059,5 +1059,75 @@
    "en": "Weeks on target are what add up - this one is still within reach.",
    "de": "Wochen im Soll sind das, was sich summiert - diese ist noch zu schaffen."
   }
+ },
+ "reptrend_both_fade": {
+  "meaning": {
+   "en": "Both phases fell across the reps: lifting (concentric) -{con_pct}, lowering (eccentric) -{ecc_pct}. That is real fatigue.",
+   "de": "Beide Phasen fielen über die Wiederholungen: Heben (konzentrisch) -{con_pct}, Ablassen (exzentrisch) -{ecc_pct}. Das ist echte Ermüdung."
+  },
+  "action": {
+   "en": "This is what a productive set looks like - repeat it; the target may rise once it holds.",
+   "de": "So sieht ein wirksamer Satz aus - wiederholen; das Ziel darf steigen, sobald er sich bestätigt."
+  }
+ },
+ "reptrend_con_fades": {
+  "meaning": {
+   "en": "The lifting (concentric) phase fell by {con_pct}, the lowering (eccentric) phase held (-{ecc_pct}).",
+   "de": "Die Hebephase (konzentrisch) fiel um {con_pct}, die Ablassphase (exzentrisch) hielt (-{ecc_pct})."
+  },
+  "action": {
+   "en": "The usual order - lifting tires first. For a deep set keep resisting the motor until the way back drops too.",
+   "de": "Die übliche Reihenfolge - das Heben ermüdet zuerst. Für einen tiefen Satz dem Motor weiter widerstehen, bis auch der Rückweg nachlässt."
+  }
+ },
+ "reptrend_ecc_fades": {
+  "meaning": {
+   "en": "The lowering (eccentric) phase fell by {ecc_pct} while the lifting phase held (-{con_pct}).",
+   "de": "Die Ablassphase (exzentrisch) fiel um {ecc_pct}, während die Hebephase hielt (-{con_pct})."
+  },
+  "action": {
+   "en": "You gave the way back away before the way out was exhausted - resist the motor just as hard to the last rep.",
+   "de": "Du hast den Rückweg hergeschenkt, bevor der Hinweg erschöpft war - dem Motor bis zur letzten Wiederholung genauso hart widerstehen."
+  }
+ },
+ "reptrend_flat": {
+  "meaning": {
+   "en": "Force barely changed across the reps (concentric -{con_pct}, eccentric -{ecc_pct}).",
+   "de": "Die Kraft hat sich über die Wiederholungen kaum verändert (konzentrisch -{con_pct}, exzentrisch -{ecc_pct})."
+  },
+  "action": {
+   "en": "The set ended before real fatigue: push harder from rep 1, or stay in until the force clearly drops.",
+   "de": "Der Satz endete vor echter Ermüdung: ab Wiederholung 1 härter drücken oder im Satz bleiben, bis die Kraft deutlich fällt."
+  }
+ },
+ "reptrend_rising": {
+  "meaning": {
+   "en": "Force ROSE across the set: your first reps were {pacing_pct} below your best ones.",
+   "de": "Die Kraft STIEG über den Satz: Deine ersten Wiederholungen lagen {pacing_pct} unter deinen besten."
+  },
+  "action": {
+   "en": "Full force from rep 1 - otherwise the first reps are a warm-up, not training.",
+   "de": "Volle Kraft ab Wiederholung 1 - sonst sind die ersten Wiederholungen Aufwärmen, kein Training."
+  }
+ },
+ "reptrend_vs_previous": {
+  "meaning": {
+   "en": "Last time ({prev_date}, same settings): concentric -{prev_con_pct}, eccentric -{prev_ecc_pct}; now -{con_pct} / -{ecc_pct}.",
+   "de": "Letztes Mal ({prev_date}, gleiche Einstellungen): konzentrisch -{prev_con_pct}, exzentrisch -{prev_ecc_pct}; jetzt -{con_pct} / -{ecc_pct}."
+  },
+  "action": {
+   "en": "A bigger drop at the same or higher force means you went deeper; a smaller one means there was more in it.",
+   "de": "Ein größerer Abfall bei gleicher oder höherer Kraft heißt: Du bist tiefer gegangen; ein kleinerer: Da war noch mehr drin."
+  }
+ },
+ "date_manual_groups": {
+  "meaning": {
+   "en": "Your choice for the next session: only {groups}.",
+   "de": "Deine Wahl für die nächste Einheit: nur {groups}."
+  },
+  "action": {
+   "en": "Order, targets and rests are planned for exactly that; afterwards the plan continues automatically.",
+   "de": "Reihenfolge, Ziele und Pausen sind genau dafür geplant; danach plant die App wieder automatisch."
+  }
  }
 }

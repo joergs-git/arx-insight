@@ -33,7 +33,7 @@ and shows you what actually happened — and what to do next.
 
 ## What you get
 
-- 🔁 **Last session first** — the exercises you just did, in the order performed, each against the previous time you did them: the force curve with the previous set as a dashed ghost, peak / mean force / inroad / ROM deltas, a new-PB badge, and a note when tempo or pauses changed between the two sets (they shift force values). Below: the session table and whether the day before was too close for the muscles you hit again.
+- 🔁 **Last session first** — the exercises you just did, in the order performed, each against the previous time you did them: the force curve with the previous set as a dashed ghost and — since v0.4.1 — coloured by phase (**eccentric always red, concentric always blue**, pauses grey), below it the **run of the reps**: per-rep force of each phase as a moving average, for today (solid), last time (dashed) and the time before (dotted), lined up by rep number so a changed tempo does not shift the comparison, with a sentence on what the shape means (both phases fade = real fatigue, only the concentric fades = keep resisting, nothing fades = the set ended early …); peak / mean force / inroad / ROM deltas, a new-PB badge, and a note when tempo or pauses changed between the two sets (they shift force values). Below: the session table and whether the day before was too close for the muscles you hit again.
 - 🧹 **Only real sets count** — machine tests, familiarisation sets, aborted attempts and false starts (the same exercise restarted a minute later with more reps) are recognised and excluded from every number. The report says how many and why.
 - 🔥 **Effort / inroad** — did the set reach deep fatigue, or were the early reps sub-maximal? Since v0.4.0 measured on the **concentric and eccentric phase of every rep** (time-weighted means, the turnaround spike of a phase left out) instead of single peak values; a set that merely started low no longer reads as "fatigue", and one eccentric spike no longer reads as "deep".
 - 🔬 **Inside the set** — concentric and eccentric strength apart (mean of your three best reps, robust against pause and tempo changes), fatigue per phase, the best rep, a start that was too cautious, force by third of the range, holds that were programmed but not really held.
@@ -48,7 +48,7 @@ and shows you what actually happened — and what to do next.
 - 🧾 **Session sequence** — the order of your sets within each day, the rest before each one, machine pauses, work density, false starts, and rule-based flags: too many sets, a scattered full-body day on a split plan, the same exercise or muscle hit again within 5 minutes, and a density shift that betrays changed pause/tempo settings (only against a consistent baseline).
 - 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
 - 🧍 **Whole-body index** — a self-referenced score of how close you are to your own bests (ROM-comparable days only), across Push / Pull / Drive.
-- 🗓️ **ONE plan: when, what, in which order, with which targets** (v0.4.0) — the muscle-level recovery model is rolled forward day by day: the next date is where a full session is possible *and* your weekly rhythm is met best, with every reason spelled out ("you trained today", "triceps: 18 days without direct work", "last day on which this week's target can still be met"). Exercises are chosen by how overdue their muscles are, your focus per body region and coverage gaps; twins for the same muscles are not doubled. Every session keeps **one exercise as a clean measurement** (nothing before it loads its muscles — never-measured-fresh first), because progress can only be judged on fresh sets. The order is the cheapest of all permutations, using **your measured order effects** where they exist; "a helper before the exercise that targets it" (Row before Biceps Curl) stays a hard rule. Targets come from your last comparable value, are lowered by the expected loss when something loads the same muscles first, take a small step only when you are progressing *and* the last set was a real one, and turn a plateau into a second set instead of a bigger number. Plus rests, a **helper-muscle budget** (grip & co.) against what you usually do, a note when your change-over times cost you minutes, a 10-day outlook (1–2 sessions a week = full body, 3+ = a rotating Push / Pull / Drive split that keeps every helper with its exercises) — and an honest word when the cadence you asked for is more than recovery allows. A **plan ledger** remembers what was recommended; the next report shows *plan vs what you did*.
+- 🗓️ **ONE plan: when, what, in which order, with which targets** (v0.4.0) — the muscle-level recovery model is rolled forward day by day: the next date is where a full session is possible *and* your weekly rhythm is met best, with every reason spelled out ("you trained today", "triceps: 18 days without direct work", "last day on which this week's target can still be met"). Exercises are chosen by how overdue their muscles are, your focus per body region and coverage gaps; twins for the same muscles are not doubled. Every session keeps **one exercise as a clean measurement** (nothing before it loads its muscles — never-measured-fresh first), because progress can only be judged on fresh sets. The order is the cheapest of all permutations, using **your measured order effects** where they exist; "a helper before the exercise that targets it" (Row before Biceps Curl) stays a hard rule. Targets come from your last comparable value, are lowered by the expected loss when something loads the same muscles first, take a small step only when you are progressing *and* the last set was a real one, and turn a plateau into a second set instead of a bigger number. Plus rests, a **helper-muscle budget** (grip & co.) against what you usually do, a note when your change-over times cost you minutes, a 10-day outlook (1–2 sessions a week = full body, 3+ = a rotating Push / Pull / Drive split that keeps every helper with its exercises) — and an honest word when the cadence you asked for is more than recovery allows. You choose **how sessions are built** — automatic, always full body, or a split by groups (the evidence: at equal weekly volume both give the same results, so it is your week that decides) — and with one tap *"next session only push / pull / legs"* for a single session. A **plan ledger** remembers what was recommended; the next report shows *plan vs what you did*.
 - 🎯 **Goals asked up front** — a four-question interview: what you want most, your time (sessions × minutes), **time or effort — what do you want to pay with?** (four profiles, each with its price in minutes per week; the app recommends one) and your experience. Optional: focus per body region (more / less / off), a **measurable target** (force on an exercise, body weight or waist, with a date — the app says whether your own measured pace is enough) and **grip aids** per exercise.
 - 🪝 **Grip aids (hooks / straps)** — switch them on per exercise and the grip stops counting as that exercise's limiter in recovery, evidence, order and budget; days with and without an aid are never compared with each other. The plan suggests an aid only where studies show a benefit (dead lifts), not for pull-downs.
 - ⚖️ **Body values — entirely optional** — weight, waist, arm, chest, thigh, body fat: any subset, whenever you like, no reminders. Shown as a rough trend with its measurement noise, read together with your strength index. Nothing entered = nothing shown.
@@ -56,7 +56,7 @@ and shows you what actually happened — and what to do next.
 - ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid* (which exercises a joint touches is editable per exercise in `exercises.json`), and the plan won't push it. A "limits respected?" box lists sets of the last 14 days that went hard on a careful exercise, jumped in the eccentric, or trained an avoided one — a mirror, not a diagnosis.
 - ⏱️ **Training time & work** — motivational totals (sessions = real visits), per week / month / year.
 - 🤖 **AI coach** using **your own** Claude API key (only aggregated, name-free numbers are sent; since v0.4.0 it presents the engine's plan of record instead of inventing its own, and may see an age band + sex — switchable in ⚙ Settings) — a whiteboard, not a wall of text: **1)** last session vs the previous time, **2)** today (check-in verdict, what is recovered and from when), **3)** the plan as a table with a concrete force target per exercise, effort, tempo / pauses, rest and a cue, **4)** progress & milestones (PBs, adherence to your weekly target, the next round marks, work total, deload signal), **5)** one focus point. It also receives the ordered session sequences and may point out patterns the rules don't cover; the computed facts stay the ground truth. Answers are cached per day, so a reload does not bill again. Cost is tunable via `ai_effort` (low … max, default medium).
-- 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** when a new version ships, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
+- 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
 <p align="center"><i>Example report (anonymized):</i></p>
 <p align="center">
@@ -113,6 +113,7 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 | `arx_history.py` | Weekly / monthly windows, progress factors, findings, optional body trends and target progress |
 | `arx_plan.py` | The ONE plan: date, selection, clean measurement, order, targets, helper budget, week plan, plan ledger |
 | `arx_app.py` | Tiny local web server + the touch UI in `web/` |
+| `arx_update.py` | One-click update: downloads the release ZIP from this GitHub page, checks it (newer version, expected files, no path outside the target), unpacks it next to your settings and runs its installer — only after a click on the PC itself |
 | `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids, plus a small library of exercises nobody has mapped yet |
 | `meanings.json` | The "what it means → what to do" sentences for every code (English / German) |
 | `science.json` | The evidence behind the planner's defaults, with verified references |
@@ -147,7 +148,7 @@ suspect an injury, consult a physician or qualified trainer.
 5. If Windows shows a blue *“Windows protected your PC”* box, click **More info → Run anyway** (it's an unsigned script; the source is this repo).
 6. Wait. The installer sets everything up, finds your ARX database, and opens the app in your browser. It also puts an **“ARX Insight”** icon on your Desktop — use that next time.
 
-To **update** later: repeat steps 1–4 (download the ZIP again, extract, run the installer). Your settings and goals are kept, the Desktop shortcut is pointed at the new folder, and a running old version is replaced automatically — you can delete the old folder afterwards.
+To **update** later: click **Update now** in the banner the app shows when a new version exists (from v0.4.1; see *How do I update?* below) — or repeat steps 1–4 by hand (download the ZIP again, extract, run the installer). Either way your settings and goals are kept, all shortcuts are pointed at the new folder, and a running old version is replaced automatically — you can delete the old folder afterwards.
 
 **Can two ARX Insight windows run at the same time?**
 No — since v0.3.1 exactly one app process runs. Start it a second time (a stray double-click, or an
@@ -286,8 +287,34 @@ you can extend the vocabulary there.
 No. It only ever reads a temporary **copy** of the database.
 
 **How do I update?**
-The app checks GitHub on start and shows a banner when a newer version exists. Download the ZIP
-again and re-run the installer — your settings, goals and environment are kept.
+The app checks GitHub when it starts (and every few hours while it runs) and shows a banner on the
+start screen and in the report when a newer version exists. From v0.4.1 the banner has an **Update
+now** button (two clicks — the app restarts): it downloads the release ZIP from this GitHub page
+over HTTPS, checks it (a newer version, the files a release must have, nothing that would land
+outside its folder), unpacks it into `%LOCALAPPDATA%\ARXInsight\app\` and runs its installer, which
+refreshes the packages, re-points the shortcuts and starts the new version; the running one closes
+by itself. Your settings, goals and environment are kept, the previous version stays as a fallback.
+It never updates silently, and the button only works on the PC itself — never from a phone. The
+manual way (download the ZIP, run the installer) keeps working. Versions before 0.4.1 need the
+manual way once.
+
+**Can it put an icon into the taskbar?**
+The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on
+every update. It cannot create the taskbar icon itself: Windows 10 / 11 deliberately do not let
+programs pin themselves. Do it once by hand — right-click the Desktop icon *ARX Insight*
+(Windows 11: *Show more options*) → *Pin to taskbar*; the app reminds you once on its start screen.
+The shortcuts start the launcher through `cmd.exe` because Windows only offers *Pin to taskbar* for
+shortcuts to programs.
+
+**Full body or a split by muscle groups — which is better?**
+Neither: a 2024 meta-analysis of 14 studies found the same strength and muscle gains when the
+weekly volume is equal (`science.json` → *split_vs_full_body*). What differs is the week: a split
+trains different muscles on consecutive days, so sessions can be shorter and more frequent and a
+muscle gets more sets per session; full body reaches everything with fewer visits. With one set per
+exercise, more sessions simply mean more hard sets per muscle per week — that is what can add
+results, not the structure. *Automatic* plans full body up to two sessions a week and a rotating
+Push / Pull / Drive split from three; you can force either in the profile, and the plan tells you
+when a choice cannot deliver the number of sessions you asked for.
 
 **I have an idea or found a bug — how do I help?**
 Open an [issue or discussion](https://github.com/joergs-git/arx-insight/issues) on GitHub, or send

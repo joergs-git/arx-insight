@@ -10,7 +10,7 @@
 <style>
   :root{
     --bg:#131519;--panel:#1B1E24;--panel2:#23272F;--ink:#F0EEE9;--ink2:#B3B8C1;--ink3:#7D828C;
-    --rule:#2B2F38;--rule2:#3A3F4A;--accent:#FF6A52;--good:#3FC6AE;--good-bg:#12271F;--warn:#E0A13E;--warn-bg:#2A2212;--fc:#B18BEA;--grid:#262A32;
+    --rule:#2B2F38;--rule2:#3A3F4A;--accent:#FF6A52;--good:#3FC6AE;--good-bg:#12271F;--warn:#E0A13E;--warn-bg:#2A2212;--fc:#B18BEA;--grid:#262A32;--ecc:#F0483E;--con:#3B82F6;
     --disp:'Oswald',Impact,system-ui,sans-serif;--body:'IBM Plex Sans',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -232,6 +232,7 @@
 <!-- SEARCH -->
 <div class="screen" id="search"><div class="center">
   <div class="logo">ARX Insight</div>
+  <div id="updStart" style="width:min(760px,94vw)"></div>
   <div class="bigsearch"><input type="text" id="q" autocomplete="off" placeholder="Name suchen…"></div>
   <div class="results" id="results"></div>
 </div></div>
@@ -261,6 +262,9 @@
         <div style="flex:2;min-width:240px"><div class="foot" id="g_min_l" style="margin-bottom:6px">Minutes per session</div>
           <div class="segbig" id="gMinutes"></div></div>
       </div></div>
+    <div class="field"><label id="g_struct_l">How sessions are built</label>
+      <div class="segbig" id="gStruct"></div>
+      <div class="foot" id="g_struct_sub" style="margin-top:8px"></div></div>
     <div class="field"><label id="g_commit_l">3 · Time or effort - what are you willing to pay?</label>
       <div class="tiles" id="gCommit" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))"></div></div>
     <div class="field"><label id="g_exp_l">4 · Experience on the ARX</label>
@@ -354,9 +358,9 @@ const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"applica
 // HTML-escape everything that comes from the database or the network before it goes into innerHTML
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
-let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false};
+let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false}, SELF_UPDATE=false, UPD_STEP=0;
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
-let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null;
+let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
 const KEY_URL="https://console.anthropic.com/settings/keys";
 const REPO="https://github.com/joergs-git/arx-insight";
 const REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["shoulders","Schultern","Shoulders"],["arms","Arme","Arms"],["grip","Griff","Grip"]];
@@ -396,7 +400,8 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
-  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body};
+  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update;
+  $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned);
   if(!b.configured){openSettings("search");return;}
   // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
   const deep=new URLSearchParams(location.search).get("user");
@@ -512,6 +517,12 @@ function renderInterview(){
       :(c[0]===""&&pp?`<small style="color:var(--ink)">→ ${(COMMITS.find(x=>x[0]===pp.recommended_commitment)||[])[de?1:2]||''}</small>`:'');
     return `<button data-v="${c[0]}" aria-pressed="${COMMIT===c[0]}">${de?c[1]:c[2]}<small>${de?c[3]:c[4]}</small>${price}</button>`;}).join("");
   $("#gMinutes").innerHTML=["","15","20","30","45","60"].map(m=>`<button data-v="${m}" aria-pressed="${String(MINUTES)===m}" style="min-width:56px;padding:0 6px">${m||'Auto'}</button>`).join("");
+  const structs=[["",de?"Automatisch":"Automatic"],["full_body",de?"Ganzkörper-Mix":"Full-body mix"],["split",de?"Split nach Gruppen":"Split by groups"]];
+  $("#gStruct").innerHTML=structs.map(x=>`<button data-v="${x[0]}" aria-pressed="${STRUCT===x[0]}">${x[1]}</button>`).join("");
+  $("#g_struct_sub").textContent={"":de?"Bis 2 Einheiten pro Woche Ganzkörper, ab 3 ein rotierender Split (Drücken / Ziehen / Beine).":"Up to 2 sessions a week full body, from 3 a rotating split (push / pull / legs).",
+    full_body:de?"Jede Einheit trifft den ganzen Körper. Dafür braucht jeder Muskel danach seine Pause - mehr als 2-3 Einheiten pro Woche gehen so kaum.":"Every session hits the whole body. Each muscle then needs its rest - more than 2-3 sessions a week hardly fit.",
+    split:de?"Jede Einheit nur ein Teil (Drücken, Ziehen oder Beine): kürzere Einheiten, mehr Sätze je Muskel, Training an aufeinanderfolgenden Tagen möglich.":"Each session only a part (push, pull or legs): shorter sessions, more sets per muscle, training on consecutive days possible."}[STRUCT]
+    +(de?" Studienlage: Bei gleichem Wochenumfang bringen beide dasselbe - es entscheidet, was in deine Woche passt.":" Evidence: at equal weekly volume both give the same results - what fits your week decides.");
   $("#gExp").innerHTML=EXPS.map(x=>`<button data-v="${x[0]}" aria-pressed="${EXPERIENCE===x[0]}">${de?x[1]:x[2]}</button>`).join("");
   const kinds=[["",de?"Keins":"None"],["force",de?"Kraft in einer Übung":"Force on an exercise"],["body_weight",de?"Körpergewicht":"Body weight"],["waist",de?"Taille":"Waist"]];
   $("#gTKind").innerHTML=kinds.map(k=>`<button data-v="${k[0]}" aria-pressed="${TKIND===k[0]}">${k[1]}</button>`).join("");
@@ -529,7 +540,7 @@ function renderInterview(){
 }
 function seg(sel,set){$(sel).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;set(b.dataset.v,b);renderInterview();});}
 seg("#gOutcome",v=>{OUTCOME=v;const o=OUTCOMES.find(x=>x[0]===v);$("#gMain").value=o[5];$("#gCond").value=o[6];renderMix();});
-seg("#gCommit",v=>{COMMIT=v;}); seg("#gMinutes",v=>{MINUTES=v;}); seg("#gExp",v=>{EXPERIENCE=v;}); seg("#gTKind",v=>{TKIND=v;});
+seg("#gStruct",v=>{STRUCT=v;}); seg("#gCommit",v=>{COMMIT=v;}); seg("#gMinutes",v=>{MINUTES=v;}); seg("#gExp",v=>{EXPERIENCE=v;}); seg("#gTKind",v=>{TKIND=v;});
 $("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c,v=b.dataset.v;
   if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
 function goalLabels(edit){
@@ -543,6 +554,7 @@ function goalLabels(edit){
   $("#g_time_l").textContent=de?"2 · Deine Zeit":"2 · Your time";
   $("#g_freq").textContent=de?"Einheiten pro Woche":"Sessions per week";
   $("#g_min_l").textContent=de?"Minuten pro Einheit (Auto = wie bisher üblich)":"Minutes per session (Auto = what you usually take)";
+  $("#g_struct_l").textContent=de?"Aufbau der Einheiten":"How sessions are built";
   $("#g_commit_l").textContent=de?"3 · Zeit oder Härte - womit willst du bezahlen?":"3 · Time or effort - what do you want to pay with?";
   $("#g_exp_l").textContent=de?"4 · Erfahrung an der ARX":"4 · Experience on the ARX";
   $("#g_height").textContent=de?"Größe (cm)":"Height (cm)"; $("#g_weight").textContent=de?"Gewicht (kg)":"Weight (kg)";
@@ -570,7 +582,7 @@ function fillTargetBox(t){
   $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
 }
 function openGoal(){                       // new user: the interview for the first time
-  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; BODY_LAST=null; PLANG=""; goalLabels(false);
+  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; BODY_LAST=null; STRUCT=""; PLANG=""; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(null); setLangSeg(); show("goal");
@@ -584,7 +596,7 @@ async function openProfile(section){       // edit an existing person's profile/
   $("#gHeight").value=g.height_cm||""; $("#gWeight").value=g.weight_kg||"";
   FOCUS_R={...(g.focus_regions||{})};
   if(!g.focus_regions&&g.focus) Object.entries(g.focus).forEach(([grp,l])=>{if(l&&l!=="normal")(LEGACY_FOCUS[grp]||[]).forEach(r=>{if(!FOCUS_R[r])FOCUS_R[r]=l;});});
-  OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
+  STRUCT=g.structure||""; OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
   TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); PLANG=g.language||"";
   BODY_LAST=(g.body_log||[]).slice(-1)[0]||null;
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(g.target||null); setLangSeg(); show("goal");
@@ -592,7 +604,7 @@ async function openProfile(section){       // edit an existing person's profile/
 }
 $("#goalSave").addEventListener("click",async()=>{
   const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:{},approach:"auto",language:PLANG,
-    focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,target:null};
+    structure:STRUCT,focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,target:null};
   if(TKIND&&$("#gTVal").value) body.target={kind:TKIND,exercise:TKIND==="force"?$("#gTEx").value:null,
     value:toMetric(+$("#gTVal").value,TKIND==="waist"?"cm":"kg"),date:$("#gTDate").value||null};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
@@ -706,12 +718,47 @@ async function loadReport(){
   renderReport();
 }
 
+// Windows does not let a program pin itself to the taskbar: the installer tries, and when the icon is
+// still missing the start screen says once how to do it by hand (dismissed for good with one tap).
+function pinHintHtml(pinned){
+  if(pinned!==false) return "";
+  try{ if(localStorage.getItem("arx_pin_hint")==="off") return ""; }catch(e){}
+  const de=CFG.language==="de";
+  return `<div class="banner" id="pinHint" style="background:var(--panel);border-color:var(--rule2)"><span>📌 ${de
+    ?'<b style="color:var(--ink)">In die Taskleiste:</b> Rechtsklick auf das Desktop-Symbol „ARX Insight“ → (Windows 11: „Weitere Optionen anzeigen“) → „An Taskleiste anheften“. Windows erlaubt Programmen nicht, das selbst zu tun.'
+    :'<b style="color:var(--ink)">Keep it in the taskbar:</b> right-click the Desktop icon "ARX Insight" → (Windows 11: "Show more options") → "Pin to taskbar". Windows does not let programs do this themselves.'}</span>
+    <span style="flex:1"></span><button class="btn ghost" style="min-height:44px;font-size:16px" onclick="try{localStorage.setItem('arx_pin_hint','off')}catch(e){};document.getElementById('pinHint').remove()">${de?'Verstanden':'Got it'}</button></div>`;
+}
 function updateBannerHtml(){
   if(!UPDATE||!UPDATE.update_available) return "";
   const de=CFG.language==="de";
-  return `<div class="banner"><b>${de?'Neue Version verfügbar':'New version available'}: v${UPDATE.latest}</b>
-    <span class="foot">(${de?'installiert':'installed'}: v${CURVER})</span><span style="flex:1"></span>
-    <button class="btn" onclick="window.open('${UPDATE.url}','_blank')">${de?'Herunterladen':'Download'}</button></div>`;
+  // one click where the app can update itself (Windows); elsewhere the download page
+  const btn=SELF_UPDATE?`<button class="btn" onclick="selfUpdate(this)">${de?'Jetzt aktualisieren':'Update now'}</button>`
+                       :`<button class="btn" onclick="window.open('${UPDATE.url}','_blank')">${de?'Herunterladen':'Download'}</button>`;
+  return `<div class="banner updbanner"><b>${de?'Neue Version verfügbar':'New version available'}: v${esc(UPDATE.latest)}</b>
+    <span class="foot">(${de?'installiert':'installed'}: v${esc(CURVER)})</span><span style="flex:1"></span>
+    <span class="foot updmsg"></span>${btn}</div>`;
+}
+// One-click update: the server downloads the release from GitHub, checks and unpacks it and starts its installer;
+// the new version then replaces this one. Two clicks on purpose - the app restarts.
+async function selfUpdate(btn){
+  const de=CFG.language==="de", box=btn.closest(".updbanner"), msg=box.querySelector(".updmsg");
+  if(UPD_STEP===0){ UPD_STEP=1; btn.textContent=de?'Wirklich? Die App startet neu':'Sure? The app restarts'; setTimeout(()=>{ if(UPD_STEP===1){UPD_STEP=0; btn.textContent=de?'Jetzt aktualisieren':'Update now';} },6000); return; }
+  if(UPD_STEP===2) return;
+  UPD_STEP=2; btn.disabled=true; btn.style.opacity=.5;
+  const say={downloading:de?'lädt herunter …':'downloading …',checking:de?'prüft das Paket …':'checking the package …',unpacking:de?'entpackt …':'unpacking …',
+             installing:de?'startet den Installer …':'starting the installer …'};
+  try{ await post("/api/update",{}); }catch(e){}
+  const tick=async()=>{
+    let st=null; try{ st=await api("/api/update/status"); }catch(e){}
+    if(st&&st.state==="error"){ msg.textContent=(de?'Update fehlgeschlagen: ':'Update failed: ')+st.detail; msg.style.color="var(--accent)"; UPD_STEP=0; btn.disabled=false; btn.style.opacity=1; btn.textContent=de?'Nochmal versuchen':'Try again'; return; }
+    if(st&&st.state==="done"&&!st.installer){ msg.textContent=(de?'Neue Version entpackt nach: ':'New version unpacked to: ')+st.folder; return; }
+    msg.textContent=st&&say[st.state]?say[st.state]+(st.bytes?` ${(st.bytes/1048576).toFixed(1)} MB`:''):(de?'Die neue Version startet – einen Moment …':'The new version is starting – one moment …');
+    // the new version answers on the same address once it has replaced this one
+    try{ const b=await fetch("/api/bootstrap?probe=1").then(r=>r.json()); if(b.version&&b.version!==CURVER){ location.reload(); return; } }catch(e){}
+    setTimeout(tick,1500);
+  };
+  tick();
 }
 
 function renderReport(){
@@ -726,12 +773,7 @@ function renderReport(){
   $("#r_checkin").innerHTML="☀ Check-in";
   $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit";
   $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${de0?'Tage':'days'} · ${r.generated.replace('T',' ').slice(0,16)}`;
-  const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100),k=r.kpi,F=r.featured;
-  const kpiHtml=`<div class="kpis">
-    <div class="kpi"><div class="label">${t.sets}</div><div class="val">${r.sets_working}<small> /${r.sets_total}</small></div></div>
-    <div class="kpi"><div class="label">${de0?'Tage':'Days'}</div><div class="val">${r.training_days.length}</div></div>
-    <div class="kpi hot"><div class="label">Top</div><div class="val">${uKg(k.top_force)}<small> ${LKg()}</small></div></div>
-    <div class="kpi"><div class="label">${de0?'Exz./Konz.':'Ecc./Con.'}</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
+  const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100);
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
   // sets that do not count (tests, aborts, false starts) - said openly, never hidden
   const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data'],hidden:[de0?'in ARX ausgeblendet':'hidden in ARX',de0?'in ARX ausgeblendet':'hidden in ARX'],static:[de0?'statische Haltesätze':'static holds',de0?'statischer Haltesatz':'static hold']};
@@ -739,7 +781,7 @@ function renderReport(){
   const exclLine=exl.length?`<p class="foot" style="margin:6px 0 0">${r.sets_total-r.sets_working} ${de0?'Sätze nicht gewertet':'sets not counted'}: ${exl.join(', ')}. ${de0?'Nur echte Arbeitssätze fließen in Bestwerte, Trend, Belastung und Plan ein.':'Only real working sets feed bests, trends, load and the plan.'}</p>`:'';
 
   // order: KPIs -> goal -> restrictions -> LAST SESSION (what you just did) -> readiness -> the rest
-  let main=kpiHtml+exclLine+goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)+lastSessionHtml(r)+planHtml(r)+findingsHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
+  let main=goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)+lastSessionHtml(r)+planHtml(r)+findingsHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals,r,exclLine);
   main+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
@@ -757,6 +799,10 @@ function renderReport(){
     `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;
 
   drawSessionCharts();drawWB();renderProg();
+  const ng=$("#ngSeg"); if(ng) ng.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
+    let cur=((REPORT.plan.profile||{}).next_groups||[]).slice(); const gp=b.dataset.g;
+    if(!gp) cur=[]; else cur=cur.includes(gp)?cur.filter(x=>x!==gp):[...cur,gp];
+    await post("/api/next_groups",{user_id:CUR.id,groups:cur}); REPORT.ai_narrative=null; loadReport();});
   $("#xseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;XMODE=b.dataset.x;[...$("#xseg").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===XMODE));renderProg();});
   renderAISide(); autoLoadAI();
 }
@@ -802,7 +848,9 @@ function lastSessionHtml(r){
       <div class="exhead" style="margin-bottom:0"><h3 style="font-size:24px"><span class="grp ${x.group}">${x.group}</span> ${x.name} ${badges}</h3><span class="foot">${p?`${t.vsprev}: ${p.date}`:''}</span></div>
       ${strip}${inside}${chg}
       <div class="chartwrap"><svg id="ls_${i}" viewBox="0 0 1000 360"></svg></div>
-      <p class="foot" id="lsv_${i}" style="margin:8px 0 0"></p></div>`;
+      <p class="foot" id="lsv_${i}" style="margin:8px 0 0"></p>
+      <div class="chartwrap" style="margin-top:12px"><svg id="lr_${i}" viewBox="0 0 1000 300"></svg></div>
+      <p class="foot" id="lrv_${i}" style="margin:8px 0 0"></p>${x.rep_trend?interpHtml(x.rep_trend)+(x.rep_trend.vs_previous?interpHtml(x.rep_trend.vs_previous):''):''}</div>`;
   }).join("");
   const rows=ls.exercises.map(x=>{const p=x.prev;
     return `<tr><td class="num">${x.order||''}</td>
@@ -830,8 +878,11 @@ function lastSessionHtml(r){
       ${rows}</table>
       <p class="foot" style="margin:10px 0 0">${ls.working_sets} ${de?'Arbeitssätze':'working sets'}${fs} · ${de?'unter Last':'under load'} ${ls.time_under_load_min} min ${de?'von':'of'} ${ls.wall_minutes} min ${flags?' · '+flags:''}</p>${trans}</div>${planVsActualHtml(r)}</section>`;
 }
+// moving average over the reps (centred, window 3; the ends use what is there) - the trend, not the noise
+function movAvg(a){ return a.map((v,k)=>{ const w=[a[k-1],v,a[k+1]].filter(x=>x!=null); return w.length?w.reduce((p,c)=>p+c,0)/w.length:null; }); }
 function drawSessionCharts(){
   const ls=REPORT.last_session; if(!ls) return; const de=CFG.language==="de";
+  const ECC=css('--ecc'), CON=css('--con');
   ls.exercises.filter(x=>x.chart).forEach((x,i)=>{
     const el=$("#ls_"+i); if(!el) return;
     const W=1000,H=360,L=64,R=20,Tp=24,B=46, cur=x.curve||[], prev=x.prev_curve||[];
@@ -839,29 +890,55 @@ function drawSessionCharts(){
     const tmax=Math.max(cur[cur.length-1].t, prev.length?prev[prev.length-1].t:0)||1;
     const fmax=Math.max(...cur.map(p=>p.force_kg),...prev.map(p=>p.force_kg),1)*1.1;
     const X=v=>L+(v/tmax)*(W-L-R), Y=v=>H-B-(v/fmax)*(H-Tp-B);
-    const acc=css('--accent'),g=css('--grid'),i3=css('--ink3'),ink=css('--ink'),i2=css('--ink2');
+    const g=css('--grid'),i3=css('--ink3'),ink=css('--ink'),i2=css('--ink2');
     const path=c=>c.map((p,k)=>`${k?'L':'M'}${X(p.t).toFixed(1)},${Y(p.force_kg).toFixed(1)}`).join(" ");
-    let s=`<defs><linearGradient id="fl${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${acc}" stop-opacity=".26"/><stop offset="1" stop-color="${acc}" stop-opacity=".02"/></linearGradient></defs>`;
+    let s=`<defs><linearGradient id="fl${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${i2}" stop-opacity=".16"/><stop offset="1" stop-color="${i2}" stop-opacity=".02"/></linearGradient></defs>`;
     for(let k=0;k<=4;k++){const f=fmax*k/4,yy=Y(f);s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${g}" stroke-width="1.5"/><text x="${L-10}" y="${yy+6}" text-anchor="end" font-size="19" fill="${i3}">${Math.round(uKg(f))}</text>`;}
     const step=Math.max(5,Math.ceil(tmax/6/5)*5);
     for(let tt=0;tt<=tmax;tt+=step){s+=`<text x="${X(tt)}" y="${H-B+28}" text-anchor="middle" font-size="18" fill="${i3}">${tt}s</text>`;}
     if(prev.length) s+=`<path d="${path(prev)}" fill="none" stroke="${i3}" stroke-width="2.5" stroke-dasharray="7 6" opacity=".9"/>`;
-    const cp=path(cur);
-    s+=`<path d="${cp} L${X(cur[cur.length-1].t).toFixed(1)},${H-B} L${L},${H-B} Z" fill="url(#fl${i})"/><path d="${cp}" fill="none" stroke="${acc}" stroke-width="3"/>`;
+    const cp=path(cur), phases=x.phases||[];
+    s+=`<path d="${cp} L${X(cur[cur.length-1].t).toFixed(1)},${H-B} L${L},${H-B} Z" fill="url(#fl${i})"/>`;
+    // the curve itself: eccentric = red, concentric = blue, pauses / holds = grey (the machine's own phase markers)
+    s+=`<path d="${cp}" fill="none" stroke="${phases.length?i3:css('--accent')}" stroke-width="${phases.length?2:3}"/>`;
+    phases.forEach(([a,b,kind])=>{ if(kind==="hold") return; const seg=cur.filter(p=>p.t>=a&&p.t<=b); if(seg.length<2) return;
+      s+=`<path d="${path(seg)}" fill="none" stroke="${kind==="ecc"?ECC:CON}" stroke-width="3.2" stroke-linejoin="round"/>`; });
     // rep markers at their REAL time (needed once a second curve shares the axis)
     (x.rep_peaks||[]).forEach((v,k)=>{const tt=(x.rep_times||[])[k]; if(tt==null) return; const cx=X(tt),cy=Y(v);
       s+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="${css('--panel')}" stroke="${i2}" stroke-width="3"/><text x="${cx.toFixed(1)}" y="${(cy-14).toFixed(1)}" text-anchor="middle" font-size="17" font-weight="600" fill="${ink}">${Math.round(uKg(v))}</text>`;});
     el.innerHTML=s;
-    // verdict + legend, bilingual
-    const rp=x.rep_peaks||[]; let v="";
-    if(rp.length>=2){const first=rp[0],peak=Math.max(...rp),last=rp[rp.length-1];
-      if(last>=first) v=de?`Kraft <b>stieg</b> über den Satz (${Math.round(uKg(first))}→${Math.round(uKg(peak))} ${LKg()}): frühe Wiederholungen submaximal — ab Rep 1 näher ans Maximum.`
-                          :`Force <b>rose</b> across the set (${Math.round(uKg(first))}→${Math.round(uKg(peak))} ${LKg()}): the early reps were sub-maximal — push closer to max from rep 1.`;
-      else v=de?`<b>${x.inroad_pct}% Inroad</b>: Kraft fiel bis zur letzten Wiederholung — echte Ausbelastung erreicht.`
-                :`<b>${x.inroad_pct}% inroad</b>: force fell to the last rep — real fatigue reached.`;}
-    const legend=`<span style="color:var(--accent)">━</span> ${ls.date}${x.prev?` &nbsp; <span style="color:var(--ink3)">╌╌</span> ${x.prev.date}`:''}`;
-    $("#lsv_"+i).innerHTML=`${legend}${v?' &nbsp;·&nbsp; '+v:''}`;
+    const sw=(c,t)=>`<span style="color:${c}">━</span> ${t}`;
+    $("#lsv_"+i).innerHTML=`${de?'Kraftkurve':'Force curve'} ${ls.date}: ${phases.length?`${sw(ECC,de?'exzentrisch (ablassen / bremsen)':'eccentric (lowering / resisting)')} &nbsp; ${sw(CON,de?'konzentrisch (heben / drücken)':'concentric (lifting / pushing)')} &nbsp; ${sw(i3,de?'Pause / Halten':'pause / hold')}`:sw(css('--accent'),de?'Kraft':'force')}${x.prev?` &nbsp; <span style="color:var(--ink3)">╌╌</span> ${x.prev.date}`:''}`;
+    drawRepTrend(x,i,ls.date);
   });
+}
+// the run of the reps: per-rep mean force of each phase, smoothed (moving average) - today, last time and the
+// time before. Reps line up by NUMBER, not by seconds, so a changed tempo does not shift the comparison.
+function drawRepTrend(x,i,today){
+  const el=$("#lr_"+i), de=CFG.language==="de"; if(!el) return;
+  const sets=[{d:today,con:x.rep_con||[],ecc:x.rep_ecc||[],dash:"",w:4,op:1,same:true},
+    x.prev&&(x.prev_rep_con||[]).length?{d:x.prev.date,con:x.prev_rep_con,ecc:x.prev_rep_ecc||[],dash:"9 7",w:2.6,op:.8,same:x.prev.same_settings}:null,
+    x.prev2&&(x.prev2_rep_con||[]).length?{d:x.prev2.date,con:x.prev2_rep_con,ecc:x.prev2_rep_ecc||[],dash:"2 6",w:2.4,op:.55,same:x.prev2.same_settings}:null].filter(Boolean);
+  const all=sets.flatMap(z=>[...z.con,...z.ecc]).filter(v=>v!=null);
+  if(all.length<4){ el.parentElement.style.display="none"; $("#lrv_"+i).style.display="none"; return; }
+  const W=1000,H=300,L=64,R=20,Tp=20,B=44, n=Math.max(...sets.map(z=>Math.max(z.con.length,z.ecc.length)));
+  const lo=Math.min(...all)*0.85, hi=Math.max(...all)*1.06;
+  const X=k=>L+(n<2?0.5:k/(n-1))*(W-L-R), Y=v=>H-B-((v-lo)/(hi-lo))*(H-Tp-B);
+  const g=css('--grid'),i3=css('--ink3'),ECC=css('--ecc'),CON=css('--con');
+  let s="";
+  for(let k=0;k<=3;k++){const f=lo+(hi-lo)*k/3,yy=Y(f);s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${g}" stroke-width="1.5"/><text x="${L-10}" y="${yy+6}" text-anchor="end" font-size="18" fill="${i3}">${Math.round(uKg(f))}</text>`;}
+  for(let k=0;k<n;k++) s+=`<text x="${X(k)}" y="${H-B+28}" text-anchor="middle" font-size="17" fill="${i3}">${k+1}</text>`;
+  const line=(vals,col,z)=>{ const ma=movAvg(vals), pts=ma.map((v,k)=>v==null?null:`${X(k).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean);
+    return pts.length>1?`<polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="${z.w}" stroke-dasharray="${z.dash}" opacity="${z.op}" stroke-linejoin="round" stroke-linecap="round"/>`:''; };
+  [...sets].reverse().forEach(z=>{ s+=line(z.ecc,ECC,z)+line(z.con,CON,z); });        // today on top
+  const t0=sets[0];                                                                     // single reps of today as dots
+  t0.ecc.forEach((v,k)=>{ if(v!=null) s+=`<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="4.5" fill="${ECC}" opacity=".55"/>`; });
+  t0.con.forEach((v,k)=>{ if(v!=null) s+=`<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="4.5" fill="${CON}" opacity=".55"/>`; });
+  el.innerHTML=s;
+  const mark=["━━","╌╌","┄┄"], other=de?' (andere Einstellungen)':' (other settings)';
+  $("#lrv_"+i).innerHTML=`${de?'Verlauf der Wiederholungen':'Run of the reps'} (${LKg()}, ${de?'gleitender Durchschnitt über 3 Wdh.; Punkte = einzelne Wdh. von heute':'moving average over 3 reps; dots = single reps of this set'}): `
+    +`<span style="color:${ECC}">■</span> ${de?'exzentrisch':'eccentric'} &nbsp; <span style="color:${CON}">■</span> ${de?'konzentrisch':'concentric'} &nbsp;·&nbsp; `
+    +sets.map((z,k)=>`${mark[k]} ${z.d}${z.same?'':other}`).join(' &nbsp; ');
 }
 function readinessHtml(l){
   const de=CFG.language==="de", rc=l&&l.recovery; if(!rc) return "";
@@ -943,14 +1020,14 @@ function settingsHtml(r){
    </table>
    <p class="foot" style="margin-top:10px">${de?'Hinweis: Die 3-Sekunden-Halte am Endpunkt passt je nach Übungstyp nicht immer (z. B. manche Pressen).':'Note: the 3 s end-position hold does not suit every exercise type (e.g. some presses).'}</p></div></section>`;
 }
-function totalsHtml(tt){
+function totalsHtml(tt,r,exclLine){
   if(!tt) return "";
   const de=CFG.language==="de";
   const p=tt.projection||{};
   const tiles=[
     [de?"Reine Trainingszeit":"Time under load", (tt.total_time_under_load_min||0)+" min", de?"gesamt bisher":"total so far"],
     [de?"Ø je Einheit":"Avg per session", (tt.avg_session_wall_min||0)+" min", de?`davon ${tt.avg_session_tul_min||0} min unter Last`:`of it ${tt.avg_session_tul_min||0} min under load`],
-    [de?"Einheiten":"Sessions", tt.sessions||0, de?"erfasst":"recorded"],
+    [de?"Einheiten":"Sessions", tt.sessions||0, r?`${r.training_days.length} ${de?'Tage':'days'} · ${r.sets_working} ${de?'von':'of'} ${r.sets_total} ${de?'Sätzen gewertet':'sets counted'}`:(de?"erfasst":"recorded")],
     [de?"Bewegte Arbeit":"Work done", (tt.total_work_impulse||0).toLocaleString(), de?"Impuls (kg·s)":"impulse (kg·s)"],
   ];
   const kpi=`<div class="kpis" style="margin-top:6px">`+tiles.map(([l,v,s])=>
@@ -961,7 +1038,7 @@ function totalsHtml(tt){
       `<b>~${p.per_week_min} min/${de?'Woche':'week'}</b> · ~${p.per_month_min} min/${de?'Monat':'month'} · ~${p.per_year_h} h/${de?'Jahr':'year'}.</p>`;
   }
   return `<section><div class="eyebrow">${de?'Trainingszeit & Arbeit':'Training time & work'}</div>
-    <h2 class="sec">${de?'Dein Aufwand in Zahlen':'Your effort in numbers'}</h2>${kpi}${projLine}</section>`;
+    <h2 class="sec">${de?'Dein Aufwand in Zahlen':'Your effort in numbers'}</h2>${kpi}${projLine}${exclLine||''}</section>`;
 }
 function loadHtml(l,target){
   if(!l) return "";
@@ -1109,10 +1186,15 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
       <div class="dots">${REGIONS.map(([k])=>`<i class="${d.readiness_by_region[k]}" title="${rname(k)}"></i>`).join("")}</div></div>`).join("")}</div>
     <p class="foot" style="margin-top:8px">${de?'Punkte':'Dots'}: ${REGIONS.map(([k])=>rname(k)).join(' · ')} — <span style="color:var(--good)">●</span> ${de?'erholt':'recovered'} · <span style="color:var(--warn)">■</span> ${de?'teilweise':'partly'} · <span style="color:var(--accent)">○</span> ${de?'in Erholung':'recovering'}</p>`;
   const week=(plan.week_plan||[]).slice(1).map(w=>`<div class="foot">${WD()[w.weekday]} ${dShort(w.date)} · ${w.session_type==="split"?w.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body')} · ${w.exercises.map(esc).join(' · ')}${w.benchmark?` · ◎ ${esc(w.benchmark)}`:''}</div>`).join("");
+  // one-time choice: only these movement groups next time (order, targets and rests are still planned)
+  const GN={Push:de?"Drücken · Brust, Schultern, Trizeps":"Push · chest, shoulders, triceps",Pull:de?"Ziehen · Rücken, Bizeps":"Pull · back, biceps",Drive:de?"Beine · Hüfte":"Legs · hips"};
+  const act=pr.next_groups||[];
+  const chooser=(pr.groups||[]).length>1?`<div class="field" style="margin:16px 0 0"><div class="foot" style="margin-bottom:8px">${de?'Nächste Einheit gezielt wählen (gilt einmal):':'Pick the next session yourself (applies once):'}</div>
+    <div class="segbig" id="ngSeg"><button data-g="" aria-pressed="${!act.length}" style="min-height:48px;font-size:16px">${de?'Automatisch':'Automatic'}</button>${pr.groups.map(gp=>`<button data-g="${esc(gp)}" aria-pressed="${act.includes(gp)}" style="min-height:48px;font-size:16px">${esc(GN[gp]||gp)}</button>`).join("")}</div></div>`:'';
   const ts=plan.today_session;
   const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${sessionRowsHtml(ts)}</details>`:'';
   return `<section id="plan4"><div class="eyebrow">${T().planh}</div><h2 class="sec">${de?'Nächstes Training':'Next training'}</h2>
-    ${hero}${why}${guard}${fuller}
+    ${hero}${why}${guard}${fuller}${chooser}
     ${sessionRowsHtml(ns)}
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}

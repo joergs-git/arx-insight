@@ -29,6 +29,8 @@ v0.4.0: the profile becomes a short goal interview (outcome, measurable target, 
 time-vs-effort profile, experience) plus focus per body region, grip aids per exercise and an
 OPTIONAL body log; the plan ledger (plans.json) remembers what was recommended; one shared
 database snapshot per 30 s instead of a copy per request; settings files are written atomically.
+v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
+check repeats every few hours, so an app that runs for days still learns about a new release.
 """
 from __future__ import annotations
 import os, sys, json, time, shutil, socket, secrets, argparse, threading, subprocess, webbrowser
@@ -38,6 +40,7 @@ from urllib.parse import urlparse, parse_qs
 
 import urllib.request
 import arx_report as core   # reuse the read-only engine
+import arx_update as updater  # one-click update: download, verify, unpack, run the installer (v0.4.1)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(core.data_dir(), "config.json")   # stable, survives re-download
@@ -90,7 +93,22 @@ def check_update(current: str) -> dict:
     except Exception:
         return {"latest": current, "update_available": False, "url": REPO_URL}
 
-STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None, "secret": ""}
+STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None, "secret": "", "update_checked": 0.0}
+UPDATE_JOB = updater.UpdateJob()
+UPDATE_RECHECK_S = 6 * 3600     # a kiosk PC runs for days: look for a new version now and then
+
+
+def refresh_update_info(force: bool = False) -> None:
+    """Re-run the (3 s, best-effort) version check in the background when the last one is old."""
+    if os.environ.get("ARX_NO_UPDATE_CHECK") and not force:
+        return
+    if not force and time.time() - STATE.get("update_checked", 0.0) < UPDATE_RECHECK_S:
+        return
+    STATE["update_checked"] = time.time()
+
+    def run():
+        STATE["update"] = check_update(STATE["version"])
+    threading.Thread(target=run, daemon=True).start()
 UPDATE_CHECKED = threading.Event()   # set once the background update check has finished
 
 
@@ -171,7 +189,8 @@ TARGET_KINDS = ("force", "body_weight", "waist")
 BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200), "waist_cm": (30, 250),
                "thigh_cm": (20, 120), "fat_pct": (2, 70)}
 BODY_KEEP = 400                 # entries kept per person
-PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids")
+PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids", "structure",
+                "next_groups")
 
 
 def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
@@ -200,6 +219,8 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
             out["session_minutes"] = None                                # "auto"
     if "commitment" in data:
         out["commitment"] = data["commitment"] if data["commitment"] in core.planner.COMMITMENT else None
+    if "structure" in data:                        # how sessions are built: auto | full_body | split ("auto" = not stored)
+        out["structure"] = data["structure"] if data["structure"] in ("full_body", "split") else None
     if "outcome" in data:
         out["outcome"] = data["outcome"] if data["outcome"] in OUTCOMES else None
     if "experience" in data:
@@ -464,7 +485,10 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get(TOKEN_HEADER) and "probe" not in q:
                 UPDATE_CHECKED.wait(2.5)
             cfg = read_json(CONFIG, {})
+            refresh_update_info()
             return self._send({
+                "self_update": os.name == "nt" or bool(os.environ.get("ARX_UPDATE_ANYWHERE")),   # one-click update possible here
+                "taskbar_pinned": cfg.get("taskbar_pinned"),    # set by the Windows installer; False -> one-time hint
                 "configured": bool(cfg.get("anthropic_api_key") or cfg.get("units") or cfg.get("language")),
                 "language": cfg.get("language", "en"),      # US-first defaults
                 "units": cfg.get("units", "imperial"),
@@ -477,6 +501,8 @@ class Handler(BaseHTTPRequestHandler):
                 "pid": os.getpid(),                         # lets a newer instance verify whom it replaces
                 "update": STATE["update"],
             })
+        if u.path == "/api/update/status":                 # progress of a one-click update
+            return self._send(UPDATE_JOB.status())
         if u.path == "/api/science":                       # the evidence behind the planner's defaults
             return self._send(read_json(os.path.join(HERE, "science.json"), {"topics": {}}))
         if u.path == "/api/users":
@@ -521,6 +547,12 @@ class Handler(BaseHTTPRequestHandler):
             if srv:
                 threading.Thread(target=srv.shutdown, daemon=True).start()
             return self._send({"ok": True})
+        if u.path == "/api/update":                        # one-click update: download, verify, unpack, run the installer
+            # code is only ever fetched after a click on THIS machine - never from a phone or another PC
+            if not self._loopback():
+                return self._send({"error": "loopback_only"}, code=403)
+            started = UPDATE_JOB.start(core.data_dir(), STATE["version"], HERE)
+            return self._send({"ok": True, "started": started, **UPDATE_JOB.status()})
         if u.path == "/api/config":                        # global setup screen
             def change(cfg):
                 for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
@@ -562,6 +594,17 @@ class Handler(BaseHTTPRequestHandler):
                 goals[str(uid)] = rec                      # keep any restrictions
             update_json(GOALS, change)
             return self._send({"ok": True})
+        if u.path == "/api/next_groups":                   # "next session only these movement groups" - used up by the next training
+            known = {m.get("group") for m in STATE["catalog"].values()} - {None, "?"}
+            groups = sorted({g for g in (data.get("groups") or []) if g in known})
+
+            def change(goals):
+                rec = goals.get(str(uid), {})
+                if groups: rec["next_groups"] = {"groups": groups, "set_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+                else: rec.pop("next_groups", None)
+                goals[str(uid)] = rec
+            update_json(GOALS, change)
+            return self._send({"ok": True, "groups": groups})
         if u.path == "/api/body":                          # OPTIONAL body log: one entry per day, any subset of values
             day, values = clean_body_entry(data, core._today({}))
             if day is None:
@@ -799,6 +842,7 @@ def main():
     def update_check():                                # one-off, 3 s cap - in the background, so the
         try:                                           # server answers (and can be probed) at once
             if not os.environ.get("ARX_NO_UPDATE_CHECK"):
+                STATE["update_checked"] = time.time()      # bootstrap repeats the check every few hours
                 STATE["update"] = check_update(STATE["version"])
         finally:
             UPDATE_CHECKED.set()
@@ -806,7 +850,7 @@ def main():
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
-    if not args.no_browser:
+    if not args.no_browser and not os.environ.get("ARX_NO_BROWSER"):   # (a one-click update reloads the open page instead)
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()

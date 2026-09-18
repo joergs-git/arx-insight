@@ -151,6 +151,33 @@ class What(unittest.TestCase):
             if "Biceps Curl" in a["exercises"] and (date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days < 3:
                 self.assertFalse({"Row", "Pull Down"} & set(b["exercises"]), (a, b))
 
+    def test_the_athlete_may_choose_full_body_or_split(self):
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN, PULLDOWN])
+        split = report(rows, "2026-09-18", sessions_per_week=2, structure="split", session_minutes=25)["plan"]
+        self.assertEqual(split["profile"]["structure"], "split")
+        self.assertTrue(all(w["session_type"] == "split" for w in split["week_plan"]))
+        groups = lambda w: {CATALOG[c]["group"] for c in CATALOG if CATALOG[c]["name"] in w["exercises"]}
+        self.assertTrue(all(len(groups(w)) <= 2 for w in split["week_plan"]), split["week_plan"])
+        full = report(rows, "2026-09-18", sessions_per_week=4, structure="full_body", session_minutes=25)["plan"]
+        self.assertTrue(all(w["session_type"] == "full_body" for w in full["week_plan"]))
+        self.assertEqual(full["cadence_note"]["code"], "cadence_limited")   # four full-body days a week: recovery says no
+        self.assertEqual(planner.split_factor(2), 1)
+        self.assertEqual(planner.split_factor(2, "split"), 2)
+        self.assertEqual(planner.split_factor(6, "full_body"), 1)
+
+    def test_next_session_only_these_groups_applies_once(self):
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PULLDOWN])                     # last sets: 2026-09-15 10:xx
+        choice = {"groups": ["Pull"], "set_at": "2026-09-15 18:00:00"}
+        plan = report(rows, "2026-09-16", next_groups=choice, session_minutes=40)["plan"]
+        sess = plan["next_session"]
+        self.assertEqual({it["group"] for it in sess["exercises"]}, {"Pull"})
+        self.assertEqual(sess["why_this_date"][0]["code"], "date_manual_groups")
+        self.assertEqual(plan["profile"]["next_groups"], ["Pull"])
+        self.assertNotEqual({CATALOG[c]["group"] for c in CATALOG if CATALOG[c]["name"] in plan["week_plan"][1]["exercises"]}, {"Pull"})
+        used_up = report(rows, "2026-09-16", next_groups=dict(choice, set_at="2026-09-15 09:00:00"), session_minutes=40)["plan"]
+        self.assertIsNone(used_up["profile"]["next_groups"])                # a session came after the choice
+        self.assertGreater(len({it["group"] for it in used_up["next_session"]["exercises"]}), 1)
+
     def test_the_week_plan_never_takes_a_worse_date_to_fill_the_horizon(self):
         week = report(history([ROW, PRESS, SQUAT]), "2026-09-16", sessions_per_week=1)["plan"]["week_plan"]
         gaps = [(date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days for a, b in zip(week, week[1:])]

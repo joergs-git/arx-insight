@@ -66,6 +66,17 @@ class ProfileRoutes(ServerCase):
         self.assertNotIn("aids", rec)
         self.assertEqual(rec["outcome"], "strength")
 
+    def test_structure_and_the_one_time_group_choice(self):
+        self.assertEqual(app.clean_profile({"structure": "split"}, CATALOG, TODAY), {"structure": "split"})
+        self.assertEqual(app.clean_profile({"structure": "whatever"}, CATALOG, TODAY), {"structure": None})   # = automatic
+        post = lambda groups: call(self.port, "/api/next_groups", method="POST", body={"user_id": 1, "groups": groups}, headers=OK)[1]
+        self.assertEqual(post(["Pull", "Sideways"])["groups"], ["Pull"])              # only groups the catalog knows
+        rec = app.read_json(app.GOALS, {})["1"]["next_groups"]
+        self.assertEqual(rec["groups"], ["Pull"])
+        self.assertRegex(rec["set_at"], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$")
+        self.assertEqual(post([])["groups"], [])
+        self.assertNotIn("next_groups", app.read_json(app.GOALS, {})["1"])
+
     def test_nonsense_in_the_basic_fields_cannot_break_the_planner(self):
         body = {"user_id": 1, "goal": {"muscle": "lots", "strength": 7, "evil": 1}, "sessions_per_week": "every day"}
         self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)

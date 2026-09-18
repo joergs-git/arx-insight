@@ -52,6 +52,8 @@ REGION_NAMES = {"legs": ("Legs", "Beine"), "back": ("Back", "Rücken"), "chest":
 AID_NAMES = {"hooks": ("lifting hooks", "Zughaken"), "straps": ("lifting straps", "Zugschlaufen")}
 BODY_NAMES = {"weight_kg": ("Body weight", "Körpergewicht"), "arm_cm": ("Upper arm", "Oberarm"), "chest_cm": ("Chest", "Brust"),
               "waist_cm": ("Waist", "Taille"), "thigh_cm": ("Thigh", "Oberschenkel"), "fat_pct": ("Body fat", "Körperfett")}
+GROUP_NAMES = {"Push": ("Push (chest, shoulders, triceps)", "Drücken (Brust, Schultern, Trizeps)"),
+               "Pull": ("Pull (back, biceps)", "Ziehen (Rücken, Bizeps)"), "Drive": ("Drive (legs, hips)", "Beine (Drive)")}
 WEEKDAY_NAMES = (("Monday", "Montag"), ("Tuesday", "Dienstag"), ("Wednesday", "Mittwoch"), ("Thursday", "Donnerstag"),
                  ("Friday", "Freitag"), ("Saturday", "Samstag"), ("Sunday", "Sonntag"))
 
@@ -109,6 +111,8 @@ def _fmt(key: str, val, imperial: bool, lang: str):
     if key in ("region", "aid", "metric"):
         names = {"region": REGION_NAMES, "aid": AID_NAMES, "metric": BODY_NAMES}[key].get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
+    if key == "groups" and isinstance(val, (list, tuple)):          # the machine's movement groups, spelled out
+        return " + ".join((GROUP_NAMES.get(str(g)) or (str(g), str(g)))[1 if lang == "de" else 0] for g in val)
     if key == "weekday" and isinstance(val, int) and 0 <= val <= 6:
         return WEEKDAY_NAMES[val][1 if lang == "de" else 0]
     comma = (lambda x: x.replace(".", ",")) if lang == "de" else (lambda x: x)
