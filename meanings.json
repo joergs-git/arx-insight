@@ -1,0 +1,333 @@
+{
+  "_comment": "Meaning / action sentences of the engine (owner's rule: no number without 'what does it mean for me' and 'what follows concretely'). code -> meaning/action -> en/de. Placeholders are filled by arx_history.explain(): *_kg and *_cm are converted to the athlete's units, *_spct is a signed percentage, *_pct a percentage, *_date a short date, 'muscle' a plain-word muscle name. The report works without an API key because of these; the AI only refines the wording.",
+  "progress_progressing": {
+    "meaning": {
+      "en": "Stronger than your own baseline: {change_spct} on {n} comparable days (concentric {con_spct}, eccentric {ecc_spct}).",
+      "de": "Stärker als deine eigene Basis: {change_spct} auf {n} vergleichbaren Tagen (konzentrisch {con_spct}, exzentrisch {ecc_spct})."
+    },
+    "action": {
+      "en": "Keep range, tempo and pauses exactly as they are and add the next small step.",
+      "de": "Bewegungsweg, Tempo und Pausen genau so lassen und den nächsten kleinen Schritt draufsetzen."
+    }
+  },
+  "progress_progressing_context": {
+    "meaning": {
+      "en": "Up {change_spct} on {n} comparable days. The newest value is {drop_spct} lower, but it was measured pre-loaded at position {position} - that is fatigue, not lost strength.",
+      "de": "Plus {change_spct} auf {n} vergleichbaren Tagen. Der neueste Wert liegt {drop_spct} darunter, wurde aber vorermüdet an Position {position} gemessen - das ist Ermüdung, kein Kraftverlust."
+    },
+    "action": {
+      "en": "Do this exercise first in one of the next sessions to get a clean measurement.",
+      "de": "Diese Übung in einer der nächsten Einheiten zuerst machen, um sauber zu messen."
+    }
+  },
+  "progress_stable": {
+    "meaning": {
+      "en": "Holding its level: {change_spct} on {n} comparable days over {span_days} days.",
+      "de": "Hält das Niveau: {change_spct} auf {n} vergleichbaren Tagen über {span_days} Tage."
+    },
+    "action": {
+      "en": "Take the set to real fatigue before asking for more force.",
+      "de": "Erst den Satz wirklich ausbelasten, dann mehr Kraft verlangen."
+    }
+  },
+  "progress_stable_context": {
+    "meaning": {
+      "en": "Level held on {n} comparable days. The newest value is {drop_spct} lower, but measured pre-loaded at position {position}.",
+      "de": "Niveau gehalten auf {n} vergleichbaren Tagen. Der neueste Wert liegt {drop_spct} darunter, wurde aber vorermüdet an Position {position} gemessen."
+    },
+    "action": {
+      "en": "Put it first once to see where you really stand.",
+      "de": "Einmal an den Anfang stellen, um den echten Stand zu sehen."
+    }
+  },
+  "progress_plateau": {
+    "meaning": {
+      "en": "Plateau: within {change_spct} on {n} comparable days over {span_days} days.",
+      "de": "Plateau: innerhalb {change_spct} auf {n} vergleichbaren Tagen über {span_days} Tage."
+    },
+    "action": {
+      "en": "Change one stimulus, not everything: a deeper effort target, a slower tempo or a longer hold - and give the muscle its full rest.",
+      "de": "Einen Reiz ändern, nicht alles: tiefere Ausbelastung, langsameres Tempo oder längeres Halten - und dem Muskel die volle Erholung geben."
+    }
+  },
+  "progress_plateau_context": {
+    "meaning": {
+      "en": "Plateau on {n} comparable days; the newest, lower value ({drop_spct}) was measured pre-loaded at position {position}.",
+      "de": "Plateau auf {n} vergleichbaren Tagen; der neueste, niedrigere Wert ({drop_spct}) wurde vorermüdet an Position {position} gemessen."
+    },
+    "action": {
+      "en": "Test it fresh once, then change one stimulus (effort target, tempo or hold).",
+      "de": "Einmal frisch testen, dann einen Reiz ändern (Ausbelastung, Tempo oder Halten)."
+    }
+  },
+  "progress_regressing": {
+    "meaning": {
+      "en": "Down {change_spct} on {n} comparable days in the same context (concentric {con_spct}, eccentric {ecc_spct}).",
+      "de": "Minus: {change_spct} auf {n} vergleichbaren Tagen im gleichen Kontext (konzentrisch {con_spct}, exzentrisch {ecc_spct})."
+    },
+    "action": {
+      "en": "Check recovery first (rest days, sleep, soreness), then the effort of the last sets - do not add volume.",
+      "de": "Zuerst die Erholung prüfen (Ruhetage, Schlaf, Muskelkater), dann die Ausbelastung der letzten Sätze - kein zusätzliches Volumen."
+    }
+  },
+  "progress_regressing_context": {
+    "meaning": {
+      "en": "Down {change_spct}, but this exercise has never been measured fresh - every value came after other work for the same muscles.",
+      "de": "Minus {change_spct}, aber diese Übung wurde noch nie frisch gemessen - jeder Wert kam nach anderer Arbeit für dieselben Muskeln."
+    },
+    "action": {
+      "en": "Do it first in the next session; only a fresh value says whether strength really dropped.",
+      "de": "In der nächsten Einheit zuerst machen; nur ein frischer Wert zeigt, ob die Kraft wirklich gefallen ist."
+    }
+  },
+  "progress_insufficient": {
+    "meaning": {
+      "en": "{change_spct} between {n} comparable days - too little to call it a trend.",
+      "de": "{change_spct} zwischen {n} vergleichbaren Tagen - zu wenig für einen Trend."
+    },
+    "action": {
+      "en": "Keep the settings constant; from the third comparable day on there is a verdict.",
+      "de": "Einstellungen konstant halten; ab dem dritten vergleichbaren Tag gibt es ein Urteil."
+    }
+  },
+  "progress_not_comparable": {
+    "meaning": {
+      "en": "No progress figure yet: {excluded} day(s) used another range, tempo or protocol.",
+      "de": "Noch keine Fortschrittszahl: {excluded} Tag(e) liefen mit anderem Bewegungsweg, Tempo oder Protokoll."
+    },
+    "action": {
+      "en": "Fix start / end position and tempo and repeat them - two matching days are enough to start.",
+      "de": "Start-/Endposition und Tempo festlegen und wiederholen - zwei passende Tage genügen für den Anfang."
+    }
+  },
+  "progress_familiarisation": {
+    "meaning": {
+      "en": "Still learning the movement: early gains are coordination, not yet strength ({fam_days} learning day(s)).",
+      "de": "Noch in der Eingewöhnung: frühe Zuwächse sind Koordination, noch keine Kraft ({fam_days} Lerntag(e))."
+    },
+    "action": {
+      "en": "Same settings, controlled reps; the baseline starts once the values settle.",
+      "de": "Gleiche Einstellungen, kontrollierte Wiederholungen; die Basis beginnt, sobald die Werte sich einpendeln."
+    }
+  },
+  "overall_index": {
+    "meaning": {
+      "en": "Strength index {index}: across {k} of {total} exercises you are {change_spct} versus your own baseline (learning days excluded).",
+      "de": "Kraftindex {index}: über {k} von {total} Übungen liegst du {change_spct} gegenüber deiner eigenen Basis (Lerntage ausgenommen)."
+    },
+    "action": {
+      "en": "The exercises marked plateau or regressing are where the next gain is.",
+      "de": "Die Übungen mit Plateau oder Rückgang sind die Stellen für den nächsten Zuwachs."
+    }
+  },
+  "overall_index_pending": {
+    "meaning": {
+      "en": "No overall index yet: {k} of {total} exercises have comparable days (at least 3 and half of them are needed).",
+      "de": "Noch kein Gesamtindex: {k} von {total} Übungen haben vergleichbare Tage (nötig sind mindestens 3 und die Hälfte)."
+    },
+    "action": {
+      "en": "Repeat the same settings for a few sessions - the index builds itself.",
+      "de": "Ein paar Einheiten mit denselben Einstellungen wiederholen - der Index entsteht von selbst."
+    }
+  },
+  "time_efficiency": {
+    "meaning": {
+      "en": "About {minutes} min per week in the gym, {tul_minutes} min of it under load, {hard_sets} hard sets - {per_hour_spct} index change per training hour so far.",
+      "de": "Rund {minutes} min pro Woche im Studio, davon {tul_minutes} min unter Last, {hard_sets} harte Sätze - bisher {per_hour_spct} Indexänderung je Trainingsstunde."
+    },
+    "action": {
+      "en": "More effort per set beats more sets: raise quality before time.",
+      "de": "Mehr Ausbelastung je Satz schlägt mehr Sätze: erst die Qualität erhöhen, dann die Zeit."
+    }
+  },
+  "time_efficiency_pending": {
+    "meaning": {
+      "en": "About {minutes} min per week in the gym, {tul_minutes} min of it under load, {hard_sets} hard sets per week.",
+      "de": "Rund {minutes} min pro Woche im Studio, davon {tul_minutes} min unter Last, {hard_sets} harte Sätze pro Woche."
+    },
+    "action": {
+      "en": "Progress per hour appears once enough comparable days exist.",
+      "de": "Fortschritt je Stunde erscheint, sobald genug vergleichbare Tage vorliegen."
+    }
+  },
+  "finding_rom_drift": {
+    "meaning": {
+      "en": "Range of motion drifted: reference {ref_cm}, latest {latest_cm} ({drift_spct}); {days} day(s) are not comparable.",
+      "de": "Bewegungsweg schwankt: Referenz {ref_cm}, zuletzt {latest_cm} ({drift_spct}); {days} Tag(e) sind nicht vergleichbar."
+    },
+    "action": {
+      "en": "Store fixed start and end positions for this exercise and reuse them every time.",
+      "de": "Feste Start- und Endposition für diese Übung speichern und jedes Mal wiederverwenden."
+    }
+  },
+  "finding_context_drop": {
+    "meaning": {
+      "en": "The newest value is {drop_spct} below your fresh level, measured at position {position} after work for the same muscles.",
+      "de": "Der neueste Wert liegt {drop_spct} unter deinem frischen Niveau, gemessen an Position {position} nach Arbeit für dieselben Muskeln."
+    },
+    "action": {
+      "en": "Not a regression - put it first once for a clean reading.",
+      "de": "Kein Rückschritt - einmal an den Anfang stellen für einen sauberen Wert."
+    }
+  },
+  "finding_pb": {
+    "meaning": {
+      "en": "New personal best at the same range of motion: {best_kg} (on {n} comparable days).",
+      "de": "Neuer Bestwert bei gleichem Bewegungsweg: {best_kg} (auf {n} vergleichbaren Tagen)."
+    },
+    "action": {
+      "en": "Hold this force next time and take the set to real fatigue before stepping up.",
+      "de": "Diese Kraft nächstes Mal halten und den Satz wirklich ausbelasten, bevor es höher geht."
+    }
+  },
+  "finding_order_effect": {
+    "meaning": {
+      "en": "{then} lost {loss_pct} when it came after {before} (measured {n} times).",
+      "de": "{then} verlor {loss_pct}, wenn es nach {before} kam ({n}-mal gemessen)."
+    },
+    "action": {
+      "en": "Put {then} before {before}, or place an exercise for other muscles between them.",
+      "de": "{then} vor {before} legen oder eine Übung für andere Muskeln dazwischen setzen."
+    }
+  },
+  "finding_repeat_effect": {
+    "meaning": {
+      "en": "A second set of {exercise} in the same session delivered {loss_pct} less ({n} times).",
+      "de": "Ein zweiter Satz {exercise} in derselben Einheit brachte {loss_pct} weniger ({n}-mal)."
+    },
+    "action": {
+      "en": "One hard set is the stimulus; spend the time on rest or on another muscle instead.",
+      "de": "Ein harter Satz ist der Reiz; die Zeit lieber in Pause oder einen anderen Muskel stecken."
+    }
+  },
+  "finding_never_fresh": {
+    "meaning": {
+      "en": "{k} exercise(s) were never measured fresh: {exercises}. Their numbers always include fatigue from earlier sets.",
+      "de": "{k} Übung(en) wurden noch nie frisch gemessen: {exercises}. Ihre Werte enthalten immer die Ermüdung früherer Sätze."
+    },
+    "action": {
+      "en": "The plan rotates the first slot so that each of them gets a clean measurement.",
+      "de": "Der Plan rotiert den ersten Platz, damit jede davon einmal sauber gemessen wird."
+    }
+  },
+  "finding_unsteady_force": {
+    "meaning": {
+      "en": "Unusually unsteady: {drops} sudden force drops within phases (typical for this exercise: {usual}).",
+      "de": "Ungewöhnlich unruhig: {drops} plötzliche Kraftabfälle innerhalb der Phasen (üblich bei dieser Übung: {usual})."
+    },
+    "action": {
+      "en": "Check position and grip before the set; keep pressure constant through the range.",
+      "de": "Vor dem Satz Position und Griff prüfen; den Druck über den ganzen Weg konstant halten."
+    }
+  },
+  "finding_hold_not_held": {
+    "meaning": {
+      "en": "A {pause_s} s hold is programmed, but the force in it was only {hold_pct} of your concentric force - the pause was rest.",
+      "de": "Es ist ein Halten von {pause_s} s programmiert, die Kraft darin lag aber nur bei {hold_pct} deiner konzentrischen Kraft - die Pause war Erholung."
+    },
+    "action": {
+      "en": "Either squeeze against the machine during the hold or set the pause to 0 s.",
+      "de": "Entweder im Halten gegen die Maschine drücken oder die Pause auf 0 s stellen."
+    }
+  },
+  "finding_ecc_con_shift": {
+    "meaning": {
+      "en": "The eccentric / concentric ratio moved from {from} to {to} ({shift_spct}): the effort shifted between the two phases.",
+      "de": "Das Verhältnis exzentrisch / konzentrisch ging von {from} auf {to} ({shift_spct}): die Anstrengung hat sich zwischen den Phasen verschoben."
+    },
+    "action": {
+      "en": "Drive both directions with the same intent - do not save yourself in one phase.",
+      "de": "Beide Richtungen mit demselben Einsatz fahren - sich in keiner Phase schonen."
+    }
+  },
+  "finding_underload": {
+    "meaning": {
+      "en": "{k} of {sets} sets started held back (first reps {deficit_pct} below your best stretch) and ended without real fatigue.",
+      "de": "{k} von {sets} Sätzen begannen verhalten (erste Wiederholungen {deficit_pct} unter deiner besten Phase) und endeten ohne echte Ermüdung."
+    },
+    "action": {
+      "en": "Push hard from rep 1; the set counts when force falls towards the end.",
+      "de": "Ab der ersten Wiederholung voll drücken; der Satz zählt, wenn die Kraft zum Ende hin fällt."
+    }
+  },
+  "finding_short_intra_session_rest": {
+    "meaning": {
+      "en": "{exercise} started only {minutes} min after work for the same muscles.",
+      "de": "{exercise} begann nur {minutes} min nach Arbeit für dieselben Muskeln."
+    },
+    "action": {
+      "en": "Rest 3-4 min or put another muscle in between.",
+      "de": "3-4 min Pause oder einen anderen Muskel dazwischen legen."
+    }
+  },
+  "finding_too_many_sets": {
+    "meaning": {
+      "en": "{sets} working sets in one session - more than the stimulus needs.",
+      "de": "{sets} Arbeitssätze in einer Einheit - mehr als der Reiz braucht."
+    },
+    "action": {
+      "en": "Fewer sets, each taken to real fatigue.",
+      "de": "Weniger Sätze, dafür jeder bis zur echten Ermüdung."
+    }
+  },
+  "finding_false_start_pattern": {
+    "meaning": {
+      "en": "{k} false starts in the last two weeks ({last_session} in the last session).",
+      "de": "{k} Fehlstarts in den letzten zwei Wochen ({last_session} in der letzten Einheit)."
+    },
+    "action": {
+      "en": "Check the pre-timer and your start position before the set begins.",
+      "de": "Vorlaufzeit und Startposition prüfen, bevor der Satz beginnt."
+    }
+  },
+  "finding_effort_target_missed": {
+    "meaning": {
+      "en": "Only {hits} of {sets} sets in the last 4 weeks reached your effort target ({target_pct} force decline).",
+      "de": "Nur {hits} von {sets} Sätzen der letzten 4 Wochen erreichten dein Ausbelastungsziel ({target_pct} Kraftabfall)."
+    },
+    "action": {
+      "en": "This is the biggest lever: stay in the set until force clearly falls.",
+      "de": "Das ist der größte Hebel: im Satz bleiben, bis die Kraft deutlich fällt."
+    }
+  },
+  "finding_missed_weekly_target": {
+    "meaning": {
+      "en": "Week {week}: {sessions} of {target} planned sessions.",
+      "de": "Woche {week}: {sessions} von {target} geplanten Einheiten."
+    },
+    "action": {
+      "en": "See the date of the next session in chapter 2.",
+      "de": "Das Datum der nächsten Einheit steht in Kapitel 2."
+    }
+  },
+  "finding_neglected_muscle": {
+    "meaning": {
+      "en": "{muscle}: no direct work for {days} days (last on {last_date}).",
+      "de": "{muscle}: seit {days} Tagen keine direkte Arbeit (zuletzt am {last_date})."
+    },
+    "action": {
+      "en": "It is scheduled with priority in the next plan.",
+      "de": "Im nächsten Plan ist es mit Vorrang eingeplant."
+    }
+  },
+  "progress_insufficient_span": {
+    "meaning": {
+      "en": "{change_spct} on {n} comparable days, but within {span_days} days only - too short a period for a trend.",
+      "de": "{change_spct} auf {n} vergleichbaren Tagen, aber innerhalb von nur {span_days} Tagen - für einen Trend ist der Zeitraum zu kurz."
+    },
+    "action": {
+      "en": "Keep the settings constant; after about 10 days there is a verdict.",
+      "de": "Einstellungen konstant halten; nach etwa 10 Tagen gibt es ein Urteil."
+    }
+  },
+  "progress_single_day": {
+    "meaning": {
+      "en": "Done on one comparable day so far - nothing to compare it with yet.",
+      "de": "Bisher an einem vergleichbaren Tag gemacht - es gibt noch nichts zum Vergleichen."
+    },
+    "action": {
+      "en": "Repeat it with the same range and tempo; the second day gives the first comparison.",
+      "de": "Mit gleichem Bewegungsweg und Tempo wiederholen; der zweite Tag ergibt den ersten Vergleich."
+    }
+  }
+}

@@ -444,6 +444,10 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
     top3 = lambda xs: st.mean(sorted(xs, reverse=True)[:3])
     con_avg, ecc_avg = st.mean(con), st.mean(ecc)
     holds = [r[k] for r in rows for k in ("hold_end_mean", "hold_start_mean") if r.get(k) is not None]
+    # the END-position hold is meant to be held under tension (a programmed squeeze); the pause at
+    # the start position is rest between reps by design - so they are reported separately
+    holds_end = [r["hold_end_mean"] for r in rows if r.get("hold_end_mean") is not None]
+    holds_start = [r["hold_start_mean"] for r in rows if r.get("hold_start_mean") is not None]
     out.update({
         "method": "phases",
         "first_half": "con" if rising_first else "ecc",
@@ -453,6 +457,9 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
         "ecc_con_ratio": _r(ecc_avg / con_avg, 2) if con_avg else None,
         "hold_kg": _r(st.mean(holds)) if holds else None,
         "hold_rel": _r(st.mean(holds) / con_avg, 2) if (holds and con_avg) else None,
+        "hold_end_kg": _r(st.mean(holds_end)) if holds_end else None,
+        "hold_end_rel": _r(st.mean(holds_end) / con_avg, 2) if (holds_end and con_avg) else None,
+        "hold_start_kg": _r(st.mean(holds_start)) if holds_start else None,
         "tempo": {"con_s": _r(st.median([r["con_s"] for r in rows]), 2),
                   "ecc_s": _r(st.median([r["ecc_s"] for r in rows]), 2)},
     })

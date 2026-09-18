@@ -29,6 +29,7 @@ from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX
                       open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit)
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
+import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
 
 
 
@@ -1522,7 +1523,8 @@ def set_effort(con, set_id: int, cache: dict) -> dict:
 # set-level detail fields copied onto each working set (the per-rep rows stay in s["detail"])
 DETAIL_FIELDS = ("con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_kg", "mov_kg", "ecc_con_ratio",
                  "fatigue_con_pct", "fatigue_ecc_pct", "output_change_pct", "pacing_deficit_pct", "best_rep",
-                 "hold_kg", "hold_rel", "drops_mid", "tut", "tempo", "arx_output", "borderline",
+                 "hold_kg", "hold_rel", "hold_end_kg", "hold_end_rel", "hold_start_kg", "drops_mid", "tut", "tempo",
+                 "arx_output", "borderline",
                  "con_thirds_kg", "ecc_thirds_kg", "con_weak_third", "ecc_weak_third", "first_half")
 
 
@@ -1780,6 +1782,17 @@ def build_report(con, cfg: dict) -> dict:
         "total_impulse": sum(s["impulse_kg_s"] for s in work),
     }
     totals = _totals(work, load.get("weekly_rate"), sequences_all)
+    # chapter 3: windows, progress factors per exercise, findings - every item with meaning + action
+    scored = []
+    hist = list(cfg.get("checkin_history") or [])
+    for i, c in enumerate(hist):
+        r = _readiness(c, hist[:i])
+        if r:
+            scored.append({"date": c.get("date"), "score": r["score"], "rhr": r["rhr"]})
+    if readiness:
+        scored.append({"date": today.isoformat(), "score": readiness["score"], "rhr": readiness["rhr"]})
+    hist_report = history.build_history(work, sets, exercises, sequences_all, catalog, today, cfg, ev, last_session, load,
+                                        _target_effort(cfg.get("goal", {}) or {})["inroad_min"], scored)
     coach = _coach_facts(exercises, load["recovery"], cfg.get("goal", {}) or {}, days,
                          cfg.get("sessions_per_week"), today, totals, cfg.get("units", "imperial"),
                          cfg.get("checkin_history"), readiness)
@@ -1801,6 +1814,7 @@ def build_report(con, cfg: dict) -> dict:
         "session_sequences": sequences,
         "limiter_conflicts": _limiter_conflicts(sequences),
         "evidence": ev,                          # order / rest / limiter / recovery effects, each with n
+        "history": hist_report,                  # windows, progress_factors, findings, time efficiency
         "aids": aids,
         "totals": totals,
         "coach": coach,                          # whiteboard facts: targets, adherence, milestones, deload
