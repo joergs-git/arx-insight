@@ -17,3 +17,6 @@ ARX/
 .ai_cache.json
 # runtime state of the local app (pid, port, shutdown secret)
 instance.json
+# plan ledger (per-person recommendations) - private like goals.json
+plans.json
+.detail_cache.json

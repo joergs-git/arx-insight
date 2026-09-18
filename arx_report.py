@@ -24,26 +24,17 @@ from __future__ import annotations
 import os, sys, json, gzip, time, shutil, tempfile, argparse, statistics as st
 from datetime import datetime, date, timedelta
 
+# shared base (moved out in v0.4.0; re-exported here so callers of arx_report keep working)
+from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS,
+                      open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
+                      EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile,
+                      shared_connection, drop_snapshots, write_json_atomic)
+import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
+import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
+import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
+import arx_plan as planner      # the ONE plan: when, what, order, targets, week plan, plan ledger
 
-def data_dir() -> str:
-    """Stable per-user location for settings, goals and caches.
 
-    Kept OUTSIDE the program folder so re-downloading the app (a fresh ZIP)
-    never overwrites the user's settings, goals, venv or Firebird client.
-    Override with the ARX_DATA_DIR environment variable (the Windows launcher
-    sets it to %LOCALAPPDATA%\\ARXInsight)."""
-    d = os.environ.get("ARX_DATA_DIR")
-    if not d:
-        if os.name == "nt":
-            d = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ARXInsight")
-        else:
-            d = os.path.join(os.path.expanduser("~"), ".arx-insight")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-# --- unit conversions (ARX stores imperial internally) -----------------------
-LB_TO_KG = 0.45359237          # pounds  -> kilograms
-IN_TO_CM = 2.54                # inches  -> centimeters
 
 # --- a "real" working set must clear this noise filter ------------------------
 # A normal ARX set is ~8 reps over 80-190 s. Anything with fewer than MIN_REPS
@@ -56,12 +47,15 @@ RESTART_GAP_MIN = 3            # same exercise started again within this many mi
                                # with MORE reps -> the earlier one was a false start
 
 # --- effort / inroad classification --------------------------------------------
-# Bump EFFORT_ALGO_VERSION whenever set_effort's logic or these thresholds change:
-# the per-set effort cache is keyed by set id and would otherwise keep stale
-# results forever (a recorded set never changes, but our reading of it may).
-EFFORT_ALGO_VERSION = 2
-INROAD_DEEP = 20               # % force decline across reps -> genuinely deep fatigue
-INROAD_MODERATE = 8            # % ... -> moderate effort (unless the peaks were still rising)
+# Since v0.4.0 the effort of a set comes from arx_detail.effort_v3 (phase-resolved, time-weighted;
+# deep >= 20, moderate >= 10). The constants below belong to the LEGACY reading (v2: decline of the
+# whole-rep peak = of an eccentric spike); it survives as set["inroad_legacy"] and in set_effort()
+# for comparison only.
+EFFORT_ALGO_VERSION = detail.EFFORT_ALGO_VERSION
+INROAD_DEEP = 20               # legacy v2: % decline of the rep peaks -> deep
+INROAD_MODERATE = 8            # legacy v2: ... -> moderate (unless the peaks were still rising)
+LOW_FORCE_SHARE = 0.5          # a set below this share of the exercise's best peak nearby ...
+LOW_FORCE_DAYS = 28            # ... (within this many days) cannot count as a hard load
 
 # --- range-of-motion validity ---------------------------------------------------
 # Force on an adaptive-resistance machine depends on the position range the set
@@ -73,6 +67,16 @@ INROAD_MODERATE = 8            # % ... -> moderate effort (unless the peaks were
 ROM_TOLERANCE = 0.05           # 5 % relative deviation
 ROM_REF_DAYS = 5               # days that form the reference window
 MIN_TREND_POINTS = 3           # fewer comparable days -> no trend / forecast (None)
+# Comparable = same ROM AND same tempo AND same protocol class, not a familiarisation day, not a
+# low-force set. (Pause length does NOT matter for the phase means - verified: Row concentric
+# 51.0 -> 52.5 kg across a 5/5 s -> 0/3 s pause change - but tempo and protocol do.)
+TEMPO_TOLERANCE = 0.15         # seconds per direction within 15 % of the exercise's reference tempo
+# Familiarisation: the first days on a machine (or at a new setting) show learning, not strength -
+# user data: Row 44.5 kg on day 1, 106 kg the next day. A day counts as familiarisation while its
+# strength is below FAM_SHARE of the median of the next (up to) FAM_LOOKAHEAD comparable days;
+# the walk stops at the first settled day, so a later dip is a regression, not "learning".
+FAM_SHARE = 0.85
+FAM_LOOKAHEAD = 3              # (at least two of them must exist - see _exercise_series)
 
 # --- scientifically-defensible "textbook" machine settings for hypertrophy/strength
 # ~8 reps, ~5 s per movement direction, a ~3 s hold at the end position, no pause on
@@ -85,99 +89,12 @@ IDEAL_SETTINGS = {
 
 
 # =============================================================================
-# Firebird access
-# =============================================================================
-def locate_fbclient() -> str | None:
-    """Find the Firebird client library.
-
-    Priority: explicit env var, then the library that ships with the ARX app on
-    Windows (embedded mode), then a couple of common install locations. On the
-    machine running ARX this library is always present, because ARX itself uses
-    Firebird embedded.
-    """
-    env = os.environ.get("ARX_FBCLIENT")
-    if env and os.path.exists(env):
-        return env
-    candidates = [
-        # Windows: next to the ARX executable (embedded fbclient)
-        r"C:\Program Files\WindowsApps",  # searched below
-        r"C:\Program Files\Firebird\Firebird_5_0\fbclient.dll",
-        r"C:\Program Files\Firebird\Firebird_4_0\fbclient.dll",
-        # macOS / Linux
-        "/Library/Frameworks/Firebird.framework/Firebird",
-        "/opt/firebird/lib/libfbclient.so",
-        "/usr/lib/libfbclient.so",
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    # Windows: hunt for fbclient.dll inside the installed ARX package
-    wa = r"C:\Program Files\WindowsApps"
-    if os.path.isdir(wa):
-        for root, _dirs, files in os.walk(wa):
-            if "Arx" in root and "fbclient.dll" in files:
-                return os.path.join(root, "fbclient.dll")
-    return None
-
-
-TEMP_PREFIX = "arx_ro_"         # temp folders holding a COPY of the (private) ARX database
-STALE_COPY_SECONDS = 3600       # a copy older than this belongs to a crashed / killed run
-
-
-def open_readonly(db_path: str):
-    """Return (connection, tempdir). Opens a COPY so the original is untouched.
-
-    The copy contains private training data, so it must never be left behind: when the copy or
-    the connection fails (missing client library, locked file, ...) the temp folder is removed
-    before the error is passed on. Callers remove it after closing the connection."""
-    from firebird.driver import connect, driver_config  # imported late on purpose
-
-    lib = locate_fbclient()
-    if lib:
-        driver_config.fb_client_library.value = lib
-    tmp = tempfile.mkdtemp(prefix=TEMP_PREFIX)
-    try:
-        copy = os.path.join(tmp, "arx_copy.fdb")
-        shutil.copy2(db_path, copy)
-        con = connect(copy, user="SYSDBA")   # embedded: no password required
-    except Exception:
-        shutil.rmtree(tmp, ignore_errors=True)
-        raise
-    return con, tmp
-
-
-def sweep_stale_copies(max_age_s: float = STALE_COPY_SECONDS) -> int:
-    """Remove DB copies that an earlier run left behind (crash, killed console window).
-    Only folders with our prefix that are older than max_age_s are touched, so a report that is
-    being built right now by another process keeps its copy. Returns the number removed."""
-    root, removed, now = tempfile.gettempdir(), 0, time.time()
-    try:
-        names = os.listdir(root)
-    except OSError:
-        return 0
-    for name in names:
-        path = os.path.join(root, name)
-        try:
-            if name.startswith(TEMP_PREFIX) and os.path.isdir(path) and now - os.path.getmtime(path) > max_age_s:
-                shutil.rmtree(path, ignore_errors=True)
-                removed += 1
-        except OSError:
-            pass
-    return removed
-
-
-def blob_bytes(v) -> bytes:
-    """Normalize a Firebird blob value to bytes (text blobs come back as str)."""
-    if v is None:
-        return b""
-    if hasattr(v, "read"):
-        v = v.read()
-    return v.encode("latin1") if isinstance(v, str) else bytes(v)
-
-
-# =============================================================================
 # Metrics
 # =============================================================================
+PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTOCOL: what ends the set
+STATIC_MIN_SECONDS = 20        # a shorter isometric attempt is a test, like any other short set
+
+
 def classify_set(sec: float, reps: int, concentric: float, eccentric: float,
                  ended_early: bool, has_events: bool) -> tuple[str, str]:
     """Decide whether a recorded set is a real WORKING set or noise.
@@ -221,7 +138,7 @@ def flag_false_starts(sets: list[dict]) -> None:
         ss.sort(key=lambda s: s["date"])
         for a, b in zip(ss, ss[1:]):
             ta, tb = _ts(a["date"]), _ts(b["date"])
-            if ta is None or tb is None or a["status"] in ("no_data", "hidden"):
+            if ta is None or tb is None or a["status"] in ("no_data", "hidden", "static"):
                 continue
             gap_min = (tb - (ta + a["seconds"])) / 60.0
             if gap_min <= RESTART_GAP_MIN and b["reps"] > a["reps"]:
@@ -236,7 +153,7 @@ def load_sets(con, user_id: int) -> list[dict]:
     cur.execute(
         '''select id, exercisedate, "SESSION", exercise, protocol, maxload,
                   concentricmax, eccentricmax, intensity, elapsedseconds,
-                  repschemedata, eventstreamdata, hidefromstats
+                  repschemedata, eventstreamdata, hidefromstats, repscheme
            from "ExerciseSet"
            where user_id = ? and deleted is false
            order by exercisedate''',
@@ -263,8 +180,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
         # programmed pauses - needed per set for the session-sequence analysis
         rom_cm = pause_end = pause_return = None
+        static = str(r.get("REPSCHEME") or "").strip() == "StaticModeData"
         try:
             cfg = json.loads(rsd.decode("latin1"))
+            static = static or (cfg.get("StartPosition") is not None and cfg.get("StartPosition") == cfg.get("EndPosition"))
             rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
             pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
             pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
@@ -276,6 +195,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         e = float(r["ECCENTRICMAX"] or 0)
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
         status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
+        if static and status == "short" and sec >= STATIC_MIN_SECONDS:
+            # an isometric hold (ARX "Static" mode) has no reps by design: real work, but not
+            # comparable with dynamic sets - reported under its own name instead of "too short"
+            status, reason = "static", f"isometric hold, {sec:.0f} s - listed, not compared with dynamic sets"
         if status == "working" and r.get("HIDEFROMSTATS"):
             # hidden from the statistics in the ARX app itself: not training in the athlete's
             # own judgement. Sets that are already excluded keep their more specific status.
@@ -287,9 +210,10 @@ def load_sets(con, user_id: int) -> list[dict]:
             "session": r["SESSION"],
             "exercise": r["EXERCISE"],
             "protocol": r["PROTOCOL"],
+            "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "reps"),
             "reps": reps,
             "ended_early": ended_early,
-            "status": status,                  # working | short | aborted | no_data | hidden (| false_start)
+            "status": status,                  # working | short | aborted | no_data | hidden | static (| false_start)
             "reason": reason,                  # why it is not a working set ("" when it is)
             "rom_cm": rom_cm,
             "pause_end_s": pause_end,          # programmed hold at the end position
@@ -305,14 +229,6 @@ def load_sets(con, user_id: int) -> list[dict]:
             "working": status == "working",
         })
     return out
-
-
-def _ts(s: str):
-    """ISO timestamp string -> epoch seconds (None if unparsable)."""
-    try:
-        return datetime.fromisoformat(s).timestamp()
-    except Exception:
-        return None
 
 
 def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
@@ -400,14 +316,24 @@ def _downsample(curve: list[dict], n: int = CURVE_POINTS) -> list[dict]:
     return [curve[int(i * step)] for i in range(n)] + [curve[-1]]
 
 
-def set_curve(con, set_id: int) -> dict:
-    """Downsampled curve + per-rep peaks with their times + inroad of one set
-    (see load_curve) - what a force-curve card in the UI needs."""
+def set_curve(con, set_id: int, d: dict | None = None) -> dict:
+    """Downsampled curve + per-rep peaks with their times (curve markers) of one set, plus - from
+    its detail d (arx_detail) - what happened per repetition: concentric / eccentric mean force,
+    fatigue per phase, force by third of the range. inroad_pct is the SAME effort figure the
+    recovery model uses (effort v3), so a card and the plan can never disagree."""
     curve, events = load_curve(con, set_id)
     segs = rep_segments(curve, events)
     peaks = [s["peak"] for s in segs]
-    return {"curve": _downsample(curve), "rep_peaks": peaks,
-            "rep_times": [s["t"] for s in segs], "inroad_pct": _inroad(peaks)}
+    d = d or {}
+    reps = d.get("reps") or []
+    return {"curve": _downsample(curve), "rep_peaks": peaks, "rep_times": [s["t"] for s in segs],
+            "inroad_pct": d.get("inroad_v3") if d.get("inroad_v3") is not None else _inroad(peaks),
+            "rep_con": [r.get("con_mean") for r in reps], "rep_ecc": [r.get("ecc_mean") for r in reps],
+            "rep_hold": [r.get("hold_end_mean") if r.get("hold_end_mean") is not None else r.get("hold_start_mean")
+                         for r in reps],
+            "first_half": d.get("first_half"),
+            "con_thirds_kg": d.get("con_thirds_kg"), "ecc_thirds_kg": d.get("ecc_thirds_kg"),
+            "con_weak_third": d.get("con_weak_third"), "ecc_weak_third": d.get("ecc_weak_third")}
 
 
 # --- exercise catalog: code -> {name, group (Push/Pull/Drive), kind} ----------
@@ -416,23 +342,14 @@ def load_catalog(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
-        return {k: v for k, v in raw.items() if not k.startswith("_")}
+        catalog = {k: v for k, v in raw.items() if not k.startswith("_")}
+        known = {v.get("name") for v in catalog.values()}
+        for entry in raw.get("_library") or []:     # ARX exercises without a known DB code (planner suggestions)
+            if entry.get("name") and entry["name"] not in known:
+                catalog[f"lib:{entry['name']}"] = dict(entry, library=True)
+        return catalog
     except Exception:
         return {}
-
-
-def _linfit(xs, ys):
-    """Least-squares slope/intercept. The slope's unit follows xs: pass the
-    occurrence index for 'per training day occurrence', the day offset for 'per
-    calendar day' - the two differ by the training frequency (2-3x at 3 sessions
-    a week), so never mix them up."""
-    n = len(xs)
-    if n < 2:
-        return 0.0, (ys[0] if ys else 0.0)
-    mx, my = sum(xs) / n, sum(ys) / n
-    den = sum((x - mx) ** 2 for x in xs) or 1e-9
-    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den
-    return b, my - b * mx
 
 
 def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None) -> list[dict]:
@@ -451,7 +368,14 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
     and the trend is None when fewer than MIN_TREND_POINTS comparable days exist.
     The last day is also compared with the previous one (delta_pct, only
     meaningful when delta_comparable = same ROM) so the coach can talk about
-    the most recent session in concrete numbers."""
+    the most recent session in concrete numbers.
+
+    Since v0.4.0 a day must be COMPARABLE, not just ROM-valid, to feed trend, forecast and PB
+    flags: same tempo, protocol class and grip-aid state as the exercise's reference (days with
+    and without hooks / straps are never compared with each other), not a familiarisation day
+    (see FAM_SHARE), not a low-force set. Every set of the exercise gets the flags too (rom_ok,
+    settings_ok, fam, comparable) - the evidence layer and the planner build on them - and sets of
+    a familiarisation day are capped at sub-maximal effort (learning is no hard load)."""
     by_ex = {}
     for s in work:
         by_ex.setdefault(s["exercise"], []).append(s)
@@ -479,9 +403,20 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
                     "id": b["id"],                          # the best set of that day
                     "rom_cm": b.get("rom_cm"),              # ROM of that day's best set
                     "inroad": b.get("inroad"), "effort": b.get("effort"),
+                    "inroad_legacy": b.get("inroad_legacy"),
+                    # phase-resolved strength of that set (mean of the 3 best rep means): robust
+                    # against pause / tempo changes, unlike the peak or the mean force
+                    "con_top3_kg": b.get("con_top3_kg"), "ecc_top3_kg": b.get("ecc_top3_kg"),
+                    "mov_kg": b.get("mov_kg"), "fatigue_con_pct": b.get("fatigue_con_pct"),
+                    "fatigue_ecc_pct": b.get("fatigue_ecc_pct"),
                     "mean_force_kg": b.get("mean_force_kg"), "eccentric_kg": b.get("eccentric_kg"),
                     "reps": b.get("reps"), "seconds": b.get("seconds"),
                     "pause_end_s": b.get("pause_end_s"), "pause_return_s": b.get("pause_return_s"),
+                    "tempo_s": (b.get("tempo") or {}).get("con_s"),   # seconds per direction actually driven
+                    "protocol": b.get("protocol"),          # 3 = reps, 1 = countdown, 0 = inroad
+                    "aid_on": bool(b.get("aid_on")),        # a grip aid in use: not comparable with days without
+                    "context": b.get("context"),            # fresh | preloaded | repeat (arx_evidence)
+                    "position": b.get("position"),
                     "sets": by_day[day]["sets"],            # sets of this exercise that day
                     "sessions": len(by_day[day]["sessions"])}
         occ = [occ_row(i, day) for i, day in enumerate(days_sorted)]
@@ -504,7 +439,53 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         for o in occ:
             o["rom_valid"] = bool(rom_ref and o["rom_cm"]
                                   and abs(o["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
-        valid = [o for o in occ if o["rom_valid"]]
+        # Settings validity: reference tempo = the tempo most ROM-valid days of the window agree on
+        # (same cluster logic as the ROM); reference protocol = the most frequent one, latest wins.
+        win = [o for o in occ[-ROM_REF_DAYS:] if o["rom_valid"]] or occ[-ROM_REF_DAYS:]
+        tempos = [o["tempo_s"] for o in win if o["tempo_s"]]
+        tempo_ref = None
+        if tempos:
+            tempo_ref = max(reversed(tempos), key=lambda ref: sum(1 for x in tempos if abs(x - ref) / ref <= TEMPO_TOLERANCE))
+        protos = [o["protocol"] for o in win if o["protocol"] is not None]
+        proto_ref = max(reversed(protos), key=protos.count) if protos else None
+
+        aid_ref = occ[-1]["aid_on"]                     # what the athlete does NOW is the reference
+
+        def settings_ok(tempo, proto, aid_on=None) -> bool:
+            if proto_ref is not None and proto is not None and proto != proto_ref:
+                return False
+            if aid_on is not None and bool(aid_on) != aid_ref:
+                return False                            # with hooks the hands no longer end the set: another exercise
+            return not (tempo_ref and tempo and abs(tempo - tempo_ref) / tempo_ref > TEMPO_TOLERANCE)
+        for o in occ:
+            o["settings_ok"] = settings_ok(o["tempo_s"], o["protocol"], o["aid_on"])
+        # Familiarisation walk over the days that share the reference settings, oldest first
+        cluster = [o for o in occ if o["rom_valid"] and o["settings_ok"]]
+        strength_of = lambda o: o["mov_kg"] if all(x["mov_kg"] for x in cluster) else o["kg"]
+        for o in occ:
+            o["fam"] = False
+        for i, o in enumerate(cluster):
+            nxt = [strength_of(x) for x in cluster[i + 1:i + 1 + FAM_LOOKAHEAD]]
+            # at least two later days are needed to call a day "learning": against a single later
+            # day, one strong session would turn everything before it into familiarisation
+            if len(nxt) < 2 or strength_of(o) >= FAM_SHARE * st.median(nxt):
+                break                                   # settled - later dips are not "learning"
+            o["fam"] = True
+        fam_days = {o["date"] for o in occ if o["fam"]}
+        for x in ss:                                    # every SET gets the flags (evidence, planner)
+            day = x["date"][:10]
+            x["rom_ok"] = bool(rom_ref and x.get("rom_cm") and abs(x["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
+            x["settings_ok"] = settings_ok((x.get("tempo") or {}).get("con_s"), x.get("protocol"), x.get("aid_on", False))
+            x["fam"] = day in fam_days
+            if x["fam"] and x.get("effort") in ("deep", "moderate"):
+                x["effort_uncapped"], x["effort"], x["effort_capped"] = x["effort"], "submax", "familiarisation"
+            x["comparable"] = bool(x["rom_ok"] and x["settings_ok"] and not x["fam"] and x.get("effort_capped") != "low_force")
+        for o in occ:
+            b = by_day[o["date"]]["best"]
+            o["effort"], o["effort_capped"] = b.get("effort"), b.get("effort_capped")
+            o["comparable"] = bool(b.get("comparable"))
+        rom_only = [o for o in occ if o["rom_valid"]]
+        valid = [o for o in occ if o["comparable"]]      # what trend, forecast and PB flags build on
         rom_latest = occ[-1]["rom_cm"]
         rom_drift = round((rom_latest - rom_ref) / rom_ref * 100, 1) if (rom_ref and rom_latest) else None
         rom_stable = all(o["rom_valid"] for o in occ[-ROM_REF_DAYS:])
@@ -532,7 +513,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         # day; last_is_pb = the latest day is ROM-valid and reaches it, with an earlier comparable
         # day to beat (a first or lone comparable day is a baseline, not a record).
         pb_comparable = max((o["kg"] for o in valid), default=None)
-        last_is_pb = bool(len(valid) >= 2 and occ[-1]["rom_valid"] and occ[-1]["kg"] >= pb_comparable - 0.01)
+        last_is_pb = bool(len(valid) >= 2 and occ[-1]["comparable"] and occ[-1]["kg"] >= pb_comparable - 0.01)
         out.append({
             "ex": ex,
             "name": meta.get("name", f"Exercise {ex}"),
@@ -565,7 +546,10 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             "rom_cm_latest": rom_latest,
             "rom_drift_pct": rom_drift,                 # latest vs reference
             "rom_stable": rom_stable,                   # all days in the reference window comparable
-            "days_excluded_for_rom": len(occ) - len(valid),
+            "days_excluded_for_rom": len(occ) - len(rom_only),
+            "days_excluded_other": len(rom_only) - len(valid),   # other tempo / protocol, familiarisation, low force
+            "days_familiarisation": len(fam_days),
+            "tempo_s_reference": tempo_ref, "protocol_reference": proto_ref,
             "occ": occ, "forecast": fc,
         })
     out.sort(key=lambda e: e["pb"], reverse=True)
@@ -672,9 +656,7 @@ def _totals(work: list[dict], weekly_rate, sequences: list[dict]) -> dict:
 # elapsed. That is what makes two sessions on consecutive days fine when they
 # used different muscles, and what lets one deep isolation set block only the
 # exercises that need that muscle fresh instead of the whole next day.
-EFFORT_RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 2}
-RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
-REQUIRED_REST = {3: 3, 2: 2, 1: 1}     # days a muscle needs after a load of that rank
+# EFFORT_RANK / RANK_LABEL / REQUIRED_REST live in arx_base (shared with the planner)
 RECOVERY_LOOKBACK_DAYS = 14            # older loads cannot still be limiting
 RECENT_WINDOW_DAYS = 7                 # the load flag is judged on this window before today
 DETRAINING_GAP_DAYS = 10               # longer without training -> adaptation is being lost
@@ -688,16 +670,6 @@ SORENESS_REGIONS = {
 }
 
 
-def _today(cfg: dict) -> date:
-    """Today - overridable via cfg['_today'] or the ARX_TODAY environment
-    variable (ISO date) for reproducible tests and screenshots."""
-    t = (cfg or {}).get("_today") or os.environ.get("ARX_TODAY")
-    try:
-        return date.fromisoformat(t) if t else date.today()
-    except Exception:
-        return date.today()
-
-
 def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
     """Which muscles one set loads and how hard: (muscle, rank, role). Targets
     at the set's effort rank, limiters one rank lower (min 1). An exercise
@@ -706,7 +678,8 @@ def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
     meta = catalog.get(str(s["exercise"]), {})
     rank = EFFORT_RANK.get(s.get("effort"), 2)
     targets = list(meta.get("targets") or []) or [s.get("group") or "?"]
-    limiters = [l for l in (meta.get("limiters") or []) if l not in targets]
+    # limiters_eff: the catalog limiters minus what an aid (hooks / straps) took out on that day
+    limiters = [l for l in s.get("limiters_eff", meta.get("limiters") or []) if l not in targets]
     return [(m, rank, "target") for m in targets] + [(m, max(rank - 1, 1), "limiter") for m in limiters]
 
 
@@ -768,7 +741,7 @@ def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: dat
     ex_rows = []
     for e in exercises:
         targets = list(e.get("targets") or []) or [e.get("group") or "?"]
-        limiters = [l for l in (e.get("limiters") or []) if l not in targets]
+        limiters = [l for l in e.get("limiters_eff", e.get("limiters") or []) if l not in targets]
         t_block = [m for m in targets if m in muscles and not muscles[m]["ready"]]
         l_block = [m for m in limiters if m in muscles and not muscles[m]["ready"]]
         t_mild = [m for m in targets if muscles.get(m, {}).get("sore") == "mild"]
@@ -1023,7 +996,7 @@ def _session_sequences(work: list[dict], approach: str, catalog: dict | None = N
                 visits += 1
                 visit_start = t
             meta = catalog.get(str(s["exercise"]), {})
-            limiters = list(meta.get("limiters") or [])
+            limiters = list(s.get("limiters_eff", meta.get("limiters") or []))   # minus what an aid removed
             pre_fatigued = sorted(l for l in limiters if l in seen_lim)
             repeat = s["exercise"] in seen_ex
             rec = {
@@ -1418,12 +1391,15 @@ def _adherence(days: list[str], sessions_per_week, today: date) -> dict:
         n = per_week.get((y, w), 0)
         weeks.append({"week": f"{y}-W{w:02d}", "sessions": n, "met": n >= target,
                       "before_start": (y, w) < (fy, fw)})     # no history yet -> not a missed week
-    streak = 0
-    for wk in reversed(weeks):
-        if wk["met"]:
-            streak += 1
-        elif not wk["before_start"]:
+    # the streak counts EVERY full week back to the first session (the four listed weeks are only
+    # what the board shows): 10 weeks on target are 10, not "4+"
+    streak, back = 0, 1
+    while True:
+        ref = today - timedelta(weeks=back)
+        key = ref.isocalendar()[:2]
+        if key < (fy, fw) or per_week.get(key, 0) < target:
             break
+        streak, back = streak + 1, back + 1
     this_week = per_week.get((ty, tw), 0)
     return {"target_per_week": target, "this_week": this_week, "this_week_met": this_week >= target,
             "weeks": weeks, "streak_weeks": streak,
@@ -1570,6 +1546,48 @@ def set_effort(con, set_id: int, cache: dict) -> dict:
     return result
 
 
+# set-level detail fields copied onto each working set (the per-rep rows stay in s["detail"])
+DETAIL_FIELDS = ("con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_kg", "mov_kg", "ecc_con_ratio",
+                 "fatigue_con_pct", "fatigue_ecc_pct", "output_change_pct", "pacing_deficit_pct", "best_rep",
+                 "hold_kg", "hold_rel", "hold_end_kg", "hold_end_rel", "hold_start_kg", "drops_mid", "tut", "tempo",
+                 "arx_output", "borderline",
+                 "con_thirds_kg", "ecc_thirds_kg", "con_weak_third", "ecc_weak_third", "first_half")
+
+
+def attach_detail(s: dict, d: dict) -> None:
+    """Put the detail of a set (arx_detail.set_detail) onto the set: effort v3 becomes THE effort
+    (s["inroad"], s["effort"]) for recovery, plan and display; the v2 reading stays visible as
+    inroad_legacy / effort_legacy. A set without a usable curve is 'unknown' (treated as a moderate
+    load by the recovery model - better safe than sorry)."""
+    s["detail"] = d
+    s["detail_method"] = d.get("method", "none")
+    s["inroad_legacy"], s["effort_legacy"] = d.get("inroad_legacy"), d.get("effort_legacy", "unknown")
+    s["inroad"] = d.get("inroad_v3")
+    s["effort"] = d.get("effort", "unknown") if d.get("inroad_v3") is not None else "unknown"
+    for k in DETAIL_FIELDS:
+        s[k] = d.get(k)
+
+
+def cap_low_force(work: list[dict]) -> None:
+    """A set far below what the athlete can do is no hard load, however much its force fell.
+
+    Effort v3 is relative to the set itself: a familiarisation set at 40 % of the athlete's real
+    force can 'lose 30 %' and would count as deep - and block the muscle for three days. So a set
+    whose peak is below LOW_FORCE_SHARE of the best peak of that exercise within +-LOW_FORCE_DAYS is
+    capped at sub-maximal. Done at report time (never in the cache): it depends on other sets."""
+    by_ex: dict = {}
+    for s in work:
+        by_ex.setdefault(s["exercise"], []).append(s)
+    for ss in by_ex.values():
+        days = [(date.fromisoformat(x["date"][:10]).toordinal(), x["max_kg"]) for x in ss]
+        for s in ss:
+            o = date.fromisoformat(s["date"][:10]).toordinal()
+            best = max(kg for d, kg in days if abs(d - o) <= LOW_FORCE_DAYS)
+            s["effort_capped"] = None
+            if best and s["max_kg"] < LOW_FORCE_SHARE * best and s.get("effort") in ("deep", "moderate"):
+                s["effort_uncapped"], s["effort"], s["effort_capped"] = s["effort"], "submax", "low_force"
+
+
 def featured_settings(con, set_id: int, reps: int) -> dict:
     """Actual machine settings of one set (from REPSCHEMEDATA), so the report and
     the AI can compare them with IDEAL_SETTINGS."""
@@ -1650,11 +1668,20 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "concentric_kg": s["concentric_kg"], "eccentric_kg": s["eccentric_kg"],
             "reps": s["reps"], "seconds": s["seconds"], "rom_cm": s.get("rom_cm"),
             "inroad": s.get("inroad"), "effort": s.get("effort"),
+            "inroad_legacy": s.get("inroad_legacy"), "effort_capped": s.get("effort_capped"),
+            # inside the set: fatigue per phase, robust strength, pacing, time under tension
+            "fatigue_con_pct": s.get("fatigue_con_pct"), "fatigue_ecc_pct": s.get("fatigue_ecc_pct"),
+            "con_top3_kg": s.get("con_top3_kg"), "ecc_top3_kg": s.get("ecc_top3_kg"),
+            "ecc_con_ratio": s.get("ecc_con_ratio"), "pacing_deficit_pct": s.get("pacing_deficit_pct"),
+            "best_rep": s.get("best_rep"), "tut": s.get("tut"), "drops_mid": s.get("drops_mid"),
+            "context": s.get("context"), "position": s.get("position"),   # fresh | preloaded | repeat within the visit
             "pause_end_s": s.get("pause_end_s"), "pause_return_s": s.get("pause_return_s"),
             "limiters_pre_fatigued": seq.get("limiters_pre_fatigued", []),
             "prev": ({"date": prev["date"], "id": prev["id"], "max_kg": prev["kg"],
                       "mean_force_kg": prev["mean_force_kg"], "reps": prev["reps"], "seconds": prev["seconds"],
-                      "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"]}
+                      "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"],
+                      "con_top3_kg": prev.get("con_top3_kg"), "ecc_top3_kg": prev.get("ecc_top3_kg"),
+                      "fatigue_con_pct": prev.get("fatigue_con_pct"), "fatigue_ecc_pct": prev.get("fatigue_ecc_pct")}
                      if prev else None),
             "delta_pct": round((s["max_kg"] - prev["kg"]) / prev["kg"] * 100, 1) if (prev and prev["kg"]) else None,
             "delta_mean_pct": (round((s["mean_force_kg"] - prev["mean_force_kg"]) / prev["mean_force_kg"] * 100, 1)
@@ -1675,14 +1702,16 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         if r["is_pb"] and chart_names:            # a new PB later in the session earns the third card
             chart_names[-1] = r["name"]
             break
+    detail_by_id = {x["id"]: x.get("detail") for x in work}
     for r in rows:
         if r["name"] not in chart_names:
             continue
         r["chart"] = True
-        r.update(set_curve(con, r["set_id"]))
+        r.update(set_curve(con, r["set_id"], detail_by_id.get(r["set_id"])))
         if r["prev"]:
-            pc = set_curve(con, r["prev"]["id"])
+            pc = set_curve(con, r["prev"]["id"], detail_by_id.get(r["prev"]["id"]))
             r["prev_curve"], r["prev_rep_peaks"], r["prev_rep_times"] = pc["curve"], pc["rep_peaks"], pc["rep_times"]
+            r["prev_rep_con"], r["prev_rep_ecc"] = pc["rep_con"], pc["rep_ecc"]
         r["settings"] = featured_settings(con, r["set_id"], r["reps"])
 
     transition = next((t for t in transitions if t["date"] == day["date"]), None)
@@ -1704,6 +1733,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
 def build_report(con, cfg: dict) -> dict:
     """Assemble the full analysis payload for one athlete."""
     catalog = cfg.get("_catalog", {})
+    # grip aids per exercise {code: {"aids": ["hooks"], "since": date}}: they take the grip out as a
+    # limiter of that exercise - in loads, sequences, evidence and (later) the plan
+    aids = cfg.get("aids") or {}
     sets = load_sets(con, cfg["user_id"])
     flag_false_starts(sets)                  # needs neighbouring sets -> after loading all
     work = [s for s in sets if s["working"]]
@@ -1711,16 +1743,21 @@ def build_report(con, cfg: dict) -> dict:
     for s in sets:
         if not s["working"]:
             excluded[s["status"]] = excluded.get(s["status"], 0) + 1
-    # effort per set (real fatigue reached), cached by set id + algorithm version
-    cache = load_effort_cache()
-    for s in work:                       # attach name/group + effort/inroad
+    # what happened inside each set (phases per rep, effort v3) - decoded once, cached per set
+    # (cfg["_no_detail_cache"]: tests generate many different sets under the same id + date)
+    dcache = {} if cfg.get("_no_detail_cache") else detail.load_detail_cache()
+    n_cached = len(dcache)
+    for s in work:                       # attach name/group + detail + effort
         m = catalog.get(str(s["exercise"]), {})
         s["name"] = m.get("name", f"Exercise {s['exercise']}")
         s["group"] = m.get("group", "?")
-        e = set_effort(con, s["id"], cache)
-        s["inroad"] = e["inroad"]
-        s["effort"] = e["effort"]
-    save_effort_cache(cache)
+        attach_detail(s, detail.get_detail(con, s, dcache, s["mean_force_kg"] / LB_TO_KG))
+        s["limiters_eff"] = evidence.effective_limiters(m, s["exercise"], s["date"], aids)
+        s["aid_on"] = len(s["limiters_eff"]) < len(m.get("limiters") or [])    # hooks / straps in use on that day
+    if len(dcache) != n_cached and not cfg.get("_no_detail_cache"):
+        detail.save_detail_cache(dcache)
+    cap_low_force(work)
+    evidence.annotate_context(work, catalog, aids)   # fresh | preloaded | repeat, per visit
 
     today = _today(cfg)
     checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
@@ -1732,6 +1769,9 @@ def build_report(con, cfg: dict) -> dict:
     exercises = _exercise_series(work, catalog, restrictions)
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"))
+        e["limiters_eff"] = evidence.effective_limiters(catalog.get(str(e["ex"]), {}), e["ex"], _today(cfg).isoformat(), aids)
+    # the athlete's own measured effects (needs the context and the comparable flags set above)
+    ev = evidence.build_evidence(work, catalog, aids)
     days = sorted({s["date"][:10] for s in work})
 
     # today's check-in scored; its resting-HR verdict feeds the load flag
@@ -1770,9 +1810,31 @@ def build_report(con, cfg: dict) -> dict:
         "total_impulse": sum(s["impulse_kg_s"] for s in work),
     }
     totals = _totals(work, load.get("weekly_rate"), sequences_all)
+    # chapter 3: windows, progress factors per exercise, findings - every item with meaning + action
+    scored = []
+    hist = list(cfg.get("checkin_history") or [])
+    for i, c in enumerate(hist):
+        r = _readiness(c, hist[:i])
+        if r:
+            scored.append({"date": c.get("date"), "score": r["score"], "rhr": r["rhr"]})
+    if readiness:
+        scored.append({"date": today.isoformat(), "score": readiness["score"], "rhr": readiness["rhr"]})
+    hist_report = history.build_history(work, sets, exercises, sequences_all, catalog, today, cfg, ev, last_session, load,
+                                        _target_effort(cfg.get("goal", {}) or {})["inroad_min"], scored)
     coach = _coach_facts(exercises, load["recovery"], cfg.get("goal", {}) or {}, days,
                          cfg.get("sessions_per_week"), today, totals, cfg.get("units", "imperial"),
                          cfg.get("checkin_history"), readiness)
+    # chapter 2: the ONE plan - when, what, order, targets (arx_plan). The old session_plan list and
+    # the whiteboard targets are derived from it, so nothing on the page contradicts it.
+    profile = user_profile(con, cfg["user_id"], today)       # {sex, age, age_band} - never a name
+    plan = planner.build_plan(exercises, work, catalog, cfg, today, readiness, load, ev, hist_report["progress_factors"],
+                              sequences_all, profile,
+                              lambda name, joints: exercise_restriction(name, restrictions, joints))
+    planner.apply_to_coach(coach, plan)
+    # strictly optional: rough body trends and the measurable target from the goal interview
+    body = history.body_trends(cfg.get("body_log"), hist_report["progress_factors"], cfg)
+    goal_progress = history.goal_progress(cfg.get("target"), exercises, hist_report["progress_factors"], body, today, cfg)
+    unmapped = sorted({str(e["ex"]) for e in exercises if str(e["ex"]) not in catalog})
 
     return {
         "generated": datetime.now().isoformat(timespec="seconds"),
@@ -1790,6 +1852,9 @@ def build_report(con, cfg: dict) -> dict:
         "load": load,
         "session_sequences": sequences,
         "limiter_conflicts": _limiter_conflicts(sequences),
+        "evidence": ev,                          # order / rest / limiter / recovery effects, each with n
+        "history": hist_report,                  # windows, progress_factors, findings, time efficiency
+        "aids": aids,
         "totals": totals,
         "coach": coach,                          # whiteboard facts: targets, adherence, milestones, deload
         "ideal_settings": IDEAL_SETTINGS,
@@ -1802,9 +1867,14 @@ def build_report(con, cfg: dict) -> dict:
         "today": today.isoformat(),
         "focus": cfg.get("focus", {}) or {},
         "approach": approach,
-        "session_plan": _session_plan(exercises, restrictions,
-                                      cfg.get("focus", {}) or {},
-                                      approach, load),
+        "plan": plan,                            # next_session (date, why, order, targets), week_plan, profile
+        "plan_vs_actual": planner.plan_vs_actual(cfg.get("_plan_ledger"), last_session, cfg),
+        "profile": {"sex": profile["sex"], "age_band": profile["age_band"], "outcome": cfg.get("outcome"),
+                    "experience": cfg.get("experience"), "target": cfg.get("target")},
+        "body": body,                            # None unless the athlete entered body values (optional)
+        "goal_progress": goal_progress,          # None without a measurable target
+        "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
+        "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
         "featured": featured,
     }
@@ -1866,8 +1936,35 @@ def ai_summary(report: dict, cfg: dict) -> dict:
     totals = dict(report["totals"])
     totals["total_work_impulse"] = kg(totals.get("total_work_impulse"))
     totals["work_unit"] = WU
-    plan = [{**{k: v for k, v in i.items() if k != "last"}, "last_day_best": kg(i.get("last"))}
+    plan = [{**{k: v for k, v in i.items() if k not in ("last", "target_peak_kg")},
+             "last_day_best": kg(i.get("last")), "target_peak": kg(i.get("target_peak_kg"))}
             for i in report["session_plan"]]
+    texts = lambda items: [" ".join(x["text"].values()).strip() for x in (items or []) if x]
+    ns = (report.get("plan") or {}).get("next_session")
+    next_session = None
+    if ns:                                   # the engine's plan of record: present it, do not re-plan
+        next_session = {
+            "date": ns["date"], "days_from_today": ns["days_from_today"], "session_type": ns["session_type"],
+            "regions": ns["regions"], "est_minutes": ns["est_minutes"], "why_this_date": texts(ns["why_this_date"]),
+            "fresh_benchmark_exercise": ns["benchmark"], "effort_caps": ns["effort_caps"],
+            "exercises": [{
+                "order": x["order"], "name": x["name"], "new_for_the_athlete": x["new"], "sets": x["sets"],
+                "target_rule": x["target_rule"], "target_peak": kg(x["target_peak_kg"]),
+                "target_concentric_mean": kg(x["target_con_mean_kg"]), "base_peak": kg(x["base_kg"]), "base_date": x["base_date"],
+                "effort": x["effort_target"]["label"], "inroad_min_pct": x["effort_target"]["inroad_min"],
+                "rest_before_min": x["rest_before_min"], "aid_in_use": x["aid"], "aid_suggested": x["aid_hint"],
+                "expected_loss_vs_fresh_pct": x["expected_loss_pct"],
+                "settings": ({**{k: v for k, v in x["settings"].items() if k != "rom_cm"}, "rom": cm(x["settings"].get("rom_cm"))}
+                             if x.get("settings") else None),
+                "why": texts(x["why_selected"] + [x.get("interp"), x.get("context_note")] + x["order_rules"]),
+            } for x in ns["exercises"]],
+            "order_notes": texts(ns.get("order_notes")),
+            "limiters": {m: {"status": b["status"], "share_of_usual_pct": b["share_pct"], "exercises": [r["name"] for r in b["by_exercise"]]}
+                         for m, b in (ns.get("limiter_budget") or {}).items()},
+            "aid_hints": texts(ns.get("aid_hints")),
+            "week_outlook": [{"date": w["date"], "type": w["session_type"], "regions": w["regions"], "exercises": w["exercises"]}
+                             for w in (report.get("plan") or {}).get("week_plan", [])],
+        }
 
     return {
         "today": today,
@@ -1987,6 +2084,17 @@ def ai_summary(report: dict, cfg: dict) -> dict:
         "limiter_conflicts": report.get("limiter_conflicts", []),
         "totals": totals,
         "session_plan": plan,
+        "next_session": next_session,
+        # age band + sex: shared by default (owner's choice), switch ai_share_profile; never a name or birth date
+        "athlete_profile": ({"age_band": (report.get("profile") or {}).get("age_band"), "sex": (report.get("profile") or {}).get("sex"),
+                             "primary_outcome": (report.get("profile") or {}).get("outcome"),
+                             "experience": (report.get("profile") or {}).get("experience")}
+                            if cfg.get("ai_share_profile", True) else None),
+        # body log: RELATIVE changes only, and only when the athlete switched it on
+        "body_changes": ((report.get("body") or {}).get("relative_changes") or None) if cfg.get("ai_share_body") else None,
+        "plan_profile": {k: v for k, v in ((report.get("plan") or {}).get("profile") or {}).items() if k != "commitment_options"},
+        "plan_vs_actual": ({k: v for k, v in report["plan_vs_actual"].items() if k not in ("exercises", "interp")}
+                           if report.get("plan_vs_actual") else None),
     }
 
 
@@ -2126,10 +2234,24 @@ def ai_system_prompt(cfg: dict) -> str:
         "lighter week is due, with the rule; suggest a deload ONLY when "
         "suggested is true, and then describe it (same exercises, ~70 % force, "
         "no inroad, one week).\n"
+        "NEXT SESSION (final): next_session is the plan of record - its date "
+        "(which may be later than today: why_this_date says why), the exercises "
+        "in the order to perform them, sets, target_peak, effort (inroad_min_pct), "
+        "rest_before_min, aids and the reasons ('why'). target_rule: step = "
+        "progressing and the last set was a real one -> the small step is already "
+        "in target_peak; hold_reach_effort = same force, but finish the set; hold "
+        "/ retest_fresh = match the base; plateau_add_set = a second set, same "
+        "target; light_day / sub_max_* / new_exercise = no all-out set. "
+        "fresh_benchmark_exercise is done before anything that loads its muscles "
+        "- its value is the clean progress measurement. expected_loss_vs_fresh_pct "
+        "is already allowed for in the target. Present this plan exactly (same "
+        "exercises, order, targets, sets); add tempo / pauses from its settings and "
+        "one cue per row. plan_vs_actual = what the athlete did with the previous "
+        "plan.\n"
         "TWO KINDS OF INPUT - keep them apart: (1) all precomputed facts "
         "(last_session comparisons, trends, load_and_recovery, readiness_today, "
         "coach, ROM validity, session flags, limiter_conflicts, "
-        "restriction_checks, session_plan) are FINAL - do not recompute, "
+        "restriction_checks, next_session) are FINAL - do not recompute, "
         "contradict or override them. (2) session_sequences is RAW MATERIAL: for "
         "each of the last training days the working sets in time order with the "
         "rest before each set, peak and mean force, duration, reps, ROM, "
@@ -2183,15 +2305,17 @@ def ai_system_prompt(cfg: dict) -> str:
         "simply ready (sore, not ready, limited), then one line 'Ready today: ...' "
         "listing the ready exercises. Write muscles in plain words (elbow "
         "flexors, upper back, ...), never as identifiers with underscores.\n"
-        "## 3. Plan for today (or: Plan for <next_earliest> when nothing is ready)\n"
-        "A table: | # | Exercise | Target | Effort | Tempo / pauses | Rest after | Cue | "
-        "- 4 to 6 rows in the order to perform them (large muscle groups first, "
-        "limiter rules, restrictions, focus). Target = the concrete force from "
-        "coach.targets with unit, or 'sub-max' / 'gentle'; Effort = the inroad "
-        "target or 'stop 2 reps short'; Tempo / pauses = reps, s per direction, "
-        "end / return pause; Rest after = minutes; Cue = one short technique or "
-        "intent cue. Below the table one line on when to train next if not "
-        "today, and the deload verdict if coach.deload.suggested is true.\n"
+        "## 3. Next training - <next_session.date, weekday>\n"
+        "One line: when and why (from why_this_date, in your words, with the "
+        "numbers). Then a table: | # | Exercise | Target | Effort | Tempo / pauses "
+        "| Rest before | Cue | - the rows of next_session.exercises in their "
+        "order. Target = target_peak with unit (add 'x2' for two sets), or "
+        "'sub-max' / 'gentle'; Effort = the inroad target or 'stop 2 reps short'; "
+        "Tempo / pauses = reps, s per direction, end / return pause; Rest before "
+        "= minutes; Cue = one short technique or intent cue. Below the table: the "
+        "fresh benchmark exercise and why it matters, a limiter / aid hint if "
+        "there is one, the week outlook in one line, and the deload verdict if "
+        "coach.deload.suggested is true.\n"
         "## 4. Progress & milestones\n"
         "3-4 bullets with numbers: trends on comparable days, new PBs, adherence "
         "(this week x of y, streak), the nearest round marks, the work total.\n"

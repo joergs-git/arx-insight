@@ -34,7 +34,8 @@ class Takeover(unittest.TestCase):
     def setUp(self):
         self.data = tempfile.mkdtemp(prefix="arx_test_inst_")
         self.newer = tempfile.mkdtemp(prefix="arx_test_newer_")          # a "downloaded update"
-        for name in ("arx_app.py", "arx_report.py", "exercises.json"):
+        modules = [n for n in os.listdir(ROOT) if n.startswith("arx_") and n.endswith(".py")]
+        for name in modules + ["exercises.json"]:                        # every engine module ships
             shutil.copy2(os.path.join(ROOT, name), self.newer)
         os.makedirs(os.path.join(self.newer, "web"))
         shutil.copy2(os.path.join(ROOT, "web", "index.html"), os.path.join(self.newer, "web"))

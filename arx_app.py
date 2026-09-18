@@ -25,6 +25,10 @@ v0.3.1: exactly ONE app process (exclusive bind on Windows + instance file + tak
 version), every /api call must carry the X-ARX-Token header (no cross-site requests), POST bodies
 are validated, a future check-in date can no longer wipe the history, and an AI failure is reported
 as such instead of breaking the report.
+v0.4.0: the profile becomes a short goal interview (outcome, measurable target, time budget,
+time-vs-effort profile, experience) plus focus per body region, grip aids per exercise and an
+OPTIONAL body log; the plan ledger (plans.json) remembers what was recommended; one shared
+database snapshot per 30 s instead of a copy per request; settings files are written atomically.
 """
 from __future__ import annotations
 import os, sys, json, time, shutil, socket, secrets, argparse, threading, subprocess, webbrowser
@@ -100,23 +104,31 @@ def read_json(path, default):
         return default
 
 
+JSON_LOCK = threading.RLock()   # settings / goals / ledger: read-modify-write is one step
+
+
 def write_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    core.write_json_atomic(path, data)             # temp file + rename: never half a file
+
+
+def update_json(path, change):
+    """Read-modify-write under the lock: change(data) edits the dict in place (two requests at the
+    same moment - a check-in and a profile save - used to be able to lose one of the writes)."""
+    with JSON_LOCK:
+        data = read_json(path, {})
+        result = change(data)
+        write_json(path, data)
+    return result
 
 
 # ---- database queries --------------------------------------------------------
 def search_users(query: str) -> list[dict]:
     """Substring search on first/last name, like the ARX picker."""
-    con, tmp = core.open_readonly(STATE["db"])
-    try:
+    with core.shared_connection(STATE["db"]) as con:
         cur = con.cursor()
         cur.execute('''select id, trim(firstname), trim(lastname), gender, birthdate, createdate
                        from "User" where deleted is false order by lastname, firstname''')
         rows = cur.fetchall()
-    finally:
-        con.close()
-        shutil.rmtree(tmp, ignore_errors=True)
     q = (query or "").strip().lower()
     out = []
     for uid, fn, ln, gender, dob, created in rows:
@@ -148,6 +160,103 @@ def checkin_payload(urec: dict, day: str) -> dict:
             "rhr_baseline": scored["rhr_baseline"] if scored else None}
 
 
+# ---- profile (goal interview), body log --------------------------------------------------------------------
+PLANS = os.path.join(core.data_dir(), "plans.json")    # plan ledger: {user_id: [entries]} (see arx_plan)
+FOCUS_LEVELS = ("more", "normal", "less", "off")
+REGION_KEYS = ("legs", "back", "chest", "shoulders", "arms")
+OUTCOMES = ("strength", "muscle", "body_composition", "health", "performance", "maintain")
+EXPERIENCE = ("new", "some", "experienced")
+AID_KINDS = ("hooks", "straps")
+TARGET_KINDS = ("force", "body_weight", "waist")
+BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200), "waist_cm": (30, 250),
+               "thigh_cm": (20, 120), "fat_pct": (2, 70)}
+BODY_KEEP = 400                 # entries kept per person
+PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids")
+
+
+def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
+    try:
+        day = date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+    if day.isoformat() < earliest or (latest and day > latest):
+        return None
+    return day.isoformat()
+
+
+def clean_profile(data: dict, catalog: dict, today: date) -> dict:
+    """The goal-interview fields of a POST /api/goal body, validated. A key that is present but
+    empty / invalid comes back as None = "remove it" (back to the engine's own choice); keys that
+    are absent are not touched. Nothing here is free text - it may reach the AI later."""
+    out = {}
+    if "focus_regions" in data:
+        fr = data.get("focus_regions") or {}
+        out["focus_regions"] = {r: l for r, l in fr.items() if r in REGION_KEYS and l in FOCUS_LEVELS and l != "normal"} or None
+    if "session_minutes" in data:
+        try:
+            m = int(data["session_minutes"])
+            out["session_minutes"] = m if 10 <= m <= 90 else None
+        except (TypeError, ValueError):
+            out["session_minutes"] = None                                # "auto"
+    if "commitment" in data:
+        out["commitment"] = data["commitment"] if data["commitment"] in core.planner.COMMITMENT else None
+    if "outcome" in data:
+        out["outcome"] = data["outcome"] if data["outcome"] in OUTCOMES else None
+    if "experience" in data:
+        out["experience"] = data["experience"] if data["experience"] in EXPERIENCE else None
+    if "target" in data:
+        t, names = data.get("target") or {}, {m.get("name") for m in catalog.values()}
+        try:
+            value = float(t.get("value"))
+        except (TypeError, ValueError):
+            value = None
+        ok = t.get("kind") in TARGET_KINDS and value is not None and 0 < value < 2000 \
+            and (t["kind"] != "force" or t.get("exercise") in names)
+        out["target"] = ({"kind": t["kind"], "exercise": t.get("exercise") if t["kind"] == "force" else None, "value": round(value, 1),
+                          "date": _iso_day(t.get("date"), today.isoformat()), "set_on": today.isoformat()} if ok else None)
+    if "aids" in data:
+        aids = {}
+        for code, a in (data.get("aids") or {}).items():
+            allowed = (catalog.get(str(code)) or {}).get("aids") or []
+            kinds = [k for k in (a or {}).get("aids") or [] if k in AID_KINDS and k in allowed]
+            if kinds:
+                aids[str(code)] = {"aids": kinds[:1], "since": _iso_day((a or {}).get("since"), latest=today) or today.isoformat()}
+        out["aids"] = aids or None
+    return out
+
+
+def clean_body_entry(data: dict, today: date) -> tuple[str | None, dict]:
+    """(date, values) of one body-log entry: every value optional, each within a sane range;
+    no valid value at all = delete that day's entry."""
+    day = _iso_day(data.get("date") or today.isoformat(), latest=today + timedelta(days=1))
+    values = {}
+    for k, (lo, hi) in BODY_LIMITS.items():
+        try:
+            v = float(str(data.get(k)).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if lo <= v <= hi:
+            values[k] = round(v, 1)
+    return day, values
+
+
+# ---- report -------------------------------------------------------------------------------------------------
+REPORT_CACHE: dict = {}         # key -> report (without AI fields); a handful of entries
+REPORT_CACHE_KEEP = 6
+
+
+def _report_key(con, cfg: dict) -> str:
+    """Everything a report depends on: the person's recorded sets (count / newest id / newest
+    change), every setting that feeds the engine, today and the app version."""
+    import hashlib
+    cur = con.cursor()
+    cur.execute('select count(*), max(id), max(lastupdate) from "ExerciseSet" where user_id = ?', (cfg["user_id"],))
+    sig = [str(x) for x in (cur.fetchone() or ())]
+    basis = {k: v for k, v in cfg.items() if k not in ("_catalog", "anthropic_api_key")}
+    blob = json.dumps([sig, basis, STATE.get("version"), core._today({}).isoformat()], sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
+
+
 def make_report(user_id: int, with_ai: bool) -> dict:
     cfg = read_json(CONFIG, {})
     goals = read_json(GOALS, {})
@@ -159,8 +268,13 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     cfg["goal"] = urec.get("goal", cfg.get("goal", {}))
     cfg["sessions_per_week"] = urec.get("sessions_per_week", cfg.get("sessions_per_week"))
     cfg["restrictions"] = urec.get("restrictions", {})     # body part -> ok/careful/avoid
-    cfg["focus"] = urec.get("focus", {})                   # group -> more/normal/less/off
+    cfg["focus"] = urec.get("focus", {})                   # group -> more/normal/less/off (pre-0.4 profiles)
     cfg["approach"] = urec.get("approach", "auto")         # full | split | auto
+    for k in PROFILE_KEYS:                                 # goal interview, focus per region, grip aids
+        if urec.get(k) is not None:
+            cfg[k] = urec[k]
+    cfg["body_log"] = urec.get("body_log") or []           # optional; [] = nothing is shown anywhere
+    cfg["_plan_ledger"] = (read_json(PLANS, {}) or {}).get(str(user_id), [])
     # today's check-in (sleep, energy, soreness, resting HR, pain) + RHR history
     today = core._today({}).isoformat()
     ck = checkin_payload(urec, today)
@@ -171,18 +285,41 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     # per-user language override wins for the AI narrative (falls back to device default)
     cfg["language"] = urec.get("language") or cfg.get("language", "en")
     cfg["_catalog"] = STATE["catalog"]
-    con, tmp = core.open_readonly(STATE["db"])
-    try:
-        report = core.build_report(con, cfg)
-        report["created"] = info["created"]
-        report["user"] = info
-        if with_ai:
-            # a failed AI call must never cost the athlete the report: text or a typed error
-            report["ai_narrative"], report["ai_error"] = cached_narrative(report, cfg)
-    finally:
-        con.close()
-        shutil.rmtree(tmp, ignore_errors=True)
+    with core.shared_connection(STATE["db"]) as con:
+        key = _report_key(con, cfg)
+        report = REPORT_CACHE.get(key)
+        if report is None:
+            report = core.build_report(con, cfg)
+            report["created"] = info["created"]
+            report["user"] = info
+            REPORT_CACHE[key] = report
+            for old in list(REPORT_CACHE)[:-REPORT_CACHE_KEEP]:
+                REPORT_CACHE.pop(old, None)
+    remember_plan(user_id, report)
+    report = dict(report)                          # the cached object stays free of AI fields
+    if with_ai:
+        # a failed AI call must never cost the athlete the report: text or a typed error
+        report["ai_narrative"], report["ai_error"] = cached_narrative(report, cfg)
     return report
+
+
+def remember_plan(user_id: int, report: dict) -> None:
+    """Plan ledger: store the recommendation when it differs from the last one stored, so the next
+    report can say what was done with it (plan_vs_actual) - and, later, the coach stays consistent."""
+    try:
+        today = date.fromisoformat(report["today"])
+
+        def change(ledger):
+            entries, changed = core.planner.update_ledger(ledger.get(str(user_id), []), report.get("plan"), today)
+            if changed:
+                ledger[str(user_id)] = entries
+            return changed
+        with JSON_LOCK:
+            ledger = read_json(PLANS, {})
+            if change(ledger):
+                write_json(PLANS, ledger)
+    except Exception as e:                         # the ledger must never cost the athlete the report
+        print(f"plan ledger not updated: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 # ---- AI narrative cache -------------------------------------------------------
@@ -203,6 +340,9 @@ def _ai_cache_key(report: dict, cfg: dict) -> str:
         "last_day": (report.get("training_days") or [None])[-1],
         "checkin": report.get("checkin"), "restrictions": report.get("restrictions"),
         "goal": report.get("goal"), "focus": report.get("focus"), "approach": report.get("approach"),
+        "plan": core.planner.ledger_signature(core.planner.ledger_entry(report.get("plan"), date.fromisoformat(report["today"])))
+                if (report.get("plan") or {}).get("next_session") else None,
+        "share": [cfg.get("ai_share_profile", True), bool(cfg.get("ai_share_body"))],
         "units": cfg.get("units"), "language": cfg.get("language"),
         "model": cfg.get("model"), "effort": cfg.get("ai_effort"),
         "version": STATE.get("version"),
@@ -330,11 +470,15 @@ class Handler(BaseHTTPRequestHandler):
                 "units": cfg.get("units", "imperial"),
                 "sessions_per_week": cfg.get("sessions_per_week", 2),
                 "has_key": bool(cfg.get("anthropic_api_key")),
+                "ai_share_profile": bool(cfg.get("ai_share_profile", True)),   # age band + sex (never a name)
+                "ai_share_body": bool(cfg.get("ai_share_body", False)),        # relative body changes only
                 "catalog": STATE["catalog"],
                 "version": STATE["version"],
                 "pid": os.getpid(),                         # lets a newer instance verify whom it replaces
                 "update": STATE["update"],
             })
+        if u.path == "/api/science":                       # the evidence behind the planner's defaults
+            return self._send(read_json(os.path.join(HERE, "science.json"), {"topics": {}}))
         if u.path == "/api/users":
             return self._send(search_users(q.get("q", [""])[0]))
         if u.path == "/api/goal":
@@ -378,38 +522,66 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=srv.shutdown, daemon=True).start()
             return self._send({"ok": True})
         if u.path == "/api/config":                        # global setup screen
-            cfg = read_json(CONFIG, {})
-            for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
-                if k in data and data[k] != "":
-                    cfg[k] = data[k]
-            write_json(CONFIG, cfg)
+            def change(cfg):
+                for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
+                    if k in data and data[k] != "":
+                        cfg[k] = data[k]
+                for k in ("ai_share_profile", "ai_share_body"):        # what the AI may see (name-free either way)
+                    if k in data:
+                        cfg[k] = bool(data[k])
+            update_json(CONFIG, change)
             return self._send({"ok": True})
         # everything below belongs to one person
         uid = self._uid(data.get("user_id"))
         if uid is None:
             return self._send({"error": "bad_user_id"}, code=400)
-        if u.path == "/api/goal":                          # per-user profile / goal screen
-            goals = read_json(GOALS, {})
-            rec = goals.get(str(uid), {})
-            rec["goal"] = data.get("goal", {})
-            rec["sessions_per_week"] = data.get("sessions_per_week", 2)
-            if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off
-            if "approach" in data: rec["approach"] = data["approach"] # full | split | auto
-            if "language" in data:                                     # "" clears -> device default
-                if data["language"]: rec["language"] = data["language"]
-                else: rec.pop("language", None)
-            for opt in ("height_cm", "weight_kg", "notes"):            # optional profile fields
-                if opt in data and data[opt] not in ("", None):
-                    rec[opt] = data[opt]
-            goals[str(uid)] = rec                          # keep any restrictions
-            write_json(GOALS, goals)
+        if u.path == "/api/goal":                          # per-user profile / goal interview
+            profile = clean_profile(data, STATE["catalog"], core._today({}))
+            try:                                           # the planner divides by it - keep it a sane number
+                spw = max(1, min(7, int(data.get("sessions_per_week", 2))))
+            except (TypeError, ValueError):
+                spw = 2
+            goal = {k: max(0.0, min(1.0, float(v))) for k, v in (data.get("goal") or {}).items()
+                    if k in ("muscle", "strength", "conditioning") and isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+            def change(goals):
+                rec = goals.get(str(uid), {})
+                rec["goal"] = goal
+                rec["sessions_per_week"] = spw
+                if "focus" in data: rec["focus"] = data["focus"]          # group -> more/normal/less/off (pre-0.4)
+                if "approach" in data: rec["approach"] = data["approach"] # full | split | auto
+                if "language" in data:                                     # "" clears -> device default
+                    if data["language"]: rec["language"] = data["language"]
+                    else: rec.pop("language", None)
+                for opt in ("height_cm", "weight_kg", "notes"):            # optional profile fields
+                    if opt in data and data[opt] not in ("", None):
+                        rec[opt] = data[opt]
+                for k, v in profile.items():                               # None = back to the engine's choice
+                    if v is None: rec.pop(k, None)
+                    else: rec[k] = v
+                goals[str(uid)] = rec                      # keep any restrictions
+            update_json(GOALS, change)
             return self._send({"ok": True})
+        if u.path == "/api/body":                          # OPTIONAL body log: one entry per day, any subset of values
+            day, values = clean_body_entry(data, core._today({}))
+            if day is None:
+                return self._send({"error": "bad_date"}, code=400)
+
+            def change(goals):
+                rec = goals.get(str(uid), {})
+                log = [e for e in rec.get("body_log") or [] if e.get("date") != day]
+                if values:
+                    log.append(dict(values, date=day))
+                rec["body_log"] = sorted(log, key=lambda e: e["date"])[-BODY_KEEP:]
+                goals[str(uid)] = rec
+                return len(rec["body_log"])
+            return self._send({"ok": True, "date": day, "saved": bool(values), "entries": update_json(GOALS, change)})
         if u.path == "/api/restrictions":                  # injury / limitation screen
-            goals = read_json(GOALS, {})
-            rec = goals.get(str(uid), {})
-            rec["restrictions"] = data.get("restrictions", {})   # {part: ok|careful|avoid}
-            goals[str(uid)] = rec
-            write_json(GOALS, goals)
+            def change(goals):
+                rec = goals.get(str(uid), {})
+                rec["restrictions"] = data.get("restrictions", {})   # {part: ok|careful|avoid}
+                goals[str(uid)] = rec
+            update_json(GOALS, change)
             return self._send({"ok": True})
         if u.path == "/api/checkin":                       # daily check-in screen
             # The date comes from the client, the clock is ours: accept today +-1 day only (midnight,
@@ -422,20 +594,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"error": "bad_date"}, code=400)
             if abs((day - today).days) > 1:
                 return self._send({"error": "bad_date", "detail": "check-ins are for today"}, code=400)
-            goals = read_json(GOALS, {})
-            rec = goals.get(str(uid), {})
             entry = {k: data[k] for k in CHECKIN_FIELDS if k in data}
             try:
                 entry["rhr"] = int(entry["rhr"]) if entry.get("rhr") not in ("", None) else None
             except (TypeError, ValueError):
                 entry["rhr"] = None
-            cis = rec.setdefault("checkins", {})
-            cis[day.isoformat()] = entry
-            cutoff = (today - timedelta(days=CHECKIN_KEEP_DAYS)).isoformat()
-            for d in [d for d in cis if d < cutoff]:      # keep the file small
-                del cis[d]
-            goals[str(uid)] = rec
-            write_json(GOALS, goals)
+
+            def change(goals):
+                rec = goals.get(str(uid), {})
+                cis = rec.setdefault("checkins", {})
+                cis[day.isoformat()] = entry
+                cutoff = (today - timedelta(days=CHECKIN_KEEP_DAYS)).isoformat()
+                for d in [d for d in cis if d < cutoff]:      # keep the file small
+                    del cis[d]
+                goals[str(uid)] = rec
+            update_json(GOALS, change)
             return self._send({"ok": True, "date": day.isoformat()})
         return self._send({"error": "not found"}, code=404)
 
@@ -641,6 +814,7 @@ def main():
         srv.shutdown()
     finally:
         srv.server_close()                             # free the port at once for a successor
+        core.drop_snapshots()                          # no copy of the database stays behind
         mark_stopped()
 
 

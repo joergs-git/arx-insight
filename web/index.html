@@ -111,6 +111,41 @@
   ol.plan li::before{content:counter(p);font-family:var(--disp);font-weight:700;font-size:32px;color:var(--accent);text-align:center}
   ol.plan .ex{font-family:var(--disp);font-size:22px;font-weight:600;text-transform:uppercase}
   ol.plan .cue{font-size:15px;color:var(--ink2)}ol.plan .tgt{font-family:var(--disp);font-weight:600;font-size:16px;color:var(--ink3);white-space:nowrap}
+  /* v0.4.0: the ONE plan (date + why, order, targets), self-explaining lines, week strip, interview */
+  .interp{font-size:15px;line-height:1.45;color:var(--ink2);margin-top:8px;border-left:3px solid var(--rule2);padding:2px 0 2px 10px}
+  .interp .act{display:block;color:var(--ink)}
+  .interp.warn{border-left-color:var(--warn)}.interp.good{border-left-color:var(--good)}
+  .hero{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;border:2px solid var(--ink);background:var(--panel);padding:18px 22px}
+  .hero .when{font-family:var(--disp);font-weight:700;font-size:clamp(34px,6vw,56px);line-height:.95;color:var(--accent);text-transform:uppercase}
+  .hero .when small{display:block;font-size:.3em;letter-spacing:.14em;color:var(--ink2);margin-top:6px}
+  .hero .facts{font-size:17px;color:var(--ink2)}.hero .facts b{color:var(--ink)}
+  ul.why{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+  ul.why li{font-size:16px;color:var(--ink2);padding-left:22px;position:relative}
+  ul.why li::before{content:"›";position:absolute;left:4px;color:var(--accent);font-weight:700}
+  ul.why li b{color:var(--ink);font-weight:600}
+  ol.plan li.v4{grid-template-columns:56px 1fr;align-items:start}
+  ol.plan li.v4 .row1{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px}
+  ol.plan li.v4 .nums{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:6px;font-family:var(--disp);font-weight:600;font-size:17px;color:var(--ink2)}
+  ol.plan li.v4 .nums b{color:var(--ink);font-size:21px}
+  ol.plan li.v4 details{margin-top:8px}ol.plan li.v4 summary{cursor:pointer;font-size:14px;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;font-family:var(--disp)}
+  .meter{height:12px;border-radius:7px;background:var(--panel2);overflow:hidden;border:1px solid var(--rule2)}
+  .meter i{display:block;height:100%;background:var(--good)}.meter.high i{background:var(--warn)}
+  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(56px,1fr);gap:4px;overflow-x:auto;padding-bottom:4px}
+  .strip .day{background:var(--panel);border:2px solid var(--rule);border-radius:6px;padding:8px 2px;text-align:center;font-size:12px;color:var(--ink3);min-width:0}
+  .strip .day.sess{border-color:var(--accent)}.strip .day b{display:block;font-family:var(--disp);font-size:17px;color:var(--ink)}
+  .strip .dots{display:flex;justify-content:center;gap:2px;margin-top:6px}
+  .strip .dots i{flex:0 0 7px;width:7px;height:7px;border-radius:50%;background:var(--good);display:block}
+  .strip .dots i.partial{background:var(--warn);border-radius:2px}.strip .dots i.recovering{background:transparent;border:2px solid var(--accent);box-sizing:border-box}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .tiles button{min-height:64px;border:2px solid var(--rule2);background:var(--panel2);color:var(--ink2);border-radius:10px;font-size:17px;font-weight:600;padding:8px 10px;text-align:left;line-height:1.25}
+  .tiles button small{display:block;font-weight:400;font-size:13px;color:var(--ink3);margin-top:3px}
+  .tiles button[aria-pressed=true]{border-color:var(--accent);color:var(--ink);background:var(--panel)}
+  .tiles button[aria-pressed=true] small{color:var(--ink2)}
+  details.more{margin-top:18px;border-top:2px solid var(--rule);padding-top:14px}
+  details.more > summary{cursor:pointer;font-family:var(--disp);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+  .finding{display:grid;grid-template-columns:34px 1fr;gap:10px;background:var(--panel);border:2px solid var(--rule);border-radius:6px;padding:12px 14px}
+  .finding .ic{font-size:22px;line-height:1.2}.finding b{color:var(--ink)}
+  @media(max-width:720px){.hero{grid-template-columns:1fr}}
   /* two-column report: main sections left, AI panel right; both scroll together */
   #r_body{max-width:min(1500px,92vw)}
   /* the coach column is wide enough for the whiteboard tables (plan = 7 columns) */
@@ -161,7 +196,8 @@
     #r_side{margin-top:26px;break-before:page}
     .ai{background:var(--panel);font-size:16px}
     /* keep the small units together (a KPI strip, a chart, a table row block); big cards may break */
-    .kpis,.chartwrap,.verdict,.banner,ol.plan li,.ai .tablewrap,.excard,tr{break-inside:avoid}
+    .kpis,.chartwrap,.verdict,.banner,ol.plan li,.ai .tablewrap,.excard,tr,.hero,.finding{break-inside:avoid}
+    ol.plan li.v4 details{display:none}.strip{grid-auto-columns:1fr}
     h2.sec,.eyebrow,.ai h4,h3{break-after:avoid}
     .grid-prog{grid-template-columns:repeat(2,1fr)}
     .panel,.panel > div,.chartwrap,.ai .tablewrap{overflow:visible!important}
@@ -186,6 +222,9 @@
       <input type="number" id="setFreq" min="1" max="7" value="2"></div>
     <div class="field"><label id="s_key">Anthropic API key (optional, for AI analysis)</label>
       <input type="password" id="setKey" placeholder="sk-ant-..."></div>
+    <div class="field"><label id="s_share">What the AI coach may see</label>
+      <div class="tiles" id="setShare" style="grid-template-columns:1fr 1fr"></div>
+      <div class="foot" id="s_share_sub" style="margin-top:8px"></div></div>
     <button class="btn" id="setupSave" style="width:100%">Save & start</button>
   </div>
 </div></div>
@@ -197,38 +236,60 @@
   <div class="results" id="results"></div>
 </div></div>
 
-<!-- GOAL -->
+<!-- GOAL (v0.4.0: a short interview - what for, how much time, how hard; everything else is optional) -->
 <div class="screen" id="goal"><div class="center">
   <div class="card">
     <h2 id="g_h">Trainingsziel</h2>
-    <div class="sub" id="g_sub">Keine exakte Wissenschaft, nur die Richtung. Schieben, wohin es gehen soll.</div>
-    <div class="field">
-      <div class="poles"><span id="g_pole_str">Kraft</span><span id="g_pole_mus">Muskelaufbau</span></div>
-      <input type="range" id="gMain" min="0" max="100" value="60">
-    </div>
-    <div class="field">
-      <label id="g_cond">Ausdauer / Kondition beimischen</label>
-      <input type="range" id="gCond" min="0" max="60" value="10">
-    </div>
-    <div class="field"><label id="g_freq">Trainings pro Woche</label>
-      <input type="number" id="gFreq" min="1" max="7" value="2"></div>
-    <div class="field" style="display:flex;gap:14px">
-      <div style="flex:1"><label id="g_height">Größe (cm)</label><input type="number" id="gHeight" min="0" max="260" placeholder="–"></div>
-      <div style="flex:1"><label id="g_weight">Gewicht (kg)</label><input type="number" id="gWeight" min="0" max="400" placeholder="–"></div>
-    </div>
+    <div class="sub" id="g_sub"></div>
+    <div class="field"><label id="g_out_l">1 · What do you want most?</label>
+      <div class="tiles" id="gOutcome"></div></div>
+    <details class="more" id="gFine" style="margin-top:4px;border-top:0;padding-top:0"><summary id="g_fine_l">Fine-tune the mix</summary>
+      <div class="field" style="margin-top:14px">
+        <div class="poles"><span id="g_pole_str">Kraft</span><span id="g_pole_mus">Muskelaufbau</span></div>
+        <input type="range" id="gMain" min="0" max="100" value="60">
+      </div>
+      <div class="field">
+        <label id="g_cond">Ausdauer / Kondition beimischen</label>
+        <input type="range" id="gCond" min="0" max="60" value="10">
+      </div>
+      <div class="mix" id="gMix"></div>
+    </details>
+    <div class="field" style="margin-top:22px"><label id="g_time_l">2 · Your time</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px"><div class="foot" id="g_freq" style="margin-bottom:6px">Trainings pro Woche</div>
+          <input type="number" id="gFreq" min="1" max="7" value="2"></div>
+        <div style="flex:2;min-width:240px"><div class="foot" id="g_min_l" style="margin-bottom:6px">Minutes per session</div>
+          <div class="segbig" id="gMinutes"></div></div>
+      </div></div>
+    <div class="field"><label id="g_commit_l">3 · Time or effort - what are you willing to pay?</label>
+      <div class="tiles" id="gCommit" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))"></div></div>
+    <div class="field"><label id="g_exp_l">4 · Experience on the ARX</label>
+      <div class="segbig" id="gExp"></div></div>
     <div class="field"><label id="g_focus_l">Fokus antippen (optional)</label>
       <div class="segbig" id="gFocus"></div></div>
-    <div class="field"><label id="g_appr_l">Vorgehensweise</label>
-      <div class="segbig" id="gAppr">
-        <button data-v="auto" aria-pressed="true">Auto</button>
-        <button data-v="full" aria-pressed="false">Ganzkörper</button>
-        <button data-v="split" aria-pressed="false">Split</button></div></div>
-    <div class="field"><label id="g_lang_l">Sprache dieses Profils</label>
-      <div class="segbig" id="gLang">
+    <details class="more"><summary id="g_target_l">Measurable target (optional)</summary>
+      <div class="field" style="margin-top:14px"><div class="segbig" id="gTKind"></div></div>
+      <div id="gTBox" style="display:none">
+        <div class="field" id="gTExBox"><select id="gTEx"></select></div>
+        <div class="field" style="display:flex;gap:14px">
+          <div style="flex:1"><label id="g_tval_l">Target</label><input type="number" id="gTVal" min="0" step="0.5" placeholder="–"></div>
+          <div style="flex:1"><label id="g_tdate_l">Until (optional)</label><input type="date" id="gTDate"></div></div>
+      </div></details>
+    <details class="more" id="gAidsBox"><summary id="g_aids_l">Grip aids (hooks / straps)</summary>
+      <div class="foot" id="g_aids_sub" style="margin:12px 0"></div>
+      <div id="gAids" style="display:grid;gap:10px"></div></details>
+    <details class="more" id="gBodyBox"><summary id="g_body_l">Body values (optional)</summary>
+      <div class="foot" id="g_body_sub" style="margin:12px 0"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px" id="gBody"></div>
+      <div class="field" style="display:flex;gap:14px;margin-top:14px">
+        <div style="flex:1"><label id="g_height">Größe (cm)</label><input type="number" id="gHeight" min="0" max="260" placeholder="–"></div>
+        <div style="flex:1;display:none"><label id="g_weight">Gewicht (kg)</label><input type="number" id="gWeight" min="0" max="400" placeholder="–"></div>
+      </div></details>
+    <details class="more"><summary id="g_lang_l">Sprache dieses Profils</summary>
+      <div class="segbig" id="gLang" style="margin-top:14px">
         <button data-v="" aria-pressed="true">Standard</button>
         <button data-v="en" aria-pressed="false">English</button>
-        <button data-v="de" aria-pressed="false">Deutsch</button></div></div>
-    <div class="mix" id="gMix"></div>
+        <button data-v="de" aria-pressed="false">Deutsch</button></div></details>
     <button class="btn" id="goalSave" style="width:100%;margin-top:22px">Ziel speichern & Report</button>
   </div>
 </div></div>
@@ -293,20 +354,22 @@ const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"applica
 // HTML-escape everything that comes from the database or the network before it goes into innerHTML
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
-let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new";
+let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false};
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
-let FOCUS={}, APPROACH="auto";
+let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null;
 const KEY_URL="https://console.anthropic.com/settings/keys";
 const REPO="https://github.com/joergs-git/arx-insight";
-const FGROUPS=["Push","Pull","Drive"];
+const REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["shoulders","Schultern","Shoulders"],["arms","Arme","Arms"],["grip","Griff","Grip"]];
+const rname=r=>{const x=REGIONS.find(y=>y[0]===r);return x?(CFG.language==="de"?x[1]:x[2]):r;};
+const LEGACY_FOCUS={Drive:["legs"],Pull:["back","arms"],Push:["chest","shoulders","arms"]};   // pre-0.4 profiles
 const FCYCLE=["normal","more","less","off"];
 function flabel(s){const de=CFG.language==="de";return {normal:de?"normal":"normal",more:de?"mehr":"more",less:de?"weniger":"less",off:de?"aus":"off"}[s];}
 function renderFocusTiles(){
-  $("#gFocus").innerHTML=FGROUPS.map(g=>{
-    const st=FOCUS[g]||"normal";
+  $("#gFocus").innerHTML=REGIONS.filter(r=>r[0]!=="grip").map(([g])=>{
+    const st=FOCUS_R[g]||"normal";
     const col=st==="off"?"var(--accent)":st==="less"?"var(--warn)":st==="more"?"var(--good)":"var(--rule2)";
     const on=st!=="normal";
-    return `<button data-g="${g}" aria-pressed="${on}" style="${on?`border-color:${col};color:${col}`:''}">${g}<br><small style="font-weight:400">${flabel(st)}</small></button>`;
+    return `<button data-g="${g}" aria-pressed="${on}" style="min-width:96px;padding:0 6px;${on?`border-color:${col};color:${col};background:var(--panel)`:''}">${rname(g)}<br><small style="font-weight:400">${flabel(st)}</small></button>`;
   }).join("");
 }
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -331,15 +394,18 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 
 // ---------- boot ----------
 api("/api/bootstrap").then(b=>{
-  CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;
+  CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
+  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body};
   if(!b.configured){openSettings("search");return;}
   // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
   const deep=new URLSearchParams(location.search).get("user");
   if(deep){ api("/api/users?q=").then(async list=>{ const u=list.find(x=>String(x.id)===deep); if(!u){show("search");$("#q").focus();return;}
     CUR={id:u.id,name:u.name}; const g=await api("/api/goal?user_id="+CUR.id);
     CUR.restrictions=(g&&g.restrictions)||{}; CUR.language=(g&&g.language)||null;
-    if(new URLSearchParams(location.search).get("checkin")==="0") loadReport(); else gateCheckin(); }); return; }
+    const qs=new URLSearchParams(location.search);
+    if(qs.get("open")==="profile"){ await loadReport(); openProfile(qs.get("section")||undefined); return; }
+    if(qs.get("checkin")==="0") loadReport(); else gateCheckin(); }); return; }
   show("search");$("#q").focus();
 });
 
@@ -360,12 +426,20 @@ function openSettings(origin){
   [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
   [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
   $("#setFreq").value=CFG.sessions_per_week||2;
+  $("#s_share").textContent=de?"Was der KI-Coach sehen darf":"What the AI coach may see";
+  $("#s_share_sub").textContent=de?"Nie gesendet werden: Namen, Geburtsdatum, Größe, Gewicht, Notizen. Gesendet werden nur zusammengefasste Trainingszahlen - und das hier, wenn eingeschaltet.":"Never sent: names, date of birth, height, weight, notes. Only aggregated training numbers are sent - plus the following when switched on.";
+  renderShare();
   $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
   show("setup");
 }
+function renderShare(){ const de=CFG.language==="de";
+  const t=(k,on,h,sub)=>`<button data-k="${k}" aria-pressed="${on}">${on?'✓ ':''}${h}<small>${sub}</small></button>`;
+  $("#setShare").innerHTML=t("profile",SHARE.profile,de?"Altersgruppe + Geschlecht":"Age band + sex",de?'z. B. "50-59, männlich" - für altersgerechte Hinweise':'e.g. "50-59, male" - for age-appropriate advice')
+    +t("body",SHARE.body,de?"Körperwerte (nur relativ)":"Body values (relative only)",de?'z. B. "Gewicht -1,7 % in 38 Tagen" - nie absolute Werte':'e.g. "weight -1.7 % in 38 days" - never absolute values'); }
+$("#setShare").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;SHARE[b.dataset.k]=!SHARE[b.dataset.k];renderShare();});
 $("#setupSave").addEventListener("click",async()=>{
   const lang=$("#setLang [aria-pressed=true]").dataset.v, units=$("#setUnits [aria-pressed=true]").dataset.v;
-  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value};
+  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value,ai_share_profile:SHARE.profile,ai_share_body:SHARE.body};
   const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
   CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
@@ -404,31 +478,85 @@ function renderMix(){
 }
 ["#gMain","#gCond"].forEach(s=>$(s).addEventListener("input",renderMix));
 $("#gFocus").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-  const g=b.dataset.g, cur=FOCUS[g]||"normal", nxt=FCYCLE[(FCYCLE.indexOf(cur)+1)%FCYCLE.length];
-  if(nxt==="normal")delete FOCUS[g];else FOCUS[g]=nxt; renderFocusTiles();});
-$("#gAppr").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-  APPROACH=b.dataset.v;[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));});
+  const g=b.dataset.g, cur=FOCUS_R[g]||"normal", nxt=FCYCLE[(FCYCLE.indexOf(cur)+1)%FCYCLE.length];
+  if(nxt==="normal")delete FOCUS_R[g];else FOCUS_R[g]=nxt; renderFocusTiles();});
 $("#gLang").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   PLANG=b.dataset.v;[...$("#gLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===PLANG));});
 function setLangSeg(){[...$("#gLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===(PLANG||"")));}
+// the interview: [key, de, en, de hint, en hint, slider main (0 strength .. 100 muscle), conditioning %]
+const OUTCOMES=[["strength","Kraft","Strength","So stark wie möglich werden","Get as strong as possible",20,5],
+  ["muscle","Muskelaufbau","Muscle","Sichtbar Muskulatur aufbauen","Build visible muscle",85,5],
+  ["body_composition","Körperform","Body composition","Fett runter, Muskeln halten oder aufbauen","Less fat, keep or build muscle",65,25],
+  ["health","Gesundheit","Health","Kraft und Belastbarkeit für den Alltag","Strength and resilience for everyday life",50,20],
+  ["performance","Sportleistung","Sport performance","Kraft für meinen Sport","Strength for my sport",30,20],
+  ["maintain","Erhalten","Maintain","Halten, was ich habe - mit wenig Zeit","Keep what I have - in little time",50,10]];
+const COMMITS=[["","Automatisch","Automatic","Die App wählt passend zu Ziel, Zeit und Erfahrung.","The app picks what fits your goal, time and experience."],
+  ["min_time_max_effort","Wenig Zeit, volle Härte","Least time, full effort","1 Satz je Übung - aber wirklich, bis die Kraft fällt.","1 set per exercise - but truly until the force drops."],
+  ["balanced","Ausgewogen","Balanced","1 harter Satz je Übung; ein Plateau bekommt einen 2. Satz.","1 hard set per exercise; a plateau gets a 2nd set."],
+  ["more_time_less_brutal","Mehr Zeit, weniger brutal","More time, less brutal","Sätze enden vor dem Limit, dafür 2 Sätze bei den Hauptübungen.","Sets stop short of the limit, 2 sets on the main exercises instead."],
+  ["maintain","Nur erhalten","Maintain only","Weniger Übungen, keine Steigerung - die Sätze bleiben hart.","Fewer exercises, no progression - the sets stay hard."]];
+const EXPS=[["new","Neu","New"],["some","Einige Monate","Some months"],["experienced","Erfahren","Experienced"]];
+const BODYF=[["weight_kg","Gewicht","Weight","kg"],["waist_cm","Taille","Waist","cm"],["arm_cm","Oberarm","Upper arm","cm"],
+  ["chest_cm","Brust","Chest","cm"],["thigh_cm","Oberschenkel","Thigh","cm"],["fat_pct","Körperfett","Body fat","%"]];
+const bUnit=u=>u==="kg"?LKg():u==="cm"?LCm():"%";
+const toUser=(v,u)=>v==null?null:u==="kg"?uKg(v):u==="cm"?uCm(v):v;
+const toMetric=(v,u)=>CFG.units!=="imperial"?v:u==="kg"?+(v/2.20462).toFixed(1):u==="cm"?+(v*2.54).toFixed(1):v;
+function planProfile(){return (GOAL_MODE==="edit"&&REPORT&&REPORT.plan&&REPORT.plan.profile)||null;}
+function renderInterview(){
+  const de=CFG.language==="de", pp=planProfile();
+  $("#gOutcome").innerHTML=OUTCOMES.map(o=>`<button data-v="${o[0]}" aria-pressed="${OUTCOME===o[0]}">${de?o[1]:o[2]}<small>${de?o[3]:o[4]}</small></button>`).join("");
+  $("#gCommit").innerHTML=COMMITS.map(c=>{
+    const opt=pp&&(pp.commitment_options||[]).find(x=>x.key===c[0]);
+    const rec=pp&&pp.recommended_commitment===c[0]?` · <span style="color:var(--good)">${de?'empfohlen':'recommended'}</span>`:'';
+    const price=opt?`<small style="color:var(--ink)">≈ ${opt.minutes_per_week} ${de?'Min./Woche':'min/week'} · ${opt.sets} ${de?'Sätze je Einheit':'sets per session'}${rec}</small>`
+      :(c[0]===""&&pp?`<small style="color:var(--ink)">→ ${(COMMITS.find(x=>x[0]===pp.recommended_commitment)||[])[de?1:2]||''}</small>`:'');
+    return `<button data-v="${c[0]}" aria-pressed="${COMMIT===c[0]}">${de?c[1]:c[2]}<small>${de?c[3]:c[4]}</small>${price}</button>`;}).join("");
+  $("#gMinutes").innerHTML=["","15","20","30","45","60"].map(m=>`<button data-v="${m}" aria-pressed="${String(MINUTES)===m}" style="min-width:56px;padding:0 6px">${m||'Auto'}</button>`).join("");
+  $("#gExp").innerHTML=EXPS.map(x=>`<button data-v="${x[0]}" aria-pressed="${EXPERIENCE===x[0]}">${de?x[1]:x[2]}</button>`).join("");
+  const kinds=[["",de?"Keins":"None"],["force",de?"Kraft in einer Übung":"Force on an exercise"],["body_weight",de?"Körpergewicht":"Body weight"],["waist",de?"Taille":"Waist"]];
+  $("#gTKind").innerHTML=kinds.map(k=>`<button data-v="${k[0]}" aria-pressed="${TKIND===k[0]}">${k[1]}</button>`).join("");
+  $("#gTBox").style.display=TKIND?"block":"none"; $("#gTExBox").style.display=TKIND==="force"?"block":"none";
+  $("#g_tval_l").textContent=(de?"Zielwert":"Target")+" ("+(TKIND==="waist"?LCm():LKg())+")";
+  // grip aids: only exercises that hang on the grip and offer an aid
+  const withAid=Object.entries(CATALOG).filter(([c,m])=>(m.aids||[]).length&&!m.library);
+  $("#gAidsBox").style.display=withAid.length?"block":"none";
+  $("#gAids").innerHTML=withAid.map(([c,m])=>{const cur=((AIDS[c]||{}).aids||[])[0]||"";
+    const b=(v,l)=>`<button data-c="${c}" data-v="${v}" aria-pressed="${cur===v}" style="min-width:90px;min-height:50px">${l}</button>`;
+    return `<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center"><div>${esc(m.name)}${cur&&AIDS[c].since?` <small class="foot">${de?'seit':'since'} ${AIDS[c].since}</small>`:''}</div>
+      <div class="segbig" style="gap:6px">${b("",de?"ohne":"none")}${(m.aids||[]).map(a=>b(a,a==="hooks"?(de?"Haken":"hooks"):(de?"Schlaufen":"straps"))).join("")}</div></div>`;}).join("");
+  $("#gBody").innerHTML=BODYF.map(f=>`<div><div class="foot" style="margin-bottom:6px">${de?f[1]:f[2]} (${bUnit(f[3])})</div>
+    <input type="number" step="0.1" min="0" data-k="${f[0]}" data-u="${f[3]}" placeholder="${BODY_LAST&&BODY_LAST[f[0]]!=null?toUser(BODY_LAST[f[0]],f[3]):'–'}"></div>`).join("");
+}
+function seg(sel,set){$(sel).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;set(b.dataset.v,b);renderInterview();});}
+seg("#gOutcome",v=>{OUTCOME=v;const o=OUTCOMES.find(x=>x[0]===v);$("#gMain").value=o[5];$("#gCond").value=o[6];renderMix();});
+seg("#gCommit",v=>{COMMIT=v;}); seg("#gMinutes",v=>{MINUTES=v;}); seg("#gExp",v=>{EXPERIENCE=v;}); seg("#gTKind",v=>{TKIND=v;});
+$("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c,v=b.dataset.v;
+  if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
 function goalLabels(edit){
   const de=CFG.language==="de";
-  $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Trainingsziel":"Training goal");
-  $("#g_sub").textContent=de?"Keine exakte Wissenschaft, nur die Richtung.":"Not exact science, just the direction.";
+  $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Dein Ziel":"Your goal");
+  $("#g_sub").textContent=de?"Vier kurze Fragen. Daraus entstehen Plan, Ausbelastungsziel und Zeitbedarf - alles andere ist freiwillig.":"Four short questions. They shape the plan, the effort target and the time it takes - everything else is optional.";
+  $("#g_out_l").textContent=de?"1 · Was willst du vor allem erreichen?":"1 · What do you want most?";
+  $("#g_fine_l").textContent=de?"Mischung feinjustieren":"Fine-tune the mix";
   $("#g_pole_str").textContent=de?"Kraft":"Strength"; $("#g_pole_mus").textContent=de?"Muskelaufbau":"Muscle";
   $("#g_cond").textContent=de?"Ausdauer / Kondition beimischen":"Blend in endurance / conditioning";
-  $("#g_freq").textContent=de?"Trainings pro Woche":"Sessions per week";
+  $("#g_time_l").textContent=de?"2 · Deine Zeit":"2 · Your time";
+  $("#g_freq").textContent=de?"Einheiten pro Woche":"Sessions per week";
+  $("#g_min_l").textContent=de?"Minuten pro Einheit (Auto = wie bisher üblich)":"Minutes per session (Auto = what you usually take)";
+  $("#g_commit_l").textContent=de?"3 · Zeit oder Härte - womit willst du bezahlen?":"3 · Time or effort - what do you want to pay with?";
+  $("#g_exp_l").textContent=de?"4 · Erfahrung an der ARX":"4 · Experience on the ARX";
   $("#g_height").textContent=de?"Größe (cm)":"Height (cm)"; $("#g_weight").textContent=de?"Gewicht (kg)":"Weight (kg)";
-  $("#g_focus_l").textContent=de?"Fokus antippen — mehr / weniger / aus (optional)":"Tap focus — more / less / off (optional)";
-  $("#g_appr_l").textContent=de?"Vorgehensweise":"Approach";
-  const ab={auto:de?"Auto (empfohlen)":"Auto (recommended)",full:de?"Ganzkörper":"Full body",split:de?"Split":"Split"};
-  $("#g_appr_l").textContent=de?"Vorgehensweise — Auto passt sich mit mehr Daten intelligent an":"Approach — Auto adapts intelligently as data grows";
+  $("#g_focus_l").textContent=de?"Körperregionen antippen — mehr / weniger / aus (optional)":"Tap body regions — more / less / off (optional)";
+  $("#g_target_l").textContent=de?"Messbares Ziel (freiwillig)":"Measurable target (optional)";
+  $("#g_tdate_l").textContent=de?"Bis wann (freiwillig)":"Until (optional)";
+  $("#g_aids_l").textContent=de?"Griffhilfen (Zughaken / Schlaufen)":"Grip aids (hooks / straps)";
+  $("#g_aids_sub").textContent=de?"Mit einer Griffhilfe begrenzt der Griff die Übung nicht mehr. Hier eintragen, was du wirklich benutzt - Tage mit und ohne Hilfe werden nie miteinander verglichen.":"With a grip aid the hands no longer limit the exercise. Enter what you really use - days with and without an aid are never compared with each other.";
+  $("#g_body_l").textContent=de?"Körperwerte (völlig freiwillig)":"Body values (entirely optional)";
+  $("#g_body_sub").textContent=de?"Nur ein grober Trend: gleiche Tageszeit, gleiche Bedingungen, alle paar Wochen reicht. Leere Felder bleiben leer.":"A rough trend only: same time of day, same conditions, every few weeks is enough. Empty fields stay empty.";
   $("#g_lang_l").textContent=de?"Sprache dieses Profils":"Language for this profile";
   $("#gLang").children[0].textContent=de?"Standard":"Default";
-  [...$("#gAppr").children].forEach(x=>x.textContent=ab[x.dataset.v]);
   $("#goalSave").textContent=edit?(de?"Speichern & Report":"Save & report"):(de?"Ziel speichern & Report":"Save goal & report");
 }
-function setApprSeg(){[...$("#gAppr").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===APPROACH));}
 function setSlidersFromGoal(g){
   const condFrac=g.conditioning||0;
   const restFrac=Math.max(1e-6, 1-condFrac);
@@ -436,27 +564,41 @@ function setSlidersFromGoal(g){
   $("#gCond").value=Math.min(60,Math.round(condFrac*100));
   $("#gMain").value=Math.max(0,Math.min(100,main));
 }
-function openGoal(){                       // new user: pick a goal for the first time
-  GOAL_MODE="new"; FOCUS={}; APPROACH="auto"; PLANG=""; goalLabels(false);
+function fillTargetBox(t){
+  const names=Object.values(CATALOG).filter(m=>!m.library).map(m=>m.name).sort();
+  $("#gTEx").innerHTML=names.map(n=>`<option ${t&&t.exercise===n?'selected':''}>${esc(n)}</option>`).join("");
+  $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
+}
+function openGoal(){                       // new user: the interview for the first time
+  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; BODY_LAST=null; PLANG=""; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
-  renderMix(); renderFocusTiles(); setApprSeg(); setLangSeg(); show("goal");
+  renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(null); setLangSeg(); show("goal");
 }
-async function openProfile(){              // edit an existing person's profile/goal
+async function openProfile(section){       // edit an existing person's profile/goal
   if(!CUR) return;
   GOAL_MODE="edit"; goalLabels(true);
-  const g=await api("/api/goal?user_id="+CUR.id);
-  setSlidersFromGoal((g&&g.goal)||{muscle:0.6,strength:0.3,conditioning:0.1});
-  $("#gFreq").value=(g&&g.sessions_per_week)||CFG.sessions_per_week||2;
-  $("#gHeight").value=(g&&g.height_cm)||""; $("#gWeight").value=(g&&g.weight_kg)||"";
-  FOCUS=(g&&g.focus)||{}; APPROACH=(g&&g.approach)||"auto"; PLANG=(g&&g.language)||"";
-  renderMix(); renderFocusTiles(); setApprSeg(); setLangSeg(); show("goal");
+  const g=await api("/api/goal?user_id="+CUR.id)||{};
+  setSlidersFromGoal(g.goal||{muscle:0.6,strength:0.3,conditioning:0.1});
+  $("#gFreq").value=g.sessions_per_week||CFG.sessions_per_week||2;
+  $("#gHeight").value=g.height_cm||""; $("#gWeight").value=g.weight_kg||"";
+  FOCUS_R={...(g.focus_regions||{})};
+  if(!g.focus_regions&&g.focus) Object.entries(g.focus).forEach(([grp,l])=>{if(l&&l!=="normal")(LEGACY_FOCUS[grp]||[]).forEach(r=>{if(!FOCUS_R[r])FOCUS_R[r]=l;});});
+  OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
+  TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); PLANG=g.language||"";
+  BODY_LAST=(g.body_log||[]).slice(-1)[0]||null;
+  renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(g.target||null); setLangSeg(); show("goal");
+  if(section){const el=$("#"+section); if(el){el.open=true; el.scrollIntoView({block:"center"});}}
 }
 $("#goalSave").addEventListener("click",async()=>{
-  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:FOCUS,approach:APPROACH,language:PLANG};
+  const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:{},approach:"auto",language:PLANG,
+    focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,target:null};
+  if(TKIND&&$("#gTVal").value) body.target={kind:TKIND,exercise:TKIND==="force"?$("#gTEx").value:null,
+    value:toMetric(+$("#gTVal").value,TKIND==="waist"?"cm":"kg"),date:$("#gTDate").value||null};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
-  if($("#gWeight").value) body.weight_kg=+$("#gWeight").value;
   await post("/api/goal",body);
+  const vals={}; $$("#gBody input").forEach(i=>{if(i.value!=="")vals[i.dataset.k]=toMetric(+i.value,i.dataset.u);});
+  if(Object.keys(vals).length) await post("/api/body",{user_id:CUR.id,...vals});     // optional - only when something was typed
   if(GOAL_MODE==="new"){ openLimits(); }        // new users set restrictions once
   else { CUR.language=PLANG||null; if(REPORT) REPORT.ai_narrative=null; loadReport(); }
 });
@@ -554,8 +696,8 @@ $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
 $("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;show("search");$("#q").value="";$("#results").innerHTML="";$("#q").focus();});
 $("#r_pdf").addEventListener("click",()=>window.print());
 $("#r_settings").addEventListener("click",()=>openSettings("report"));
-$("#r_name").addEventListener("click",openProfile);
-$("#r_profile").addEventListener("click",openProfile);
+$("#r_name").addEventListener("click",()=>openProfile());
+$("#r_profile").addEventListener("click",()=>openProfile());
 
 async function loadReport(){
   CFG.language=(CUR&&CUR.language)||GLOBAL_LANG;   // per-profile language, else device default
@@ -592,12 +734,12 @@ function renderReport(){
     <div class="kpi"><div class="label">${de0?'Exz./Konz.':'Ecc./Con.'}</div><div class="val">${k.ce_ratio?k.ce_ratio.toFixed(2):'—'}<small> ×</small></div></div></div>`;
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
   // sets that do not count (tests, aborts, false starts) - said openly, never hidden
-  const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data'],hidden:[de0?'in ARX ausgeblendet':'hidden in ARX',de0?'in ARX ausgeblendet':'hidden in ARX']};
+  const exNames={short:[de0?'Testsätze':'test sets',de0?'Testsatz':'test set'],aborted:[de0?'Abbrüche':'aborted',de0?'Abbruch':'aborted'],false_start:[de0?'Fehlstarts':'false starts',de0?'Fehlstart':'false start'],no_data:[de0?'ohne Daten':'no data',de0?'ohne Daten':'no data'],hidden:[de0?'in ARX ausgeblendet':'hidden in ARX',de0?'in ARX ausgeblendet':'hidden in ARX'],static:[de0?'statische Haltesätze':'static holds',de0?'statischer Haltesatz':'static hold']};
   const exl=Object.entries(r.sets_excluded||{}).filter(([,n])=>n>0).map(([k,n])=>`${n} ${(exNames[k]||[k,k])[n>1?0:1]}`);
   const exclLine=exl.length?`<p class="foot" style="margin:6px 0 0">${r.sets_total-r.sets_working} ${de0?'Sätze nicht gewertet':'sets not counted'}: ${exl.join(', ')}. ${de0?'Nur echte Arbeitssätze fließen in Bestwerte, Trend, Belastung und Plan ein.':'Only real working sets feed bests, trends, load and the plan.'}</p>`:'';
 
   // order: KPIs -> goal -> restrictions -> LAST SESSION (what you just did) -> readiness -> the rest
-  let main=kpiHtml+exclLine+goalLine+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)+lastSessionHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
+  let main=kpiHtml+exclLine+goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)+lastSessionHtml(r)+planHtml(r)+findingsHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals);
   main+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
@@ -605,27 +747,16 @@ function renderReport(){
   main+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
     <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
-  const apprName={full:de0?'Ganzkörper':'Full body',split:de0?'Split':'Split',auto:de0?'Auto (Belastung)':'Auto (readiness)'}[r.approach||'auto'];
-  // readiness is judged per muscle / exercise (see loadHtml): "rest day" only when NOTHING is recovered
-  const rc=(r.load&&r.load.recovery)||{ready_today:[],limited_today:[],not_ready:[]};
-  const nx=(r.load&&r.load.next_earliest)||null, allOn=(r.load&&r.load.all_ready_on)||null;
-  const notYet=rc.not_ready.length?` ${de0?'Noch nicht':'Not yet'}: ${rc.not_ready.map(x=>`${x.name} (${de0?'ab':'from'} ${x.ready_on.slice(5)})`).join(', ')}.`:'';
-  const timing = (rc.ready_today.length+rc.limited_today.length)>0
-    ? `<div class="banner" style="background:var(--good-bg);border-color:var(--good);margin:0 0 12px"><b style="color:var(--good)">✅ ${de0?'Heute trainierbar':'Good to train today'}</b> — ${rc.ready_today.length} ${de0?'Übungen bereit':'exercises ready'}${rc.limited_today.length?`, ${rc.limited_today.length} ${de0?'eingeschränkt':'limited'}`:''}.${notYet}</div>`
-    : `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn);margin:0 0 12px"><b style="color:var(--warn)">🛌 ${de0?'Heute Ruhetag empfohlen':'Rest day recommended'}</b> — ${de0?'nächste Einheit ab':'next session from'} <b>${nx||'—'}</b>${allOn?` · ${de0?'alles erholt ab':'everything recovered by'} ${allOn}`:''}. ${de0?'Vorschau, was dann sinnvoll ist:':'A preview of what makes sense then:'}</div>`;
-  main+=`<section><div class="eyebrow">${t.planh}</div><h2 class="sec">${de0?'Standardplan · klassische Methodik':'Standard plan · classic method'}</h2>
-    ${timing}
-    <p class="foot" style="margin:-2px 0 4px">${de0?'Regelbasiert nach anerkannter Methodik':'Rule-based, established methodology'} · ${apprName}. ${de0?'Die individualisierte, verlaufsbasierte KI-Empfehlung steht rechts →':'The individualized, history-based AI recommendation is on the right →'}</p>
-    <ol class="plan" id="plan"></ol></section>`;
+  main+=bodyHtml(r);
   main+=settingsHtml(r);
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
   const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
 
-  $("#r_body").innerHTML = updateBannerHtml() +
+  $("#r_body").innerHTML = updateBannerHtml() + unmappedHtml(r) +
     `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;
 
-  drawSessionCharts();drawWB();renderProg();renderPlan();
+  drawSessionCharts();drawWB();renderProg();
   $("#xseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;XMODE=b.dataset.x;[...$("#xseg").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===XMODE));renderProg();});
   renderAISide(); autoLoadAI();
 }
@@ -663,10 +794,13 @@ function lastSessionHtml(r){
       ${kpi(de?'Satz':'Set',`${x.reps}<small> ${de?'Wdh.':'reps'}</small> · ${Math.round(x.seconds)}<small> s</small>`,
             `${romCmp}${x.rest_before_min!=null?` · ${de?'Pause davor':'rest before'} ${x.rest_before_min} min`:''}`)}
     </div>`;
+    // inside the set: concentric / eccentric apart (time-weighted phase means, not single spikes)
+    const ctxL={fresh:de?'frisch':'fresh',preloaded:de?'vorbelastet':'pre-loaded',repeat:de?'Wiederholungssatz':'repeat set'}[x.context]||'';
+    const inside=x.con_top3_kg!=null?`<p class="foot" style="margin:-4px 0 8px">${de?'Im Satz':'Inside the set'}: ${de?'konzentrisch':'concentric'} <b style="color:var(--ink)">${uKg(x.con_top3_kg)}</b>${p&&p.con_top3_kg?` (${pctS((x.con_top3_kg/p.con_top3_kg-1)*100)})`:''} · ${de?'exzentrisch':'eccentric'} <b style="color:var(--ink)">${uKg(x.ecc_top3_kg)}</b> ${LKg()}${p&&p.ecc_top3_kg?` (${pctS((x.ecc_top3_kg/p.ecc_top3_kg-1)*100)})`:''} · ${de?'Ermüdung':'fatigue'} ${de?'konz.':'con.'} ${x.fatigue_con_pct??'—'} % / ${de?'exz.':'ecc.'} ${x.fatigue_ecc_pct??'—'} %${x.best_rep?` · ${de?'beste Wdh.':'best rep'} ${x.best_rep}`:''}${x.pacing_deficit_pct>=15?` · <span style="color:var(--warn)">${de?'zu verhalten begonnen':'started too cautiously'} (−${x.pacing_deficit_pct} %)</span>`:''}${ctxL?` · ${ctxL}`:''}</p>`:'';
     const chg=(x.settings_changed&&x.settings_changed.length)?`<p class="foot" style="margin:-4px 0 8px">⚙ ${de?'Einstellungen geändert':'Settings changed'}: ${x.settings_changed.join(' · ')} — ${de?'Kraftwerte verschieben sich mit Tempo und Pausen.':'force values shift with tempo and pauses.'}</p>`:'';
     return `<div class="panel" style="margin-bottom:16px">
       <div class="exhead" style="margin-bottom:0"><h3 style="font-size:24px"><span class="grp ${x.group}">${x.group}</span> ${x.name} ${badges}</h3><span class="foot">${p?`${t.vsprev}: ${p.date}`:''}</span></div>
-      ${strip}${chg}
+      ${strip}${inside}${chg}
       <div class="chartwrap"><svg id="ls_${i}" viewBox="0 0 1000 360"></svg></div>
       <p class="foot" id="lsv_${i}" style="margin:8px 0 0"></p></div>`;
   }).join("");
@@ -694,7 +828,7 @@ function lastSessionHtml(r){
     <div class="panel" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:17px;white-space:nowrap">
       <tr class="foot"><td>#</td><td>${de?'Übung':'Exercise'}</td><td class="num">${de?'Pause davor':'Rest before'}</td><td class="num">${de?'Spitze':'Peak'} ${LKg()}</td><td class="num">${t.vsprev}</td><td class="num">Inroad</td><td class="num">ROM ${LCm()}</td></tr>
       ${rows}</table>
-      <p class="foot" style="margin:10px 0 0">${ls.working_sets} ${de?'Arbeitssätze':'working sets'}${fs} · ${de?'unter Last':'under load'} ${ls.time_under_load_min} min ${de?'von':'of'} ${ls.wall_minutes} min ${flags?' · '+flags:''}</p>${trans}</div></section>`;
+      <p class="foot" style="margin:10px 0 0">${ls.working_sets} ${de?'Arbeitssätze':'working sets'}${fs} · ${de?'unter Last':'under load'} ${ls.time_under_load_min} min ${de?'von':'of'} ${ls.wall_minutes} min ${flags?' · '+flags:''}</p>${trans}</div>${planVsActualHtml(r)}</section>`;
 }
 function drawSessionCharts(){
   const ls=REPORT.last_session; if(!ls) return; const de=CFG.language==="de";
@@ -900,8 +1034,15 @@ function renderProg(){const t=T();
     // when it was last done and how it compared with the time before (only when the ROM matched)
     const vs=e.prev_kg!=null?` · ${t.vsprev} <b style="color:${e.delta_comparable?dcol(e.delta_pct):'var(--ink3)'}">${e.delta_comparable?pctS(e.delta_pct):'ROM ≠'}</b>`:'';
     const lastLine=`<div class="meta">${de?'zuletzt':'last'} ${e.last_date||'—'}${e.in_last_session?` <span class="chip" style="margin-left:2px">${de?'letzte Einheit':'last session'}</span>`:''}${vs}</div>`;
+    // progress factor: the athlete's own baseline = 1.00, concentric and eccentric apart, with meaning -> action
+    const pf=((REPORT.history||{}).progress_factors||{exercises:[]}).exercises.find(x=>x.name===e.name);
+    let pfh="";
+    if(pf){ const stl={progressing:['up',de?'Fortschritt':'progressing'],regressing:['',de?'Rückgang':'regressing'],regressing_context:['flat',de?'niedriger · vorbelastet':'lower · pre-loaded'],plateau:['flat','Plateau'],stable:['low',de?'stabil':'stable'],insufficient:['low',de?'zu früh':'too early'],not_comparable:['low',de?'nicht vergleichbar':'not comparable'],familiarisation:['low',de?'Eingewöhnung':'familiarisation']}[pf.status]||['low',pf.status];
+      chip=`<span class="chip ${stl[0]}">${stl[1]}${pf.change_pct!=null?' '+pctS(pf.change_pct):''}</span>`;
+      const split=pf.change_con_pct!=null?`<div class="meta">${de?'konzentrisch':'concentric'} <b style="color:${dcol(pf.change_con_pct)}">${pctS(pf.change_con_pct)}</b> · ${de?'exzentrisch':'eccentric'} <b style="color:${dcol(pf.change_ecc_pct)}">${pctS(pf.change_ecc_pct)}</b>${pf.rate_pct_per_week!=null?` · ${pctS(pf.rate_pct_per_week)}/${de?'Woche':'week'}`:''}${pf.effort_hit_rate!=null?` · ${de?'Ausbelastung erreicht':'effort target hit'} ${Math.round(pf.effort_hit_rate*100)} %`:''}${pf.never_fresh?` · <span style="color:var(--warn)">${de?'nie frisch gemessen':'never measured fresh'}</span>`:''}</div>`:'';
+      pfh=split+interpHtml(pf.interp,pf.status==='progressing'?'good':(pf.status==='regressing'?'warn':'')); }
     return `<div class="excard"><div class="n"><span class="exname">${e.name}</span><span class="cur">${uKg(e.last)} <small>${LKg()}</small></span></div>
-      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${rom}${exChart(e)}</div>`;}).join("");
+      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${pfh}${rom}${exChart(e)}</div>`;}).join("");
 }
 function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22,B=46;
   const X=i=>L+(wb.length<2?0.5:i/(wb.length-1))*(W-L-R),Y=v=>H-B-(v/100)*(H-Tp-B);
@@ -914,24 +1055,97 @@ function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22
   wb.forEach((w,i)=>s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(w.index).toFixed(1)}" r="5" fill="${acc}"/><text x="${X(i).toFixed(1)}" y="${Y(w.index)-14}" text-anchor="middle" font-size="17" font-weight="600" fill="${ink}">${w.index}</text>`);
   $("#wbSvg").innerHTML=s;
 }
-function renderPlan(){const de=CFG.language==="de";
-  const plan=REPORT.session_plan||[];
-  if(!plan.length){
-    const nx=(REPORT.load&&REPORT.load.next_earliest)||null, allOn=(REPORT.load&&REPORT.load.all_ready_on)||null;
-    $("#plan").innerHTML=`<li style="grid-template-columns:1fr"><div><div class="ex">🛌 ${de?'Heute Ruhetag':'Rest day today'}</div>`+
-      `<div class="cue">${de?'Kein Muskel, den eine Übung braucht, ist heute erholt. Frühestens wieder':'No muscle an exercise needs is recovered today. Earliest next session'} ${nx||'—'}${allOn?` · ${de?'alles erholt ab':'everything by'} ${allOn}`:''}.</div></div></li>`;
-    return;
-  }
-  const cues=de?["Große Kette zuerst","Großer Druck","Großer Zug","Hintere Kette","Isolation zum Schluss"]:["Large chain first","Big push","Big pull","Posterior chain","Isolation last"];
-  $("#plan").innerHTML=plan.map((o,i)=>{
-    const careful=o.restriction==="careful", limited=o.status==="limited";
-    let cue=careful?(de?"Vorsichtig, submaximal, saubere Technik":"Gentle, sub-maximal, clean technique"):(cues[i]||'');
-    // a limiter (grip, elbow flexors, ...) that is not fresh yet may end the set early - say so
-    if(limited) cue=`${de?'Submaximal':'Sub-max'} — ${(o.limited_by||[]).map(mname).join(', ')} ${de?'noch nicht frisch':'not fresh yet'}${o.fresh_on?` (${de?'ab':'from'} ${o.fresh_on.slice(5)})`:''}`;
-    const tgt=careful?(de?"1 Satz · vorsichtig":"1 set · gentle"):`1 ${de?'Satz':'set'} · ~${[3,3,3,2,2][i]||2} min`;
-    const rb=(careful?` <span class="grp" style="background:var(--warn)">${rlabel('careful')}</span>`:"")+(limited?` <span class="chip flat">${de?'eingeschränkt':'limited'}</span>`:"");
-    return `<li><div class="ex"><span class="grp ${o.group}">${o.group}</span> ${o.name}${rb}</div><div class="cue">${cue}</div><div class="tgt">${tgt}</div></li>`;}).join("");
+// ---- v0.4.0: self-explaining lines - every number says what it means and what follows ----
+function interpHtml(it,cls){ if(!it||!it.text||!it.text.meaning) return "";
+  return `<div class="interp ${cls||''}">${esc(it.text.meaning)}<span class="act">→ ${esc(it.text.action)}</span></div>`; }
+const WD=()=>CFG.language==="de"?["Mo","Di","Mi","Do","Fr","Sa","So"]:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const WDL=()=>CFG.language==="de"?["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"]:["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const dShort=d=>CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.`:d.slice(5);
+function sessionRowsHtml(sess){ const de=CFG.language==="de";
+  return `<ol class="plan">`+sess.exercises.map(x=>{
+    const sub=x.effort_target.label==="submax";
+    const badges=[x.benchmark?`<span class="chip up" title="${de?'vor allem, was dieselben Muskeln belastet':'before anything that loads the same muscles'}">◎ ${de?'frische Messung':'fresh measurement'}</span>`:'',
+      x.new?`<span class="chip flat">${de?'neu':'new'}</span>`:'', x.restriction==="careful"?`<span class="grp" style="background:var(--warn)">${rlabel('careful')}</span>`:'',
+      x.status==="limited"?`<span class="chip flat">${de?'eingeschränkt':'limited'}: ${(x.limited_by||[]).map(mname).join(', ')}</span>`:'',
+      x.aid?`<span class="chip">🪝 ${x.aid==="hooks"?(de?'Haken':'hooks'):(de?'Schlaufen':'straps')}</span>`:'',
+      x.aid_hint?`<span class="chip flat">🪝 ${de?'Griffhilfe empfohlen':'grip aid suggested'}</span>`:''].filter(Boolean).join(' ');
+    const tgt=x.target_peak_kg!=null?`<span>${de?'Ziel':'Target'} <b>${uKg(x.target_peak_kg)}</b> ${LKg()}${x.step_pct?` <small style="color:var(--good)">+${x.step_pct} %</small>`:''}</span>`
+      :`<span><b>${sub?(de?'submaximal':'sub-max'):'—'}</b></span>`;
+    const eff=sub?`<span>${de?'ohne Ausbelastung':'no all-out set'}</span>`:`<span>${de?'Kraftabfall':'force drop'} <b>≥ ${x.effort_target.inroad_min} %</b></span>`;
+    const st=x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>`:'';
+    const why=[...(x.why_selected||[]),x.interp,x.context_note,...(x.order_rules||[])].filter(Boolean);
+    const evid=(x.evidence||[]).map(e=>`<div class="foot">${de?'nach':'after'} ${esc(e.before)}: −${e.expected_loss_pct} % · ${e.source==="measured"?`${de?'bei dir gemessen':'measured on you'}, n = ${e.n} (${e.confidence})`:(de?'allgemeine Schätzung':'general estimate')}</div>`).join("");
+    return `<li class="v4"><div><div class="row1"><span class="ex"><span class="grp ${x.group}">${x.group}</span> ${esc(x.name)}</span>${badges}</div>
+      <div class="nums">${tgt}${eff}<span>${x.sets} ${de?(x.sets>1?'Sätze':'Satz'):(x.sets>1?'sets':'set')}</span>${x.rest_before_min?`<span>${de?'Pause davor':'rest before'} <b>${x.rest_before_min}</b> min</span>`:''}${st}</div>
+      ${interpHtml(x.interp)}${x.context_note?interpHtml(x.context_note,'warn'):''}
+      <details><summary>${de?'Warum diese Übung, warum hier':'Why this exercise, why here'}</summary>${why.filter(w=>w!==x.interp&&w!==x.context_note).map(w=>interpHtml(w)).join("")}${evid}</details></div></li>`;}).join("")+`</ol>`;
 }
+function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) return "";
+  const ns=plan.next_session, pr=plan.profile||{};
+  if(!ns) return `<section><div class="eyebrow">${T().planh}</div><h2 class="sec">${de?'Nächstes Training':'Next training'}</h2>${interpHtml(plan.today.interp,'warn')}</section>`;
+  const dfn=ns.days_from_today, whenTxt=dfn===0?(de?'Heute':'Today'):dfn===1?(de?'Morgen':'Tomorrow'):WDL()[ns.weekday];
+  const typ=ns.session_type==="split"?ns.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body');
+  const cm=(COMMITS.find(c=>c[0]===pr.commitment)||[])[de?1:2]||'';
+  const hero=`<div class="hero"><div class="when">${whenTxt}<small>${WDL()[ns.weekday]} · ${dShort(ns.date)}</small></div>
+    <div class="facts"><b>${typ}</b> · ${ns.exercises.length} ${de?'Übungen':'exercises'} · ≈ <b>${ns.est_minutes} min</b><br>
+    ${de?'Profil':'Profile'}: <b>${cm}</b>${pr.commitment_chosen?'':` <small>(${de?'automatisch gewählt':'chosen automatically'})</small>`} · ${pr.sessions_per_week}× ${de?'pro Woche':'a week'}
+    ${ns.readiness_band_applied?` · ${de?'Check-in berücksichtigt':'check-in applied'}`:''}</div></div>`;
+  const why=`<ul class="why">${ns.why_this_date.map(w=>`<li>${esc(w.text.meaning)} <b>${esc(w.text.action)}</b></li>`).join("")}</ul>`;
+  const guard=ns.guard?interpHtml(ns.guard,'warn'):'';
+  const fuller=ns.fuller_option?interpHtml(ns.fuller_option):'';
+  // limiter budget: the grip first
+  const order=m=>m==="grip"?0:1;
+  const budget=Object.entries(ns.limiter_budget||{}).sort((a,b)=>order(a[0])-order(b[0])).map(([m,b])=>{
+    const pct=b.share_pct==null?0:Math.min(150,b.share_pct);
+    return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:15px"><b>${mname(m)}</b><span class="foot">${b.by_exercise.map(x=>esc(x.name)+(x.aid?' 🪝':'')).join(' · ')}</span></div>
+      <div class="meter ${b.status==='high'?'high':''}" title="${b.share_pct??'–'} %"><i style="width:${Math.round(pct/1.5)}%"></i></div>${interpHtml(b.interp,b.status==='high'?'warn':'')}${b.measured_interp?interpHtml(b.measured_interp):''}</div>`;}).join("");
+  const hints=(ns.aid_hints||[]).map(h=>interpHtml(h,'warn')).join("");
+  const notes=(ns.order_notes||[]).map(n=>interpHtml(n)).join("");
+  const alts=(ns.alternatives||[]).filter(a=>a.reason==="same_muscles"||a.reason==="closes_a_gap").map(a=>a.reason==="same_muscles"
+      ?`<div class="foot">↔ ${esc(a.name)} ${de?'statt':'instead of'} ${esc(a.with)} (${de?'gleiche Muskeln':'same muscles'})</div>`
+      :`<div class="foot">＋ ${esc(a.name)} <span class="chip flat">${de?'neu':'new'}</span> — ${mname(a.muscle)}: ${de?'noch nie direkt trainiert':'never trained directly'}</div>`).join("");
+  const strip=`<div class="strip">${(plan.week_strip||[]).map(d=>`<div class="day ${d.session?'sess':''}" title="${d.session?esc(d.session.exercises.join(' · ')):''}">
+      ${WD()[d.weekday]}<b>${d.date.slice(8,10)}</b>${d.session?`<div style="color:var(--accent);font-weight:600">${d.session.exercises.length} ${de?'Üb.':'ex.'}</div>`:'<div>&nbsp;</div>'}
+      <div class="dots">${REGIONS.map(([k])=>`<i class="${d.readiness_by_region[k]}" title="${rname(k)}"></i>`).join("")}</div></div>`).join("")}</div>
+    <p class="foot" style="margin-top:8px">${de?'Punkte':'Dots'}: ${REGIONS.map(([k])=>rname(k)).join(' · ')} — <span style="color:var(--good)">●</span> ${de?'erholt':'recovered'} · <span style="color:var(--warn)">■</span> ${de?'teilweise':'partly'} · <span style="color:var(--accent)">○</span> ${de?'in Erholung':'recovering'}</p>`;
+  const week=(plan.week_plan||[]).slice(1).map(w=>`<div class="foot">${WD()[w.weekday]} ${dShort(w.date)} · ${w.session_type==="split"?w.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body')} · ${w.exercises.map(esc).join(' · ')}${w.benchmark?` · ◎ ${esc(w.benchmark)}`:''}</div>`).join("");
+  const ts=plan.today_session;
+  const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${sessionRowsHtml(ts)}</details>`:'';
+  return `<section id="plan4"><div class="eyebrow">${T().planh}</div><h2 class="sec">${de?'Nächstes Training':'Next training'}</h2>
+    ${hero}${why}${guard}${fuller}
+    ${sessionRowsHtml(ns)}
+    ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
+    ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}
+    ${alts?`<details class="more"><summary>${de?'Alternativen & Lücken':'Alternatives & gaps'}</summary><div style="margin-top:10px;display:grid;gap:6px">${alts}</div></details>`:''}
+    <details class="more" open><summary>${de?'Die nächsten 10 Tage':'The next 10 days'}</summary><div style="margin-top:12px">${strip}${week}${plan.cadence_note?interpHtml(plan.cadence_note,'warn'):''}</div></details>
+    ${todayAlt}</section>`;
+}
+function findingsHtml(r){ const de=CFG.language==="de", f=(r.history&&r.history.findings)||{}, top=f.top||[]; if(!top.length) return "";
+  const ic={warn:"⚠️",good:"✅",info:"ℹ️"};
+  const row=x=>`<div class="finding"><div class="ic">${ic[x.severity]||'•'}</div><div>${x.exercise?`<b>${esc(x.exercise)}</b> · `:''}${esc(x.interp.text.meaning)}<span class="act" style="display:block;color:var(--ink)">→ ${esc(x.interp.text.action)}</span>${x.n&&x.confidence?`<span class="foot">n = ${x.n} · ${x.confidence}</span>`:''}</div></div>`;
+  const more=(f.all||[]).slice(top.length);
+  return `<section><div class="eyebrow">${de?'Auffälligkeiten':'What stands out'}</div><h2 class="sec">${de?'Was die Daten dir sagen':'What your data tells you'}</h2>
+    <div style="display:grid;gap:8px">${top.map(row).join("")}</div>
+    ${more.length?`<details class="more"><summary>${more.length} ${de?'weitere':'more'}</summary><div style="display:grid;gap:8px;margin-top:10px">${more.map(row).join("")}</div></details>`:''}</section>`;
+}
+function goalProgressHtml(r){ const gp=r.goal_progress; if(!gp) return "";
+  const st={reached:'good',on_track:'good',behind:'warn',date_passed:'warn'}[gp.status]||'';
+  return `<div style="margin:-6px 0 12px">${interpHtml(gp.interp,st)}</div>`; }
+function planVsActualHtml(r){ const pva=r.plan_vs_actual; if(!pva) return ""; const de=CFG.language==="de";
+  const rows=pva.exercises.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.done?'✓':'—'}</td><td class="num">${x.target_peak_kg!=null?uKg(x.target_peak_kg):'—'}</td><td class="num" style="color:${x.target_met==null?'var(--ink3)':x.target_met?'var(--good)':'var(--accent)'}">${x.actual_peak_kg!=null?uKg(x.actual_peak_kg):'—'}</td><td class="num" style="color:${x.effort_met==null?'var(--ink3)':x.effort_met?'var(--good)':'var(--accent)'}">${x.inroad!=null?x.inroad+' %':'—'}${x.inroad_min?` / ${x.inroad_min} %`:''}</td></tr>`).join("");
+  return `<details class="more" open><summary>${de?'Plan gegen Wirklichkeit':'Plan vs what you did'} · ${de?'Plan vom':'plan of'} ${pva.plan_created}</summary>${interpHtml(pva.interp)}
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:16px;margin-top:10px"><tr class="foot"><td>${de?'Übung':'Exercise'}</td><td class="num">${de?'gemacht':'done'}</td><td class="num">${de?'Ziel':'Target'} ${LKg()}</td><td class="num">${de?'erreicht':'actual'}</td><td class="num">${de?'Kraftabfall / Ziel':'force drop / target'}</td></tr>${rows}</table></div></details>`; }
+function bodyHtml(r){ const de=CFG.language==="de", b=r.body;
+  const add=`<button class="btn ghost" style="min-height:44px;font-size:16px;padding:0 16px" onclick="openProfile('gBodyBox')">＋ ${de?'Wert eintragen':'add a value'}</button>`;
+  if(!b) return `<p class="foot" style="margin-top:26px">${de?'Freiwillig: Körperwerte (Gewicht, Umfänge) als groben Trend mitführen.':'Optional: track body values (weight, girths) as a rough trend.'} ${add}</p>`;
+  const rows=BODYF.filter(f=>b.metrics[f[0]]).map(f=>{const m=b.metrics[f[0]], u=f[3];
+    const chg=m.n<2?'—':`${m.change>0?'+':''}${u==="%"?m.change:toUser(Math.abs(m.change),u)*(m.change<0?-1:1)} ${bUnit(u)}${m.within_noise?` <small class="foot">(${de?'im Messrauschen':'within noise'})</small>`:''}`;
+    return `<tr><td>${de?f[1]:f[2]}</td><td class="num">${toUser(m.last,u)} ${bUnit(u)}</td><td class="num">${chg}</td><td class="num foot">${m.n} ${de?'Werte':'values'} · ${m.span_days} ${de?'Tage':'days'}</td></tr>`;}).join("");
+  return `<section><div class="eyebrow">${de?'Körperwerte · freiwillig':'Body values · optional'}</div><h2 class="sec">${de?'Grober Trend':'Rough trend'}</h2>
+    <div class="panel"><table style="width:100%;border-collapse:collapse;font-size:17px">${rows}</table>${interpHtml(b.interp)}
+    <p class="foot" style="margin:10px 0 0">${de?'Halbwissenschaftlich: Waage und Maßband schwanken stärker als echte Veränderungen. Nur der Trend über Wochen zählt.':'Semi-scientific: scales and tape vary more than real change does. Only the trend over weeks counts.'} ${add}</p></div></section>`; }
+function unmappedHtml(r){ const de=CFG.language==="de", u=r.unmapped_exercises||[]; if(!u.length) return "";
+  return `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn)"><b style="color:var(--warn)">⚙</b> ${de?'Unbekannte Übungscodes':'Unknown exercise codes'}: ${u.map(esc).join(', ')} — ${de?'in exercises.json Namen, Zielmuskeln und Limiter eintragen, dann zählen sie für Erholung und Plan richtig mit.':'add name, target muscles and limiters in exercises.json so they count correctly for recovery and the plan.'}</div>`; }
 // playful loading lines while the AI thinks
 const SPIN_DE=["🤖💪 Die KI lässt die Muskeln spielen und studiert deine Kraftdaten …",
   "🧠🔥 Neuronen wärmen sich auf, Inroad wird vermessen … kurz durchatmen.",
