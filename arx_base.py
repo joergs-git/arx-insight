@@ -157,3 +157,50 @@ def _linfit(xs, ys):
     den = sum((x - mx) ** 2 for x in xs) or 1e-9
     b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den
     return b, my - b * mx
+
+
+# --- recovery model constants (shared by arx_report._recovery and the planner) ------------------
+# A set loads its target muscles at the effort it reached and its limiters one rank lower; a muscle
+# is ready again when the rest its hardest recent load required has elapsed.
+EFFORT_RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 2}
+RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
+REQUIRED_REST = {3: 3, 2: 2, 1: 1}     # days a muscle needs after a load of that rank
+
+
+def age_band(age: int | None) -> str | None:
+    """Name-free age band for guardrails and (if the owner allows it) for the AI."""
+    if age is None or age < 0:
+        return None
+    if age < 16:
+        return "13-15"
+    if age < 18:
+        return "16-17"
+    if age < 30:
+        return "18-29"
+    return "70+" if age >= 70 else f"{age // 10 * 10}-{age // 10 * 10 + 9}"
+
+
+def user_profile(con, user_id: int, today: date | None = None) -> dict:
+    """{sex, age, age_band} of one athlete from the ARX "User" table - never the name. Unknown
+    values are None (a birthdate is optional in the ARX app)."""
+    out = {"sex": None, "age": None, "age_band": None}
+    try:
+        cur = con.cursor()
+        cur.execute('select gender, birthdate from "User" where id = ?', (user_id,))
+        row = cur.fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return out
+    gender, born = row
+    out["sex"] = {"m": "male", "f": "female"}.get((gender or "").strip().lower()[:1])
+    if born:
+        t = today or date.today()
+        b = born.date() if hasattr(born, "date") else born
+        try:
+            years = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+            if 5 <= years <= 110:                  # the ARX app stores placeholder dates for "unknown"
+                out["age"], out["age_band"] = years, age_band(years)
+        except Exception:
+            pass
+    return out

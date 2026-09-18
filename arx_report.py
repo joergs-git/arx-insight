@@ -26,7 +26,8 @@ from datetime import datetime, date, timedelta
 
 # shared base (moved out in v0.4.0; re-exported here so callers of arx_report keep working)
 from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS,
-                      open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit)
+                      open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
+                      EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile)
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
@@ -631,9 +632,7 @@ def _totals(work: list[dict], weekly_rate, sequences: list[dict]) -> dict:
 # elapsed. That is what makes two sessions on consecutive days fine when they
 # used different muscles, and what lets one deep isolation set block only the
 # exercises that need that muscle fresh instead of the whole next day.
-EFFORT_RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 2}
-RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
-REQUIRED_REST = {3: 3, 2: 2, 1: 1}     # days a muscle needs after a load of that rank
+# EFFORT_RANK / RANK_LABEL / REQUIRED_REST live in arx_base (shared with the planner)
 RECOVERY_LOOKBACK_DAYS = 14            # older loads cannot still be limiting
 RECENT_WINDOW_DAYS = 7                 # the load flag is judged on this window before today
 DETRAINING_GAP_DAYS = 10               # longer without training -> adaptation is being lost
