@@ -308,6 +308,30 @@ def classify_effort(inroad: int | None, rising: bool) -> str:
 CURVE_POINTS = 300             # curve samples handed to the UI per set (downsampled)
 
 
+PHASE_MARKS = {"BeginFirstHalf": "first", "BeginPauseAfterFirstHalf": "hold", "BeginSecondHalf": "second",
+               "BeginPauseAfterSecondHalf": "hold"}
+PHASE_ENDS = ("EndRep", "EndSequence", "SequenceEndedBeforeCompletion", "BeginRep")
+
+
+def phase_spans(events: list[dict], first_half: str | None) -> list[list]:
+    """[[t0, t1, "con" | "ecc" | "hold"], ...] from the machine's own phase markers, on the time
+    axis of the curve - so a chart can show WHICH part of the curve is the lifting (concentric) and
+    which the lowering (eccentric) phase. first_half ("con" | "ecc") comes from the set's detail
+    (encoder rising = concentric); without it nothing is claimed and the list stays empty."""
+    if first_half not in ("con", "ecc"):
+        return []
+    second = "ecc" if first_half == "con" else "con"
+    marks = sorted(((e.get("_t"), e.get("Type")) for e in events
+                    if e.get("_t") is not None and (e.get("Type") in PHASE_MARKS or e.get("Type") in PHASE_ENDS)),
+                   key=lambda m: m[0])
+    out = []
+    for (t0, typ), (t1, _) in zip(marks, marks[1:]):
+        kind = PHASE_MARKS.get(typ)
+        if kind and t1 > t0:
+            out.append([round(t0, 2), round(t1, 2), {"first": first_half, "second": second}.get(kind, "hold")])
+    return out
+
+
 def _downsample(curve: list[dict], n: int = CURVE_POINTS) -> list[dict]:
     """Thin a ~20 Hz curve to about n evenly spaced samples (the last one kept)."""
     if len(curve) <= n:
@@ -327,6 +351,7 @@ def set_curve(con, set_id: int, d: dict | None = None) -> dict:
     d = d or {}
     reps = d.get("reps") or []
     return {"curve": _downsample(curve), "rep_peaks": peaks, "rep_times": [s["t"] for s in segs],
+            "phases": phase_spans(events, d.get("first_half")),
             "inroad_pct": d.get("inroad_v3") if d.get("inroad_v3") is not None else _inroad(peaks),
             "rep_con": [r.get("con_mean") for r in reps], "rep_ecc": [r.get("ecc_mean") for r in reps],
             "rep_hold": [r.get("hold_end_mean") if r.get("hold_end_mean") is not None else r.get("hold_start_mean")
@@ -1612,8 +1637,38 @@ def featured_settings(con, set_id: int, reps: int) -> dict:
 LAST_SESSION_CHARTS = 3        # exercises of the last session that get a force-curve card
 
 
+REP_FADE_PCT = 10              # a phase that loses this much across the reps has really tired
+
+
+def rep_trend(s: dict, prev: dict | None, cfg: dict | None) -> dict | None:
+    """What the run of the reps says (concentric and eccentric apart), as a meaning / action item:
+    both phases fade = real fatigue; only the concentric fades = the usual order, keep resisting;
+    only the eccentric fades = the way back was given away; nothing fades = the set ended early;
+    and a set whose first reps sit far below its best started too cautiously."""
+    fc, fe = s.get("fatigue_con_pct"), s.get("fatigue_ecc_pct")
+    if fc is None or fe is None:
+        return None
+    pacing = s.get("pacing_deficit_pct") or 0
+    if pacing >= history.PACING_DEFICIT_PCT and fc < REP_FADE_PCT and fe < REP_FADE_PCT:
+        code = "reptrend_rising"
+    elif fc >= REP_FADE_PCT and fe >= REP_FADE_PCT:
+        code = "reptrend_both_fade"
+    elif fc >= REP_FADE_PCT:
+        code = "reptrend_con_fades"
+    elif fe >= REP_FADE_PCT:
+        code = "reptrend_ecc_fades"
+    else:
+        code = "reptrend_flat"
+    params = {"con_pct": fc, "ecc_pct": fe, "pacing_pct": pacing}
+    out = history.item(code, params, cfg or {})
+    if prev and prev.get("same_settings") and prev.get("fatigue_con_pct") is not None and prev.get("fatigue_ecc_pct") is not None:
+        out["vs_previous"] = history.item("reptrend_vs_previous", {"con_pct": fc, "ecc_pct": fe, "prev_con_pct": prev["fatigue_con_pct"],
+                                                                   "prev_ecc_pct": prev["fatigue_ecc_pct"], "prev_date": prev["date"]}, cfg or {})
+    return out
+
+
 def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: list[dict],
-                  transitions: list[dict]) -> dict | None:
+                  transitions: list[dict], cfg: dict | None = None) -> dict | None:
     """The most recent training day, exercise by exercise, each compared with
     the previous time that exercise was done.
 
@@ -1647,6 +1702,20 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         e = ex_by_name.get(name, {})
         occ = e.get("occ") or []
         prev = occ[-2] if (len(occ) >= 2 and occ[-1]["date"] == day["date"]) else None
+        prev2 = occ[-3] if (len(occ) >= 3 and occ[-1]["date"] == day["date"]) else None
+        today_occ = occ[-1] if (occ and occ[-1]["date"] == day["date"]) else {}
+
+        def same_settings(o) -> bool:
+            """Same range, tempo and grip-aid state as today's set - only then the rep curves of two
+            days show the same thing."""
+            if not o or not o.get("rom_cm") or not s.get("rom_cm"):
+                return False
+            if abs(s["rom_cm"] - o["rom_cm"]) / o["rom_cm"] > ROM_TOLERANCE:
+                return False
+            ta, tb = today_occ.get("tempo_s"), o.get("tempo_s")
+            if ta and tb and abs(ta - tb) / tb > TEMPO_TOLERANCE:
+                return False
+            return bool(today_occ.get("aid_on")) == bool(o.get("aid_on"))
         seq = seq_by_id.get(s["id"], {})
         comparable = bool(prev and prev.get("rom_cm") and s.get("rom_cm")
                           and abs(s["rom_cm"] - prev["rom_cm"]) / prev["rom_cm"] <= ROM_TOLERANCE)
@@ -1681,8 +1750,12 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
                       "mean_force_kg": prev["mean_force_kg"], "reps": prev["reps"], "seconds": prev["seconds"],
                       "rom_cm": prev["rom_cm"], "inroad": prev["inroad"], "effort": prev["effort"],
                       "con_top3_kg": prev.get("con_top3_kg"), "ecc_top3_kg": prev.get("ecc_top3_kg"),
-                      "fatigue_con_pct": prev.get("fatigue_con_pct"), "fatigue_ecc_pct": prev.get("fatigue_ecc_pct")}
+                      "fatigue_con_pct": prev.get("fatigue_con_pct"), "fatigue_ecc_pct": prev.get("fatigue_ecc_pct"),
+                      "same_settings": same_settings(prev)}
                      if prev else None),
+            # the time before last: only its per-rep trend is shown (three raw curves would be unreadable)
+            "prev2": ({"date": prev2["date"], "id": prev2["id"], "max_kg": prev2["kg"], "rom_cm": prev2["rom_cm"],
+                       "same_settings": same_settings(prev2)} if prev2 else None),
             "delta_pct": round((s["max_kg"] - prev["kg"]) / prev["kg"] * 100, 1) if (prev and prev["kg"]) else None,
             "delta_mean_pct": (round((s["mean_force_kg"] - prev["mean_force_kg"]) / prev["mean_force_kg"] * 100, 1)
                                if (prev and prev.get("mean_force_kg")) else None),
@@ -1712,7 +1785,11 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             pc = set_curve(con, r["prev"]["id"], detail_by_id.get(r["prev"]["id"]))
             r["prev_curve"], r["prev_rep_peaks"], r["prev_rep_times"] = pc["curve"], pc["rep_peaks"], pc["rep_times"]
             r["prev_rep_con"], r["prev_rep_ecc"] = pc["rep_con"], pc["rep_ecc"]
+        if r["prev2"]:                             # per-rep means come from the cached detail - no curve decoding
+            reps2 = (detail_by_id.get(r["prev2"]["id"]) or {}).get("reps") or []
+            r["prev2_rep_con"], r["prev2_rep_ecc"] = [x.get("con_mean") for x in reps2], [x.get("ecc_mean") for x in reps2]
         r["settings"] = featured_settings(con, r["set_id"], r["reps"])
+        r["rep_trend"] = rep_trend(r, r["prev"], cfg)
 
     transition = next((t for t in transitions if t["date"] == day["date"]), None)
     return {
@@ -1792,7 +1869,7 @@ def build_report(con, cfg: dict) -> dict:
     sequences = sequences_all[-SEQ_DAYS:]
 
     # the last session, exercise by exercise, vs the previous time - the headline
-    last_session = _last_session(con, work, exercises, sequences_all, load["transitions"])
+    last_session = _last_session(con, work, exercises, sequences_all, load["transitions"], cfg)
     featured = None                          # compat: the first card's set (settings table, AI)
     if last_session and last_session["featured"]:
         top = next(r for r in last_session["exercises"] if r["name"] == last_session["featured"])

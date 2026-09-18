@@ -6,7 +6,8 @@
 #   2. a private virtual environment + the two Python packages
 #   3. the Firebird client library (downloaded automatically if not present)
 #   4. finds your ARX database automatically (asks you to pick it if it can't)
-#   5. creates a Desktop shortcut and launches the app in your browser
+#   5. creates the Desktop / Start menu shortcuts (and keeps a taskbar icon up to date) and
+#      launches the app in your browser
 # Nothing here touches the ARX app itself; the database is only ever read.
 #
 # v0.3.1: run it again after every update - it refreshes the packages, points the Desktop shortcut
@@ -151,16 +152,67 @@ $cfg | Add-Member -NotePropertyName db -NotePropertyValue $dbPath -Force
 [System.IO.File]::WriteAllText($cfgPath, ($cfg | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
 Say "Saved settings."
 
-# --- 6. Desktop shortcut ---------------------------------------------------
-try {
+# --- 6. Shortcuts: Desktop, Start menu, taskbar ------------------------------
+# The shortcut target is cmd.exe running the launcher .bat: Windows offers "Pin to taskbar" only
+# for shortcuts to programs, not to .bat files. Every run re-points ALL ARX Insight shortcuts -
+# also one the user pinned to the taskbar - at THIS folder, so nothing keeps starting an old
+# version after an update. Windows 10/11 do not let a program pin itself to the taskbar; we try
+# the classic way, and if the icon is not pinned afterwards the app shows a one-time hint.
+function Set-ArxShortcut($lnkPath) {
     $ws = New-Object -ComObject WScript.Shell
-    $lnk = $ws.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath("Desktop"),"ARX Insight.lnk"))
-    $lnk.TargetPath = Join-Path $Root "Start ARX Insight.bat"
+    $lnk = $ws.CreateShortcut($lnkPath)
+    $lnk.TargetPath = $env:ComSpec
+    $lnk.Arguments = '/c ""' + (Join-Path $Root "Start ARX Insight.bat") + '""'
     $lnk.WorkingDirectory = $Root
     $lnk.IconLocation = "shell32.dll,171"
+    $lnk.Description = "ARX Insight"
     $lnk.Save()
-    Say "Created a 'ARX Insight' shortcut on your Desktop."
-} catch { Warn "Could not create a Desktop shortcut (not critical)." }
+}
+function Get-ArxPins {
+    $pinDir = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+    $found = @()
+    if (Test-Path $pinDir) {
+        $ws = New-Object -ComObject WScript.Shell
+        foreach ($f in (Get-ChildItem $pinDir -Filter "*.lnk" -ErrorAction SilentlyContinue)) {
+            try {
+                $l = $ws.CreateShortcut($f.FullName)
+                if (($l.Arguments -like "*Start ARX Insight.bat*") -or ($l.TargetPath -like "*Start ARX Insight.bat*")) { $found += $f.FullName }
+            } catch {}
+        }
+    }
+    return ,$found
+}
+$pinned = $false
+try {
+    $desktopLnk = [IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "ARX Insight.lnk")
+    Set-ArxShortcut $desktopLnk
+    Say "Desktop shortcut 'ARX Insight' is up to date."
+    $startLnk = [IO.Path]::Combine([Environment]::GetFolderPath("Programs"), "ARX Insight.lnk")
+    Set-ArxShortcut $startLnk
+    Say "Start menu entry 'ARX Insight' is up to date."
+    $pins = Get-ArxPins
+    if ($pins.Count -eq 0) {
+        # classic "pin to taskbar" verb - still there on some Windows builds, silently absent on others
+        try {
+            $sh = New-Object -ComObject Shell.Application
+            $item = $sh.Namespace((Split-Path $startLnk -Parent)).ParseName((Split-Path $startLnk -Leaf))
+            foreach ($v in $item.Verbs()) {
+                if ($v.Name.Replace("&", "") -match "Pin to taskbar|An Taskleiste anheften") { $v.DoIt(); Start-Sleep -Milliseconds 800 }
+            }
+        } catch {}
+        $pins = Get-ArxPins
+    }
+    foreach ($p in $pins) { Set-ArxShortcut $p }
+    $pinned = ($pins.Count -gt 0)
+    if ($pinned) { Say "Taskbar icon is up to date." }
+    else { Say "Taskbar: Windows does not let apps pin themselves - the app shows how to do it with two clicks." }
+} catch { Warn "Could not create the shortcuts (not critical)." }
+# remember it for the app's one-time hint (settings file, keeps everything else)
+try {
+    $cfg2 = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    $cfg2 | Add-Member -NotePropertyName taskbar_pinned -NotePropertyValue $pinned -Force
+    [System.IO.File]::WriteAllText($cfgPath, ($cfg2 | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
+} catch {}
 
 # --- 7. launch -------------------------------------------------------------
 # The app gets its OWN console window (the same launcher the Desktop shortcut uses). Running it

@@ -1318,6 +1318,63 @@
      "key_finding": "ACSM Position Stand 2026, overview of 137 systematic reviews (>30,000 participants), updating the 2009 stand. Strength was enhanced by loads >=80% 1RM, full range of motion, 2-3 sets, placement at the beginning of the session and >=2 sessions/week; hypertrophy by higher volumes (>=10 sets/week) and eccentric overload. Training to momentary fatigue, equipment type, set structure, time under tension and periodization did not consistently affect outcomes."
     }
    ]
+  },
+  "split_vs_full_body": {
+   "title": "Full-body sessions or a split by muscle groups",
+   "statement": "A 2024 systematic review with meta-analysis (14 studies, 392 subjects) found that split and full-body routines produce similar strength gains (bench press MD 1.19, p = 0.34; lower limb MD 2.47, p = 0.29) and similar muscle growth (elbow extensors, elbow flexors, vastus lateralis, lean body mass: all p > 0.8) when volume is equated; the authors conclude that people are free to choose by preference. Single trials agree: in 50 untrained women a 4-day upper/lower split and a 2-day full-body programme with the same weekly sets gave the same strength (bench press +30.0 % vs +25.5 %), power and muscle mass gains over 12 weeks; in 67 untrained subjects training a muscle twice (A/B split) or four times a week (full body) gave similar results at equal weekly sets. One 10-week trial in 21 trained men found a small edge of full body for one strength measure and of the split for thigh muscle thickness.",
+   "practical_rule": "At equal weekly volume it makes no difference whether the body is trained as a whole or in parts - choose what fits the week. A split allows training on consecutive days (different muscles work), shorter sessions and more sets for a muscle within one session; full body reaches everything with fewer visits.",
+   "applied_as": "Profile option 'how sessions are built': Automatic (1-2 sessions a week = full body, from 3 a rotating split), Full body, or Split by groups. A split here follows the machine's movement groups Push / Pull / Drive, so every helper muscle stays with the exercises it helps in; rest is still counted per muscle, which is what makes consecutive days possible. 'Next session only ...' lets the athlete pick the groups for a single session. When the chosen structure cannot deliver the asked number of sessions, the plan says so.",
+   "arx_caveat": "The trials equate volume with several sets per exercise. With ONE set per exercise the practical difference between the structures is weekly volume: more sessions mean more hard sets per muscle per week - that, not the structure itself, is what can add results.",
+   "parameters": [
+    "arx_plan.STRUCTURES",
+    "arx_plan.split_factor",
+    "arx_plan.theme_groups",
+    "arx_plan.manual_groups"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Ramos-Campo DJ, Benito-Peinado PJ, Andreu-Caravaca L, Rojo-Tirado MA, Rubio-Arias JÁ",
+     "year": 2024,
+     "title": "Efficacy of Split Versus Full-Body Resistance Training on Strength and Muscle Growth: A Systematic Review With Meta-Analysis",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000004774",
+     "pmid": "38595233",
+     "type": "meta-analysis",
+     "key_finding": "14 studies, 392 subjects: similar strength gains and muscle growth after split and full-body routines when volume is equated; individuals are free to select a routine based on personal preference."
+    },
+    {
+     "authors": "Pedersen H, Fimland MS, Schoenfeld BJ, Iversen VM, Cumming KT, Jensen S, Saeterbakken AH, Andersen V",
+     "year": 2022,
+     "title": "A randomized trial on the efficacy of split-body versus full-body resistance training in non-resistance trained women",
+     "journal": "BMC Sports Sci Med Rehabil",
+     "doi": "10.1186/s13102-022-00481-7",
+     "pmid": "35568897",
+     "type": "RCT",
+     "key_finding": "50 untrained women, 12 weeks, same exercises and weekly sets: full body twice a week vs upper/lower split four times a week - no between-group differences in strength, power or muscle mass."
+    },
+    {
+     "authors": "Evangelista AL, Braz TV, La Scala Teixeira CV, Rica RL, Alonso AC, Barbosa WA, Reis VM, Baker JS, Schoenfeld BJ, Bocalini DS, Greve JMD",
+     "year": 2021,
+     "title": "Split or full-body workout routine: which is best to increase muscle strength and hypertrophy?",
+     "journal": "Einstein (Sao Paulo)",
+     "doi": "10.31744/einstein_journal/2021AO5781",
+     "pmid": "34468591",
+     "type": "RCT",
+     "key_finding": "67 untrained subjects, 8 weeks: training a muscle twice a week (A/B split) or four times a week (full body) has similar effects on strength and muscle thickness, provided weekly set volume is equal."
+    },
+    {
+     "authors": "Bartolomei S, Nigro F, Malagoli Lanzoni I, Masina F, Di Michele R, Hoffman JR",
+     "year": 2021,
+     "title": "A Comparison Between Total Body and Split Routine Resistance Training Programs in Trained Men",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000003573",
+     "pmid": "32168178",
+     "type": "RCT",
+     "key_finding": "21 trained men, 10 weeks: both routines improved all strength and muscle thickness measures; slow isokinetic bench press improved more with total body (p = 0.015), vastus lateralis thickness more with the split routine (p = 0.037)."
+    }
+   ]
   }
  }
 }

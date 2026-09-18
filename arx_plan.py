@@ -124,6 +124,7 @@ SCIENCE = {
     "DUE_INTERVAL_RANGE": "frequency", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
     "LIGHT_DAY_SHARE": "autoregulation", "REST_SCORE_BELOW": "autoregulation", "TRANSITION_TARGET_MIN": "paired_sets",
+    "STRUCTURES": "split_vs_full_body", "split_factor": "split_vs_full_body", "theme_groups": "split_vs_full_body",
     "RETURN_DAYS": "eccentric", "NEW_WEIGHT": "eccentric",
 }
 
@@ -151,9 +152,19 @@ def goal_effort(goal: dict) -> str:
     return "deep"
 
 
-def split_factor(spw: int) -> int:
-    """1 = full body; 2 / 3 = a session covers a half / a third of the regions (3+ / 5+ a week)."""
-    return 1 if spw <= 2 else (2 if spw <= 4 else 3)
+STRUCTURES = ("auto", "full_body", "split")    # how sessions are built (profile); science.json: split_vs_full_body
+
+
+def split_factor(spw: int, structure: str = "auto") -> int:
+    """1 = full body; 2 / 3 = a session covers a half / a third of the movement groups.
+    auto: full body up to 2 sessions a week, a split from 3, thirds from 5. At equal weekly volume
+    split and full body give the same results (science.json) - so the athlete may choose: a split
+    trains different muscles on consecutive days (more, shorter sessions, more sets per muscle per
+    session), full body reaches everything with fewer sessions."""
+    if structure == "full_body":
+        return 1
+    auto = 1 if spw <= 2 else (2 if spw <= 4 else 3)
+    return max(2, auto) if structure == "split" else auto
 
 
 def recommend_commitment(cfg: dict, minutes: float, spw: int) -> str:
@@ -293,15 +304,15 @@ def build_pool(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     return pool
 
 
-def due_interval(spw: int) -> float:
+def due_interval(spw: int, structure: str = "auto") -> float:
     lo, hi = DUE_INTERVAL_RANGE
-    return min(hi, max(lo, 7.0 * split_factor(spw) / max(1, spw)))
+    return min(hi, max(lo, 7.0 * split_factor(spw, structure) / max(1, spw)))
 
 
 def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw: int, cfg: dict,
                      today: date | None = None) -> list[dict]:
     """Score every exercise that may be trained on that day, with the reasons as items."""
-    interval = due_interval(spw)
+    interval = due_interval(spw, structure_of(cfg))
     never_fresh = sorted((c for c in pool if not c["new"] and not c["last_fresh"]), key=lambda c: (-c["n_days"], c["name"]))
     measured = sorted((c for c in pool if not c["new"] and c["last_fresh"]), key=lambda c: (c["last_fresh"], c["name"]))
     bench_rank = {c["name"]: i for i, c in enumerate(never_fresh + measured)}
@@ -354,13 +365,13 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
     return out
 
 
-def theme_groups(cands: list[dict], pool: list[dict], spw: int) -> list[str] | None:
+def theme_groups(cands: list[dict], pool: list[dict], spw: int, structure: str = "auto") -> list[str] | None:
     """With 3+ sessions a week a session covers only the most due movement groups (Push / Pull /
     Drive of the catalog), so the others are ready the day after. Groups, not body regions: a
     group keeps a muscle together with the exercises it helps in (biceps with the rows, triceps
     with the presses) - split the other way round, yesterday's curl would limit today's row.
     None = full body."""
-    k_split = split_factor(spw)
+    k_split = split_factor(spw, structure)
     known = sum(1 for c in pool if not c["new"] and c["restriction"] != "avoid")
     while k_split > 1 and known < MIN_READY_EXERCISES * k_split:          # too few exercises to split them up
         k_split -= 1
@@ -633,11 +644,27 @@ def estimate_session_minutes(items: list[dict], transition_min: float) -> int:
 # =============================================================================
 # One session
 # =============================================================================
+def structure_of(cfg: dict) -> str:
+    return cfg.get("structure") if cfg.get("structure") in STRUCTURES else "auto"
+
+
+def manual_groups(cfg: dict, work: list[dict]) -> list[str] | None:
+    """The athlete's one-time choice "next session only these groups" ({groups, set_at} in the
+    profile): valid until a working set newer than the choice exists - then it is used up."""
+    choice = cfg.get("next_groups") or {}
+    groups, set_at = [g for g in choice.get("groups") or [] if isinstance(g, str)], str(choice.get("set_at") or "")
+    if not groups or not set_at:
+        return None
+    newest = max((s["date"] for s in work), default="")
+    return None if newest.replace("T", " ") > set_at.replace("T", " ") else sorted(set(groups))
+
+
 def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: dict, spw: int, size: int,
-                   today: date) -> dict | None:
-    """What could be trained on that day (no order yet) + how complete that session would be."""
+                   today: date, only_groups: list[str] | None = None) -> dict | None:
+    """What could be trained on that day (no order yet) + how complete that session would be.
+    only_groups = the athlete's one-time choice for this session (beats the automatic theme)."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
-    theme = theme_groups(cands, pool, spw)
+    theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg))
     starter = sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX       # no history yet: a first session
     chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else 1)
     ready = [c for c in chosen if c["status"] == "ready"]
@@ -646,7 +673,7 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
         return None
     want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and c["group"] in theme)))
     fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
-    return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2)}
+    return {"date": day, "chosen": chosen, "dropped": dropped, "theme": theme, "fill": round(fill, 2), "manual": bool(only_groups)}
 
 
 def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | None, age: str | None,
@@ -797,6 +824,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     recommended = recommend_commitment(cfg, minutes, spw)
     commitment = chosen_profile or recommended
     focus = focus_regions(cfg)
+    structure = structure_of(cfg)
+    chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
     state = muscle_state(load, work, catalog, aids, age)
     transition, transition_measured = transition_minutes(work)
@@ -825,7 +854,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         for k in range(DATE_SEARCH_DAYS + 1):
             d = start + timedelta(days=k)
             b = band if (with_band and d == today) else None
-            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today)
+            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today, chosen_groups if with_band else None)
             if not sel:
                 continue
             gap = (d - prev).days if prev else None
@@ -843,7 +872,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     opts = options(earliest, last_day, state, week_counts, pool, True)
     profile_out = {"commitment": commitment, "commitment_chosen": bool(chosen_profile), "recommended_commitment": recommended,
                    "sessions_per_week": spw, "session_minutes": round(minutes), "session_minutes_auto": minutes_auto,
-                   "focus_regions": focus, "split_factor": split_factor(spw), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
+                   "focus_regions": focus, "structure": structure, "split_factor": split_factor(spw, structure),
+                   "next_groups": chosen_groups, "groups": sorted({c["group"] for c in pool if not c["new"] and c["group"] != "?"}), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
                    "supervision": age in MINOR_BANDS, "transition_min": transition, "transition_measured": transition_measured,
                    "exercises_per_session": size_for(None),
                    "commitment_options": commitment_options(cfg, minutes, spw, set_min, transition, per_exercise, n_regions, age)}
@@ -873,7 +903,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     if waiting and d1 > earliest:
         why.append(item("date_waited_for", {"muscle": waiting[0][1], "ready_date": waiting[0][0]}, cfg))
     overdue = max(session["exercises"], key=lambda it: it.get("days_since_target") or 0)
-    if (overdue.get("days_since_target") or 0) > 2 * due_interval(spw):
+    if (overdue.get("days_since_target") or 0) > 2 * due_interval(spw, structure):
         why.append(item("date_overdue", {"muscle": next(c["due_muscle"] for c in best["chosen"] if c["name"] == overdue["name"]),
                                          "days": overdue["days_since_target"]}, cfg))
     why.append(item("date_cadence", {"spw": spw, "ideal": round(ideal_gap, 1), "gap": best["gap_days"]}, cfg)
@@ -889,6 +919,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     if fuller:
         session["fuller_option"] = item("date_fuller_later", {"later_date": fuller["date"].isoformat(), "k": len(fuller["chosen"]),
                                                               "k_now": len(best["chosen"])}, cfg)
+    if best.get("manual"):
+        why.insert(0, item("date_manual_groups", {"groups": chosen_groups}, cfg))
     session.update({"why_this_date": why, "days_from_today": (d1 - today).days, "gap_days": best["gap_days"],
                     "readiness_band_applied": best["band"]})
     budget = limiter_budget(session, work, catalog, ev, cfg)
