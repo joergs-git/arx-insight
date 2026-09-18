@@ -115,7 +115,7 @@ class _Cursor:
     """The queries the engine issues (the set list of one user, single sets by id), answered from
     the generated rows."""
     LIST_COLS = ["ID", "EXERCISEDATE", "SESSION", "EXERCISE", "PROTOCOL", "MAXLOAD", "CONCENTRICMAX", "ECCENTRICMAX",
-                 "INTENSITY", "ELAPSEDSECONDS", "REPSCHEMEDATA", "EVENTSTREAMDATA", "HIDEFROMSTATS"]
+                 "INTENSITY", "ELAPSEDSECONDS", "REPSCHEMEDATA", "EVENTSTREAMDATA", "HIDEFROMSTATS", "REPSCHEME"]
 
     def __init__(self, rows, users=None):
         self._rows, self._users, self._result, self.description = rows, users or {}, [], []

@@ -90,6 +90,10 @@ IDEAL_SETTINGS = {
 # =============================================================================
 # Metrics
 # =============================================================================
+PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTOCOL: what ends the set
+STATIC_MIN_SECONDS = 20        # a shorter isometric attempt is a test, like any other short set
+
+
 def classify_set(sec: float, reps: int, concentric: float, eccentric: float,
                  ended_early: bool, has_events: bool) -> tuple[str, str]:
     """Decide whether a recorded set is a real WORKING set or noise.
@@ -133,7 +137,7 @@ def flag_false_starts(sets: list[dict]) -> None:
         ss.sort(key=lambda s: s["date"])
         for a, b in zip(ss, ss[1:]):
             ta, tb = _ts(a["date"]), _ts(b["date"])
-            if ta is None or tb is None or a["status"] in ("no_data", "hidden"):
+            if ta is None or tb is None or a["status"] in ("no_data", "hidden", "static"):
                 continue
             gap_min = (tb - (ta + a["seconds"])) / 60.0
             if gap_min <= RESTART_GAP_MIN and b["reps"] > a["reps"]:
@@ -148,7 +152,7 @@ def load_sets(con, user_id: int) -> list[dict]:
     cur.execute(
         '''select id, exercisedate, "SESSION", exercise, protocol, maxload,
                   concentricmax, eccentricmax, intensity, elapsedseconds,
-                  repschemedata, eventstreamdata, hidefromstats
+                  repschemedata, eventstreamdata, hidefromstats, repscheme
            from "ExerciseSet"
            where user_id = ? and deleted is false
            order by exercisedate''',
@@ -175,8 +179,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
         # programmed pauses - needed per set for the session-sequence analysis
         rom_cm = pause_end = pause_return = None
+        static = str(r.get("REPSCHEME") or "").strip() == "StaticModeData"
         try:
             cfg = json.loads(rsd.decode("latin1"))
+            static = static or (cfg.get("StartPosition") is not None and cfg.get("StartPosition") == cfg.get("EndPosition"))
             rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
             pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
             pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
@@ -188,6 +194,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         e = float(r["ECCENTRICMAX"] or 0)
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
         status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
+        if static and status == "short" and sec >= STATIC_MIN_SECONDS:
+            # an isometric hold (ARX "Static" mode) has no reps by design: real work, but not
+            # comparable with dynamic sets - reported under its own name instead of "too short"
+            status, reason = "static", f"isometric hold, {sec:.0f} s - listed, not compared with dynamic sets"
         if status == "working" and r.get("HIDEFROMSTATS"):
             # hidden from the statistics in the ARX app itself: not training in the athlete's
             # own judgement. Sets that are already excluded keep their more specific status.
@@ -199,9 +209,10 @@ def load_sets(con, user_id: int) -> list[dict]:
             "session": r["SESSION"],
             "exercise": r["EXERCISE"],
             "protocol": r["PROTOCOL"],
+            "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "reps"),
             "reps": reps,
             "ended_early": ended_early,
-            "status": status,                  # working | short | aborted | no_data | hidden (| false_start)
+            "status": status,                  # working | short | aborted | no_data | hidden | static (| false_start)
             "reason": reason,                  # why it is not a working set ("" when it is)
             "rom_cm": rom_cm,
             "pause_end_s": pause_end,          # programmed hold at the end position
@@ -359,7 +370,8 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
     the most recent session in concrete numbers.
 
     Since v0.4.0 a day must be COMPARABLE, not just ROM-valid, to feed trend, forecast and PB
-    flags: same tempo and protocol class as the exercise's reference, not a familiarisation day
+    flags: same tempo, protocol class and grip-aid state as the exercise's reference (days with
+    and without hooks / straps are never compared with each other), not a familiarisation day
     (see FAM_SHARE), not a low-force set. Every set of the exercise gets the flags too (rom_ok,
     settings_ok, fam, comparable) - the evidence layer and the planner build on them - and sets of
     a familiarisation day are capped at sub-maximal effort (learning is no hard load)."""
@@ -401,6 +413,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
                     "pause_end_s": b.get("pause_end_s"), "pause_return_s": b.get("pause_return_s"),
                     "tempo_s": (b.get("tempo") or {}).get("con_s"),   # seconds per direction actually driven
                     "protocol": b.get("protocol"),          # 3 = reps, 1 = countdown, 0 = inroad
+                    "aid_on": bool(b.get("aid_on")),        # a grip aid in use: not comparable with days without
                     "context": b.get("context"),            # fresh | preloaded | repeat (arx_evidence)
                     "position": b.get("position"),
                     "sets": by_day[day]["sets"],            # sets of this exercise that day
@@ -435,12 +448,16 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         protos = [o["protocol"] for o in win if o["protocol"] is not None]
         proto_ref = max(reversed(protos), key=protos.count) if protos else None
 
-        def settings_ok(tempo, proto) -> bool:
+        aid_ref = occ[-1]["aid_on"]                     # what the athlete does NOW is the reference
+
+        def settings_ok(tempo, proto, aid_on=None) -> bool:
             if proto_ref is not None and proto is not None and proto != proto_ref:
                 return False
+            if aid_on is not None and bool(aid_on) != aid_ref:
+                return False                            # with hooks the hands no longer end the set: another exercise
             return not (tempo_ref and tempo and abs(tempo - tempo_ref) / tempo_ref > TEMPO_TOLERANCE)
         for o in occ:
-            o["settings_ok"] = settings_ok(o["tempo_s"], o["protocol"])
+            o["settings_ok"] = settings_ok(o["tempo_s"], o["protocol"], o["aid_on"])
         # Familiarisation walk over the days that share the reference settings, oldest first
         cluster = [o for o in occ if o["rom_valid"] and o["settings_ok"]]
         strength_of = lambda o: o["mov_kg"] if all(x["mov_kg"] for x in cluster) else o["kg"]
@@ -457,7 +474,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         for x in ss:                                    # every SET gets the flags (evidence, planner)
             day = x["date"][:10]
             x["rom_ok"] = bool(rom_ref and x.get("rom_cm") and abs(x["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
-            x["settings_ok"] = settings_ok((x.get("tempo") or {}).get("con_s"), x.get("protocol"))
+            x["settings_ok"] = settings_ok((x.get("tempo") or {}).get("con_s"), x.get("protocol"), x.get("aid_on", False))
             x["fam"] = day in fam_days
             if x["fam"] and x.get("effort") in ("deep", "moderate"):
                 x["effort_uncapped"], x["effort"], x["effort_capped"] = x["effort"], "submax", "familiarisation"
@@ -1373,12 +1390,15 @@ def _adherence(days: list[str], sessions_per_week, today: date) -> dict:
         n = per_week.get((y, w), 0)
         weeks.append({"week": f"{y}-W{w:02d}", "sessions": n, "met": n >= target,
                       "before_start": (y, w) < (fy, fw)})     # no history yet -> not a missed week
-    streak = 0
-    for wk in reversed(weeks):
-        if wk["met"]:
-            streak += 1
-        elif not wk["before_start"]:
+    # the streak counts EVERY full week back to the first session (the four listed weeks are only
+    # what the board shows): 10 weeks on target are 10, not "4+"
+    streak, back = 0, 1
+    while True:
+        ref = today - timedelta(weeks=back)
+        key = ref.isocalendar()[:2]
+        if key < (fy, fw) or per_week.get(key, 0) < target:
             break
+        streak, back = streak + 1, back + 1
     this_week = per_week.get((ty, tw), 0)
     return {"target_per_week": target, "this_week": this_week, "this_week_met": this_week >= target,
             "weeks": weeks, "streak_weeks": streak,
@@ -1731,6 +1751,7 @@ def build_report(con, cfg: dict) -> dict:
         s["group"] = m.get("group", "?")
         attach_detail(s, detail.get_detail(con, s, dcache, s["mean_force_kg"] / LB_TO_KG))
         s["limiters_eff"] = evidence.effective_limiters(m, s["exercise"], s["date"], aids)
+        s["aid_on"] = len(s["limiters_eff"]) < len(m.get("limiters") or [])    # hooks / straps in use on that day
     if len(dcache) != n_cached and not cfg.get("_no_detail_cache"):
         detail.save_detail_cache(dcache)
     cap_low_force(work)

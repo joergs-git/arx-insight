@@ -1,0 +1,1323 @@
+{
+ "_comment": "ARX Insight science base: the evidence behind the planner's defaults. Curated and versioned with the code - the app never searches the web. Every entry: what the evidence says (statement), a cautious rule of thumb (practical_rule), how THIS app applies it (applied_as), what does not transfer to a motor-driven machine (arx_caveat), the constants it backs (parameters), the evidence level and the references. The athlete's own measured data always outranks a default from this file.",
+ "version": 1,
+ "reviewed": "2026-09-18",
+ "review_policy": "Re-check at every release against new meta-analyses and position stands; a default that the evidence no longer supports is changed in the code, not only here.",
+ "method": "References were retrieved live from the official PubMed record (NCBI E-utilities) and cross-checked against the Crossref record of their DOI (title, first author, year); bibliographic fields were written by script, not retyped. Key findings are taken from the abstracts - no full texts were read. A sample was re-checked independently before this file was written.",
+ "evidence_levels": {
+  "high": "several consistent meta-analyses",
+  "moderate": "meta-analyses or RCTs with limits or some conflict",
+  "low": "few, small or acute studies; expert consensus",
+  "indirect": "no study of this kind of machine - transferred from related evidence"
+ },
+ "topics": {
+  "proximity_to_failure": {
+   "title": "Effort: how close to failure a set has to go",
+   "statement": "Meta-analyses that compare failure with non-failure training find no clear advantage of failure for strength, and at most a trivial one for hypertrophy (Refalo 2023: ES 0.19 for any 'set failure' definition, 0.12 and non-significant for true momentary failure; Grgic 2022: strength ES -0.09, hypertrophy ES 0.22, both non-significant). An exploratory meta-regression on estimated repetitions in reserve found strength gains similar across a wide RIR range, while hypertrophy increased as sets ended closer to failure; the authors stress that RIR was estimated, not measured. The one RCT on SINGLE-set training (8 weeks, trained subjects) found failure modestly favoured for some hypertrophy measures and not for strength. Findings conflict partly because 'failure' is defined differently and volume is often not equated.",
+   "practical_rule": "For strength, stopping a little short of failure costs nothing; for muscle size, ending close to failure probably matters more, and it matters most when only one set is done. Treat the size advantage as small and uncertain.",
+   "applied_as": "Effort target per goal: muscle -> deep (force drop of at least 20 % within the set, effort v3), strength / conditioning -> moderate (at least 10 %). With one set per exercise the set has to be a real one. The 'more time, less brutal' profile stops short of failure and makes up for it with a second set.",
+   "arx_caveat": "The inroad % of this app is its own fatigue measure on a motor-driven machine, not the repetitions-in-reserve of the studies; the thresholds 20 / 10 are provisional.",
+   "parameters": [
+    "arx_plan.EFFORT_TARGETS",
+    "arx_detail.INROAD_DEEP",
+    "arx_detail.INROAD_MODERATE",
+    "arx_plan.COMMITMENT"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Robinson ZP, Pelland JC, Remmert JF, et al.",
+     "year": 2024,
+     "title": "Exploring the Dose-Response Relationship Between Estimated Resistance Training Proximity to Failure, Strength Gain, and Muscle Hypertrophy: A Series of Meta-Regressions",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-024-02069-2",
+     "pmid": "38970765",
+     "type": "meta-analysis",
+     "key_finding": "Exploratory multilevel meta-regressions on ESTIMATED repetitions in reserve: for strength the marginal slope CIs contained zero (negligible relationship); for hypertrophy slopes were negative with CIs excluding zero, i.e. muscle size gains increased as sets were terminated closer to failure. Authors warn the exact relationship remains unclear."
+    },
+    {
+     "authors": "Refalo MC, Helms ER, Trexler ET, et al.",
+     "year": 2023,
+     "title": "Influence of Resistance Training Proximity-to-Failure on Skeletal Muscle Hypertrophy: A Systematic Review with Meta-analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-022-01784-y",
+     "pmid": "36334240",
+     "type": "meta-analysis",
+     "key_finding": "15 studies. Trivial hypertrophy advantage for 'set failure' of any definition vs non-failure (ES 0.19, 95% CI 0.00-0.37, p=0.045); no advantage for momentary muscular failure vs non-failure (ES 0.12, 95% CI -0.13 to 0.37) or for high (>25%) vs moderate velocity loss (ES 0.08). Suggests a possibly non-linear relationship."
+    },
+    {
+     "authors": "Grgic J, Schoenfeld BJ, Orazem J, Sabol F",
+     "year": 2022,
+     "title": "Effects of resistance training performed to repetition failure or non-failure on muscular strength and hypertrophy: A systematic review and meta-analysis",
+     "journal": "J Sport Health Sci",
+     "doi": "10.1016/j.jshs.2021.01.007",
+     "pmid": "33497853",
+     "type": "meta-analysis",
+     "key_finding": "15 studies, all in young adults. No significant difference failure vs non-failure for strength (ES -0.09, 95% CI -0.22 to 0.05) or hypertrophy (ES 0.22, 95% CI -0.11 to 0.55). When volume was not equated, non-failure favoured strength (ES -0.32); in resistance-trained subjects failure favoured hypertrophy (ES 0.15, 95% CI 0.03-0.26)."
+    },
+    {
+     "authors": "Hermann T, Mohan AE, Enes A, et al.",
+     "year": 2025,
+     "title": "Without Fail: Muscular Adaptations in Single-Set Resistance Training Performed to Failure or with Repetitions-in-Reserve",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000003728",
+     "pmid": "40249908",
+     "type": "RCT",
+     "key_finding": "42 resistance-trained men and women, ONE set of nine exercises, twice weekly, 8 weeks, failure vs 2 RIR. Both groups gained in most outcomes; several hypertrophy measures tended to favour failure with generally modest absolute differences; strength and local muscular endurance gains were similar."
+    }
+   ]
+  },
+  "weekly_volume": {
+   "title": "Sets per muscle per week",
+   "statement": "Weekly set volume shows a graded dose-response for hypertrophy (Schoenfeld 2017: each additional weekly set +0.023 ES, about +0.37% gain; higher vs lower volume +3.9%) and for strength (Ralston 2017: high vs low weekly sets ES 0.18). The newest meta-regressions (67 studies, 2058 participants) confirm that both keep rising with volume but with diminishing returns that are considerably more pronounced for strength. Low volumes still work: in Ralston 2017 low weekly sets produced a pre-post ES of 0.82 vs 1.01 for high. A network meta-analysis of 178 strength and 119 hypertrophy trials found every prescription superior to no training. The 2026 ACSM position stand lists >=10 sets/week as enhancing hypertrophy and 2-3 sets as enhancing strength.",
+   "practical_rule": "One hard set per exercise captures a large share of the achievable strength gain; extra sets add progressively less, especially for strength. If size is the priority, more weekly sets per muscle is the lever most consistently supported.",
+   "applied_as": "One hard set per exercise is the default. A plateau on comparable days (within 3 %, at least 4 days over 3 weeks) with sufficient effort gets a second set - volume is the lever with the most consistent support. A muscle without direct work for 28 days is flagged as a coverage gap. Exercises for the same muscles are not doubled in a full-body session unless the region is set to 'more'.",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.COVER_DAYS",
+    "arx_plan.REDUNDANCY",
+    "arx_plan.TWIN_OVERLAP",
+    "arx_plan.COMMITMENT.plateau_set",
+    "arx_history.PLATEAU_PCT"
+   ],
+   "evidence_level": "high",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Schoenfeld BJ, Ogborn D, Krieger JW",
+     "year": 2017,
+     "title": "Dose-response relationship between weekly resistance training volume and increases in muscle mass: A systematic review and meta-analysis",
+     "journal": "J Sports Sci",
+     "doi": "10.1080/02640414.2016.1210197",
+     "pmid": "27433992",
+     "type": "meta-analysis",
+     "key_finding": "34 treatment groups from 15 studies. Weekly sets as a continuous variable significantly affected muscle size (P=0.002): each additional set +0.023 ES, corresponding to +0.37% gain; higher vs lower volume ES difference 0.241 (= 3.9% gain difference). Three-level categories (<5, 5-9, 10+ sets) showed only a trend (P=0.074)."
+    },
+    {
+     "authors": "Ralston GW, Kilgore L, Wyatt FB, Baker JS",
+     "year": 2017,
+     "title": "The Effect of Weekly Set Volume on Strength Gain: A Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-017-0762-7",
+     "pmid": "28755103",
+     "type": "meta-analysis",
+     "key_finding": "9 studies, 61 treatment groups. Pre-post strength gains greater with high than low weekly sets (ES 0.18, 95% CI 0.06-0.30, p=0.003); mean ES low 0.82 (0.47-1.17) vs high 1.01 (0.70-1.32). Medium vs low: ES 0.15. Authors describe a graded dose-response."
+    },
+    {
+     "authors": "Pelland JC, Remmert JF, Robinson ZP, et al.",
+     "year": 2026,
+     "title": "The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gains",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-025-02344-w",
+     "pmid": "41343037",
+     "type": "meta-analysis",
+     "key_finding": "67 studies, 2058 participants. Posterior probability that the volume slope exceeds zero was 100% for both hypertrophy and strength; both best-fit models show diminishing returns, considerably more pronounced for strength. For frequency, the effect on hypertrophy was compatible with negligible, the effect on strength was identifiable with diminishing returns. Counting indirect sets as 0.5 ('fractional') fitted best."
+    },
+    {
+     "authors": "Currier BS, Mcleod JC, Banfield L, et al.",
+     "year": 2023,
+     "title": "Resistance training prescription for muscle strength and hypertrophy in healthy adults: a systematic review and Bayesian network meta-analysis",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsports-2023-106807",
+     "pmid": "37414459",
+     "type": "meta-analysis",
+     "key_finding": "Bayesian network meta-analysis: strength network 178 studies (n=5097), hypertrophy network 119 studies (n=3364). All prescriptions beat no exercise. Higher load (>80% 1RM) maximised strength; all prescriptions comparably promoted hypertrophy; top-ranked were higher-load multiset 3x/week for strength (SMD 1.60 vs control) and higher-load multiset 2x/week for hypertrophy (SMD 0.66)."
+    },
+    {
+     "authors": "Currier BS, D'Souza AC, Singh MAF, et al.",
+     "year": 2026,
+     "title": "American College of Sports Medicine Position Stand. Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults: An Overview of Reviews",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000003897",
+     "pmid": "41843416",
+     "type": "position stand",
+     "key_finding": "ACSM Position Stand 2026, overview of 137 systematic reviews (>30,000 participants), updating the 2009 stand. Strength was enhanced by loads >=80% 1RM, full range of motion, 2-3 sets, placement at the beginning of the session and >=2 sessions/week; hypertrophy by higher volumes (>=10 sets/week) and eccentric overload. Training to momentary fatigue, equipment type, set structure, time under tension and periodization did not consistently affect outcomes."
+    }
+   ]
+  },
+  "frequency": {
+   "title": "Sessions per muscle per week",
+   "statement": "When weekly volume is equated, training frequency per muscle has no significant effect on hypertrophy (25 studies) or on strength (volume-equated subgroups, p=0.421 in Grgic 2018; ES 0.03 low vs high in Ralston 2018). Higher frequencies only win when they carry more total volume (strength ES 0.74, 0.82, 0.93, 1.08 for 1, 2, 3, 4+ days/week when volume is not equated). The 2026 meta-regressions agree for hypertrophy but do find an identifiable, diminishing effect of frequency on strength, so the strength question is not fully settled.",
+   "practical_rule": "Frequency is mainly a way to distribute volume: choose 1, 2 or 3 sessions per muscle per week by preference and recovery. If maximal strength is the goal and time allows, a second weekly exposure is the more defensible choice.",
+   "applied_as": "Sessions per week are the athlete's choice; the planner distributes the work: 1-2 sessions = full body, 3 and more = a rotating split, so every muscle is trained when it is recovered. A muscle counts as due after 7 x split / sessions per week days (3 to 7).",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.DUE_INTERVAL_RANGE",
+    "arx_plan.split_factor",
+    "arx_plan.CADENCE_W"
+   ],
+   "evidence_level": "high",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Schoenfeld BJ, Grgic J, Krieger J",
+     "year": 2019,
+     "title": "How many times per week should a muscle be trained to maximize muscle hypertrophy? A systematic review and meta-analysis of studies examining the effects of resistance training frequency",
+     "journal": "J Sports Sci",
+     "doi": "10.1080/02640414.2018.1555906",
+     "pmid": "30558493",
+     "type": "meta-analysis",
+     "key_finding": "25 studies. No significant difference between higher and lower frequency on a volume-equated basis, also in direct growth measures, trained subjects, upper and lower body. Non-volume-equated studies favoured higher frequency, but the difference between 1 and 3+ days/week was modest. Authors: 'strong evidence' that frequency does not meaningfully affect hypertrophy when volume is equated."
+    },
+    {
+     "authors": "Grgic J, Schoenfeld BJ, Davies TB, et al.",
+     "year": 2018,
+     "title": "Effect of Resistance Training Frequency on Gains in Muscular Strength: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-018-0872-x",
+     "pmid": "29470825",
+     "type": "meta-analysis",
+     "key_finding": "22 studies. Significant overall effect of frequency on strength (p=0.003; ES 0.74, 0.82, 0.93, 1.08 for 1, 2, 3, 4+ times/week), but no significant effect in volume-equated studies (p=0.421). Authors conclude the effect is primarily driven by training volume."
+    },
+    {
+     "authors": "Ralston GW, Kilgore L, Wyatt FB, et al.",
+     "year": 2018,
+     "title": "Weekly Training Frequency Effects on Strength Gain: A Meta-Analysis",
+     "journal": "Sports Med Open",
+     "doi": "10.1186/s40798-018-0149-9",
+     "pmid": "30076500",
+     "type": "meta-analysis",
+     "key_finding": "12 studies, 74 treatment groups. Volume-equated strength gain was similar for low (1 day/week) vs high (>=3 days/week) frequency (ES 0.03, 95% CI -0.20 to 0.27, p=0.78). Upper-body gain was greater with high vs low frequency (ES 0.48, 95% CI 0.20-0.76)."
+    },
+    {
+     "authors": "Pelland JC, Remmert JF, Robinson ZP, et al.",
+     "year": 2026,
+     "title": "The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gains",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-025-02344-w",
+     "pmid": "41343037",
+     "type": "meta-analysis",
+     "key_finding": "Meta-regressions of 67 studies: the effect of frequency on hypertrophy was compatible with negligible effects, whereas for strength the posterior probability of a positive slope was 100%, with diminishing returns."
+    }
+   ]
+  },
+  "rest_intervals": {
+   "title": "Rest between sets and exercises",
+   "statement": "For strength, robust gains occur even with rests under 60 s, but rests above 2 min appear necessary to maximise strength in trained individuals; 60-120 s seems sufficient for untrained people (systematic review, 23 studies). For hypertrophy a Bayesian meta-analysis of 9 studies found a small benefit of resting more than 60 s and no appreciable further benefit beyond 90 s, with wide, overlapping credible intervals. One RCT in trained men found 3 min superior to 1 min for both 1RM and anterior thigh thickness. The evidence base is small and heterogeneous.",
+   "practical_rule": "Rest at least 1-2 minutes before repeating work for the same muscle, and 2-3 minutes or more when the next effort should be a true strength test. Shorter rests mainly cost performance in the following set.",
+   "applied_as": "3 minutes after a compound and 2 minutes after an isolation exercise, plus up to 3 minutes when the next exercise shares muscles with what came before (1 minute per 5 % expected loss). A rest effect on the athlete's own order losses is only used when the data shows it (enough observations AND better than shuffled data).",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.REST_MIN",
+    "arx_plan.REST_EXTRA_MAX",
+    "arx_evidence.REST_EFFECT_MIN_N"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Singer A, Wolf M, Generoso L, et al.",
+     "year": 2024,
+     "title": "Give it a rest: a systematic review with Bayesian meta-analysis on the effect of inter-set rest interval duration on muscle hypertrophy",
+     "journal": "Front Sports Act Living",
+     "doi": "10.3389/fspor.2024.1429789",
+     "pmid": "39205815",
+     "type": "meta-analysis",
+     "key_finding": "9 studies, 19 measurements. Standardised mean differences overlapped substantially across rest categories (short 0.47, intermediate 0.65, long 0.55, very long 0.50). Pairwise short vs longer: arm 0.13 (95% CrI -0.27 to 0.51), thigh 0.17 (-0.13 to 0.43). Authors: small hypertrophic benefit of rests >60 s, no appreciable difference when resting >90 s."
+    },
+    {
+     "authors": "Grgic J, Lazinica B, Mikulic P, et al.",
+     "year": 2017,
+     "title": "The effects of short versus long inter-set rest intervals in resistance training on measures of muscle hypertrophy: A systematic review",
+     "journal": "Eur J Sport Sci",
+     "doi": "10.1080/17461391.2017.1340524",
+     "pmid": "28641044",
+     "type": "systematic review",
+     "key_finding": "6 studies comparing short (<=60 s) and long (>60 s) rests. Both may be useful for hypertrophy; findings in trained participants with sensitive measures suggest a possible advantage of long rests, but the paucity of studies prevents a clear differentiation."
+    },
+    {
+     "authors": "Grgic J, Schoenfeld BJ, Skrepnik M, et al.",
+     "year": 2018,
+     "title": "Effects of Rest Interval Duration in Resistance Training on Measures of Muscular Strength: A Systematic Review",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-017-0788-x",
+     "pmid": "28933024",
+     "type": "systematic review",
+     "key_finding": "23 studies, 491 participants. Robust strength gains are achievable even with short rests (<60 s); longer rests (>2 min) seem required to maximise strength in resistance-trained individuals; 60-120 s appears sufficient for untrained individuals."
+    },
+    {
+     "authors": "Schoenfeld BJ, Pope ZK, Benik FM, et al.",
+     "year": 2016,
+     "title": "Longer Interset Rest Periods Enhance Muscle Strength and Hypertrophy in Resistance-Trained Men",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000001272",
+     "pmid": "26605807",
+     "type": "RCT",
+     "key_finding": "21 resistance-trained men, 8 weeks, 3 full-body sessions/week, 1 min vs 3 min rest. 1RM squat and bench press improved significantly more with 3 min; anterior thigh muscle thickness increased more with 3 min, triceps showed a trend (p=0.06); muscular endurance gains did not differ."
+    }
+   ]
+  },
+  "tempo": {
+   "title": "Repetition tempo and time under tension",
+   "statement": "Hypertrophy is similar across repetition durations from 0.5 to 8 s when sets are taken to failure; very slow repetitions (>10 s) appear inferior, although few controlled studies exist. For strength, fast and moderate-slow training gave similar gains overall (Davies 2017), while a later meta-analysis restricted to constant external resistance found intentionally slow lifting inferior (ES 0.21 favouring fast/traditional). A 2025 meta-analysis of eccentric phase duration found uncertain effects on strength and hypertrophy overall, with longer eccentrics equal or better for strength in trained subjects. The ACSM 2026 stand lists time under tension among variables without consistent effect. All of this comes from self-paced isotonic lifting; on a motor-driven machine the speed is set by the device, so transfer is indirect.",
+   "practical_rule": "Time under tension is not a training target in itself: within roughly 0.5-8 s per repetition results are similar. Avoid extremely slow repetitions if strength is the goal.",
+   "applied_as": "No tempo prescription of its own: the athlete's last comparable settings are kept, because force on the machine is speed-specific and a changed tempo makes days incomparable (15 % tolerance). Time under load is reported, never a target.",
+   "arx_caveat": "The studies used constant external loads, where lifting slowly means lifting less. On a motor-driven machine force is maximal at any speed, so their warning about very slow repetitions does not transfer one to one.",
+   "parameters": [
+    "arx_report.TEMPO_TOLERANCE",
+    "arx_report.IDEAL_SETTINGS"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Schoenfeld BJ, Ogborn DI, Krieger JW",
+     "year": 2015,
+     "title": "Effect of repetition duration during resistance training on muscle hypertrophy: a systematic review and meta-analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-015-0304-0",
+     "pmid": "25601394",
+     "type": "meta-analysis",
+     "key_finding": "8 studies, all training to failure. Hypertrophic outcomes were similar with repetition durations from 0.5 to 8 s; volitionally very slow durations (>10 s per repetition) appear inferior for hypertrophy, although a lack of controlled studies prevents definitive conclusions."
+    },
+    {
+     "authors": "Davies TB, Kuang K, Orr R, et al.",
+     "year": 2017,
+     "title": "Effect of Movement Velocity During Resistance Training on Dynamic Muscular Strength: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-017-0676-4",
+     "pmid": "28105573",
+     "type": "meta-analysis",
+     "key_finding": "15 studies. Fast and moderate-slow training produced similar increases in dynamic strength overall; at moderate intensities (60-79% 1RM) there was a trend for a small effect favouring fast training (ES 0.31, p=0.06). Training status and age did not influence the result."
+    },
+    {
+     "authors": "Hermes MJ, Fry AC",
+     "year": 2023,
+     "title": "Intentionally Slow Concentric Velocity Resistance Exercise and Strength Adaptations: A Meta-Analysis",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000004490",
+     "pmid": "37494124",
+     "type": "meta-analysis",
+     "key_finding": "24 studies, n=625, dynamic constant external resistance only. Significant effect favouring fast/traditional over intentionally slow concentric velocity for strength (ES 0.21, 95% CI 0.02-0.41, p=0.03; trim-and-fill adjusted 0.32)."
+    },
+    {
+     "authors": "Amdi CH, King A",
+     "year": 2025,
+     "title": "The effect of eccentric phase duration on maximal strength, muscle hypertrophy and countermovement jump height: A systematic review and meta-analysis",
+     "journal": "J Sports Sci",
+     "doi": "10.1080/02640414.2025.2535198",
+     "pmid": "40692176",
+     "type": "meta-analysis",
+     "key_finding": "9 studies, 166 participants. Shorter eccentric phases improved countermovement jump (g=-0.73, moderate certainty); estimates were uncertain for maximal strength (g=0.25, 90% CI -0.17 to 0.67) and hypertrophy (g=0.05, 90% CI -0.22 to 0.33). Longer eccentrics gave equivalent or greater strength gains in trained participants (g=0.33) and in volume-load-matched trials (g=0.25)."
+    },
+    {
+     "authors": "Wilk M, Zajac A, Tufano JJ",
+     "year": 2021,
+     "title": "The Influence of Movement Tempo During Resistance Training on Muscular Strength and Hypertrophy Responses: A Review",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-021-01465-2",
+     "pmid": "34043184",
+     "type": "review",
+     "key_finding": "Narrative review: the evidence on movement tempo is not unequivocal, and the impact of the duration of the individual eccentric and concentric phases on chronic adaptations had not been assessed, which makes definitive tempo recommendations difficult."
+    }
+   ]
+  },
+  "eccentric": {
+   "title": "Eccentric work: adaptations, damage, repeated-bout effect",
+   "statement": "Eccentric strength is about 40% higher than concentric strength (meta-analysis of 1516 ratios: 1.41; higher in older adults, 1.62, and rising with velocity). Eccentric training at higher intensities increases total and eccentric strength more than concentric training, but the gains are specific to contraction mode and velocity. For hypertrophy the advantage is small and uncertain: ES difference 0.25 (p=0.076; 10.0% vs 6.8%) in 2017, and no significant difference in a 2025 meta-analysis of 26 trials (GRADE very low). Unaccustomed eccentric work causes the largest damage: in sedentary men strength was reduced by 13-49% four days after a first eccentric bout, arms more than legs, but after a second bout two weeks later all markers were much smaller. This repeated bout effect lasts at least 6 months and is lost between 9 and 12 months. Training-like exercise usually means mild damage with recovery within a few days; extreme unaccustomed maximal eccentric exercise can need more than a week, with large individual variation.",
+   "practical_rule": "Introduce maximal eccentric efforts gradually: the first sessions (and the first after a break of many months) cause by far the most soreness and strength loss, particularly in arm muscles. Expect eccentric strength gains to show up mainly in eccentric measures.",
+   "applied_as": "A never-performed exercise is planned sub-maximal and without a target number; familiarisation days count neither as progress nor as hard loads. Concentric and eccentric progress are reported separately because gains are specific to the contraction mode.",
+   "arx_caveat": "The machine overloads the eccentric phase automatically (the athlete resists a motor). That is why new exercises start gently and why this app gives deep sets one day more rest than the literature on conventional sets suggests.",
+   "parameters": [
+    "arx_plan.NEW_WEIGHT",
+    "arx_report.FAM_SHARE",
+    "arx_base.REQUIRED_REST"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Roig M, O'Brien K, Kirk G, et al.",
+     "year": 2009,
+     "title": "The effects of eccentric versus concentric resistance training on muscle strength and mass in healthy adults: a systematic review with meta-analysis",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsm.2008.051417",
+     "pmid": "18981046",
+     "type": "meta-analysis",
+     "key_finding": "20 RCTs. When eccentric exercise was performed at higher intensities than concentric training, total and eccentric strength increased more; gains were more specific to velocity and contraction mode. High-intensity eccentric training was more effective for muscle girth, with a trend for cross-sectional area. The superiority appears related to the higher loads developed."
+    },
+    {
+     "authors": "Schoenfeld BJ, Ogborn DI, Vigotsky AD, et al.",
+     "year": 2017,
+     "title": "Hypertrophic Effects of Concentric vs. Eccentric Muscle Actions: A Systematic Review and Meta-analysis",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000001983",
+     "pmid": "28486337",
+     "type": "meta-analysis",
+     "key_finding": "15 studies. Eccentric actions gave a larger hypertrophy effect size than concentric actions without reaching significance (ES difference 0.25 +/- 0.13; 95% CI -0.03 to 0.52; p=0.076); mean growth 10.0% vs 6.8%."
+    },
+    {
+     "authors": "da Silva LSL, Gonçalves LDS, Alves Campos PH, et al.",
+     "year": 2025,
+     "title": "Comparison Between Eccentric vs. Concentric Muscle Actions On Hypertrophy: A Systematic Review and Meta-analysis",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000004981",
+     "pmid": "39652733",
+     "type": "meta-analysis",
+     "key_finding": "26 trials, 682 subjects. No statistical difference between eccentric and concentric actions for hypertrophy (0.285, 95% CI -0.131 to 0.701, p=0.179, I2 84.4%, GRADE very low). Subgroups favoured eccentric for upper-limb muscles, interventions <=8 weeks, muscle thickness measures and isokinetic contractions."
+    },
+    {
+     "authors": "Douglas J, Pearson S, Ross A, McGuigan M",
+     "year": 2017,
+     "title": "Chronic Adaptations to Eccentric Training: A Systematic Review",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-016-0628-4",
+     "pmid": "27647157",
+     "type": "systematic review",
+     "key_finding": "40 studies in adults aged 17-35. Eccentric training elicits greater strength improvements in a largely mode-specific manner, is at least as effective as other modalities for cross-sectional area, and preferentially increases type II fibre size. Eccentric loads not constrained by concentric strength appeared superior to traditional training for strength, power and speed variables."
+    },
+    {
+     "authors": "Nuzzo JL, Pinto MD, Nosaka K, Steele J",
+     "year": 2023,
+     "title": "The Eccentric:Concentric Strength Ratio of Human Skeletal Muscle In Vivo: Meta-analysis of the Influences of Sex, Age, Joint Action, and Velocity",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-023-01851-y",
+     "pmid": "37129779",
+     "type": "meta-analysis",
+     "key_finding": "1516 eccentric:concentric ratios from 12,546 individuals, ~98% measured on isokinetic machines. Overall ratio 1.41 (95% CrI 1.38-1.44); men 1.38, women 1.47; older adults 1.62 vs younger 1.39; +0.20% per 1 deg/s increase in velocity; point estimates by joint action ranged 1.32-2.61."
+    },
+    {
+     "authors": "Chen TC, Yang TJ, Huang MJ, et al.",
+     "year": 2019,
+     "title": "Damage and the repeated bout effect of arm, leg, and trunk muscles induced by eccentric resistance exercises",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.13388",
+     "pmid": "30663816",
+     "type": "cohort",
+     "key_finding": "15 sedentary men, nine eccentric exercises (5x10 at 80% of MVC), repeated after 2 weeks. After the first bout MVC fell 16-57% at day 1 and 13-49% at day 4, with greater loss in elbow flexors, elbow extensors and pectoralis than in other muscles; all changes were smaller after the second bout, and CK and myoglobin did not rise significantly."
+    },
+    {
+     "authors": "Nosaka K, Sakamoto K, Newton M, Sacco P",
+     "year": 2001,
+     "title": "How long does the protective effect on eccentric exercise-induced muscle damage last?",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1097/00005768-200109000-00011",
+     "pmid": "11528337",
+     "type": "cohort",
+     "key_finding": "35 men, two bouts of elbow flexor eccentric exercise 6, 9 or 12 months apart. Faster strength recovery after a second bout at 6 or 9 months, and reduced soreness, swelling, CK and MRI T2 at 6 months; no repeated bout effect at 12 months. Conclusion: lasts at least 6 months, lost between 9 and 12 months."
+    },
+    {
+     "authors": "Peake JM, Neubauer O, Della Gatta PA, Nosaka K",
+     "year": 2017,
+     "title": "Muscle damage and inflammation during recovery from exercise",
+     "journal": "J Appl Physiol (1985)",
+     "doi": "10.1152/japplphysiol.00971.2016",
+     "pmid": "28035017",
+     "type": "review",
+     "key_finding": "Narrative review: the time course of recovery after exercise-induced muscle damage depends on the extent of initial damage, which is influenced by exercise intensity and duration, joint angle/muscle length and the muscle groups used; tightly regulated inflammation is now regarded as integral to repair."
+    },
+    {
+     "authors": "Paulsen G, Mikkelsen UR, Raastad T, Peake JM",
+     "year": 2012,
+     "title": "Leucocytes, cytokines and satellite cells: what role do they play in muscle damage and regeneration following eccentric exercise?",
+     "journal": "Exerc Immunol Rev",
+     "doi": "",
+     "pmid": "22876722",
+     "type": "review",
+     "key_finding": "Narrative review: 'extreme' unaccustomed maximal eccentric exercise over a large range of motion generally causes severe damage and prolonged recovery (>1 week), whereas exercise resembling regular training typically causes mild damage with full recovery normally within a few days; large individual variation should be expected."
+    }
+   ]
+  },
+  "minimum_dose": {
+   "title": "Minimum effective dose and time-efficient training",
+   "statement": "Very low doses produce real strength gains. In trained men a single set of 6-12 repetitions at about 70-85% 1RM, 2-3 times/week with high effort for 8-12 weeks raised 1RM significantly (pooled +12.09 kg), which the authors call suboptimal yet significant. A retrospective analysis of 14,690 people doing one weekly session of single sets to momentary failure on six exercises showed about 30-50% strength gain in the first year and a practical plateau after ~1-2 years. Narrative reviews put the minimum for time-efficient programmes at about 4 weekly sets per muscle group and find one weekly session with fewer than 3 sets sufficient for beginners for at least 12 weeks. An RCT confirmed that single-set routines still produce gains in trained subjects. The strongest data concern strength; minimal-dose data for muscle size are thinner, and the large cohort is uncontrolled company data.",
+   "practical_rule": "One all-out set per exercise once or twice a week is a legitimate, evidence-supported strength programme, but expect the rate of gain to flatten after roughly one to two years. At that point more volume or a second weekly exposure is the first thing to test.",
+   "applied_as": "The 'least time' profile: one all-out set per exercise and at most one exercise per trained body region per session. Every profile shows its price in minutes per week. When progress flattens, the first levers offered are a second set or another weekly exposure.",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.COMMITMENT",
+    "arx_plan.session_size",
+    "arx_plan.commitment_options"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Androulakis-Korakakis P, Fisher JP, Steele J",
+     "year": 2020,
+     "title": "The Minimum Effective Training Dose Required to Increase 1RM Strength in Resistance-Trained Men: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-019-01236-0",
+     "pmid": "31797219",
+     "type": "meta-analysis",
+     "key_finding": "6 studies in resistance-trained men. A single set performed 1-3 times/week was sufficient for significant 1RM gains: overall +12.09 kg (95% CI 8.16-16.03), squat +17.48 kg, bench press +8.25 kg. Conclusion: one set of 6-12 repetitions at ~70-85% 1RM, 2-3 times/week with high effort for 8-12 weeks gives suboptimal yet significant gains; unclear for deadlift, trained women and highly trained athletes."
+    },
+    {
+     "authors": "Steele J, Fisher JP, Giessing J, et al.",
+     "year": 2023,
+     "title": "Long-Term Time-Course of Strength Adaptation to Minimal Dose Resistance Training Through Retrospective Longitudinal Growth Modeling",
+     "journal": "Res Q Exerc Sport",
+     "doi": "10.1080/02701367.2022.2070592",
+     "pmid": "35591809",
+     "type": "cohort",
+     "key_finding": "Retrospective training records of 14,690 participants (60% female, 48 +/- 11 years) doing 1x/week single sets to momentary failure on six exercises for up to 352 weeks. Linear-log growth: strength practically plateaued by ~1-2 years; ~30-50% gain in the first year, reaching ~50-60% of baseline after 6 years; sex, bodyweight and age had minimal interaction effects."
+    },
+    {
+     "authors": "Iversen VM, Norum M, Schoenfeld BJ, Fimland MS",
+     "year": 2021,
+     "title": "No Time to Lift? Designing Time-Efficient Training Programs for Strength and Hypertrophy: A Narrative Review",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-021-01490-1",
+     "pmid": "34125411",
+     "type": "review",
+     "key_finding": "Narrative review of time-efficient programming: prioritise bilateral multi-joint exercises with eccentric and concentric actions (at least one leg press, one upper-body pull, one upper-body push); weekly volume matters more than frequency; minimum of 4 weekly sets per muscle group at 6-15 RM. Supersets, drop sets and rest-pause roughly halve training time."
+    },
+    {
+     "authors": "Nuzzo JL, Pinto MD, Kirk BJC, Nosaka K",
+     "year": 2024,
+     "title": "Resistance Exercise Minimal Dose Strategies for Increasing Muscle Strength in the General Population: an Overview",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-024-02009-0",
+     "pmid": "38509414",
+     "type": "review",
+     "key_finding": "Overview of minimal-dose strategies in people not currently training ('weekend warrior', single-set, exercise snacks, practising the strength test, eccentric minimal doses). All increase strength; once-weekly training and single-set training are the most strongly supported, snacking and eccentric minimal doses are emerging."
+    },
+    {
+     "authors": "Behm DG, Granacher U, Warneke K, et al.",
+     "year": 2024,
+     "title": "Minimalist Training: Is Lower Dosage or Intensity Resistance Training Effective to Improve Physical Fitness? A Narrative Review",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-023-01949-3",
+     "pmid": "37924459",
+     "type": "review",
+     "key_finding": "Narrative review: for beginners, for at least the first 12 weeks, the least amount of resistance training that improves fitness is one weekly session with fewer than 3 sets per multi-joint exercise, even at intensities below 50% 1RM; heavier loads tend to give superior results."
+    },
+    {
+     "authors": "Hermann T, Mohan AE, Enes A, et al.",
+     "year": 2025,
+     "title": "Without Fail: Muscular Adaptations in Single-Set Resistance Training Performed to Failure or with Repetitions-in-Reserve",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000003728",
+     "pmid": "40249908",
+     "type": "RCT",
+     "key_finding": "In 42 resistance-trained men and women a single set of nine exercises twice weekly for 8 weeks produced appreciable gains in most outcomes; authors conclude single-set routines can be time-efficient even when coming from higher-volume programmes."
+    }
+   ]
+  },
+  "maintenance": {
+   "title": "Holding strength and muscle with little training",
+   "statement": "Strength and muscle size can be held for months on a small fraction of the training that built them, provided intensity (relative load/effort) is kept. In a 32-week RCT one-third and even one-ninth of the previous dose preserved hypertrophy in adults aged 20-35 but not in those aged 60-75, while strength was largely retained in both. A narrative review concludes: up to 32 weeks on 1 session/week and 1 set per exercise in younger people, whereas older people may need up to 2 sessions and 2-3 sets to hold muscle size. Smaller trials agree (8 weeks of reduced training at 1 or 2 sessions/week maintained 1RM and quadriceps CSA while stopping lost 22.6% and 5.4%; in men around 70 years one weekly session held strength and size for 6 months). Most trials are small and use untrained or recently trained subjects.",
+   "practical_rule": "To maintain, keep the effort and load and cut the volume: about one hard session per week per exercise is enough for younger adults. Older adults should hold roughly two weekly exposures if muscle size is to be preserved.",
+   "applied_as": "'Maintain' profile: fewer exercises, no progression steps - effort and force are held, because intensity is what preserves the adaptation. Athletes of 60+ are told when their plan falls below about two weekly exposures.",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.COMMITMENT.maintain",
+    "arx_plan.OLDER_BANDS"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Bickel CS, Cross JM, Bamman MM",
+     "year": 2011,
+     "title": "Exercise dosing to retain resistance training adaptations in young and older adults",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0b013e318207c15d",
+     "pmid": "21131862",
+     "type": "RCT",
+     "key_finding": "70 adults; 16 weeks of training 3 days/week, then 32 weeks of detraining or maintenance at one-third or one-ninth of the dose. Both maintenance doses preserved hypertrophy in the young (20-35 y) but not in the old (60-75 y); the one-third dose even added myofibre hypertrophy in the young. Strength was largely retained, with only a slight reduction at the final time point."
+    },
+    {
+     "authors": "Spiering BA, Mujika I, Sharp MA, Foulis SA",
+     "year": 2021,
+     "title": "Maintaining Physical Performance: The Minimal Dose of Exercise Needed to Preserve Endurance and Strength Over Time",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000003964",
+     "pmid": "33629972",
+     "type": "review",
+     "key_finding": "Narrative review: strength and muscle size (at least in younger populations) can be maintained for up to 32 weeks with as little as 1 session/week and 1 set per exercise as long as intensity (relative load) is maintained; older populations may need up to 2 sessions/week and 2-3 sets per exercise. Intensity appears to be the key variable."
+    },
+    {
+     "authors": "Tavares LD, de Souza EO, Ugrinowitsch C, et al.",
+     "year": 2017,
+     "title": "Effects of different strength training frequencies during reduced training period on strength and muscle cross-sectional area",
+     "journal": "Eur J Sport Sci",
+     "doi": "10.1080/17461391.2017.1298673",
+     "pmid": "28316261",
+     "type": "RCT",
+     "key_finding": "33 untrained men: 8 weeks of training, then 8 weeks at 1 or 2 sessions/week (volume-load reduced to about half) or cessation. Both reduced schedules maintained half-squat 1RM and quadriceps CSA; the cessation group lost 22.6% of 1RM and 5.4% of CSA."
+    },
+    {
+     "authors": "Trappe S, Williamson D, Godard M",
+     "year": 2002,
+     "title": "Maintenance of whole muscle strength and size following resistance training in older men",
+     "journal": "J Gerontol A Biol Sci Med Sci",
+     "doi": "10.1093/gerona/57.4.b138",
+     "pmid": "11909878",
+     "type": "cohort",
+     "key_finding": "Older men (about 70 y) after 12 weeks of knee extensor training 3 days/week: those continuing 1 day/week (3x10 at 80% 1RM, n=5) showed unchanged strength and muscle size after 6 months; those who stopped (n=5) lost 11% strength and 5% muscle size."
+    }
+   ]
+  },
+  "deload": {
+   "title": "Deloading",
+   "statement": "Deloading is widely practised and barely tested. The only consensus is a Delphi study of expert coaches, which defines it as a period of reduced training stress to mitigate fatigue, promote recovery and enhance preparedness. Surveyed athletes deload about every 5.6 +/- 2.3 weeks for 6.4 +/- 1.7 days, mostly by cutting volume and effort. The one RCT found that one week of complete rest in the middle of a 9-week high-volume programme did not change hypertrophy, power or endurance but reduced strength gains relative to continuous training. An older RCT found that 3-week breaks between 6-week blocks led to the same 24-week hypertrophy and strength as continuous training. Nothing here was studied in very-low-volume, once-weekly training.",
+   "practical_rule": "There is no evidence that scheduled deloads improve results, and a full week off cost some strength in the only trial. With low volume and infrequent sessions, use a lighter week reactively (stalled performance, persistent soreness or joint aches) rather than by the calendar.",
+   "applied_as": "No calendar deloads. A lighter week is suggested only reactively: at least 4 weeks on target AND (at least 2 exercises down 5 % on comparable days OR readiness below 50 on 2 of the last 3 check-ins).",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_report.DELOAD_WEEKS_AT_TARGET",
+    "arx_report.DELOAD_DECLINE_PCT",
+    "arx_report.DELOAD_READINESS_BELOW"
+   ],
+   "evidence_level": "low",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Bell L, Strafford BW, Coleman M, et al.",
+     "year": 2023,
+     "title": "Integrating Deloading into Strength and Physique Sports Training Programmes: An International Delphi Consensus Approach",
+     "journal": "Sports Med Open",
+     "doi": "10.1186/s40798-023-00633-0",
+     "pmid": "37730925",
+     "type": "consensus",
+     "key_finding": "Three-round Delphi with expert strength and physique coaches (34, 29 and 21 completing rounds 1-3). Consensus definition: 'Deloading is a period of reduced training stress designed to mitigate physiological and psychological fatigue, promote recovery, and enhance preparedness for subsequent training.' Based on expert opinion, not outcome data."
+    },
+    {
+     "authors": "Coleman M, Burke R, Augustin F, et al.",
+     "year": 2024,
+     "title": "Gaining more from doing less? The effects of a one-week deload period during supervised resistance training on muscular adaptations",
+     "journal": "PeerJ",
+     "doi": "10.7717/peerj.16777",
+     "pmid": "38274324",
+     "type": "RCT",
+     "key_finding": "39 resistance-trained young adults, 9-week high-volume programme with or without 1 week of no training at the midpoint. No appreciable differences in lower-body muscle size, endurance or power; continuous training gave greater improvements in isometric and dynamic lower-body strength."
+    },
+    {
+     "authors": "Rogerson D, Nolan D, Androulakis Korakakis P, et al.",
+     "year": 2024,
+     "title": "Deloading Practices in Strength and Physique Sports: A Cross-sectional Survey",
+     "journal": "Sports Med Open",
+     "doi": "10.1186/s40798-024-00691-y",
+     "pmid": "38499934",
+     "type": "cohort",
+     "key_finding": "Cross-sectional survey of 246 competitive strength and physique athletes. Typical deload 6.4 +/- 1.7 days every 5.6 +/- 2.3 weeks; volume, load and effort are reduced while frequency and exercise selection are kept; triggers include stalled performance, soreness and joint aches."
+    },
+    {
+     "authors": "Ogasawara R, Yasuda T, Ishii N, Abe T",
+     "year": 2013,
+     "title": "Comparison of muscle hypertrophy following 6-month of continuous and periodic strength training",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-012-2511-9",
+     "pmid": "23053130",
+     "type": "RCT",
+     "key_finding": "14 young men, bench press 3 days/week for 24 weeks continuously or as three 6-week blocks separated by 3-week detraining periods. Overall gains in muscle CSA and strength were similar, because retraining gains after each break were faster."
+    }
+   ]
+  },
+  "autoregulation": {
+   "title": "Daily readiness: self-report first, heart rate as context",
+   "statement": "A systematic review of 56 studies found that subjective self-reported measures reflected acute and chronic training load with better sensitivity and consistency than objective measures, and that the two generally did not correlate. A later COSMIN review warns that the single-item wellness questions most used in sport have not been validated. Heart-rate markers are weak on their own: overload raised resting HR only moderately (SMD 0.55) within changes that can fall inside day-to-day variability, resting HRV was largely unaffected by overreaching in a meta-analysis of endurance athletes, and after an exhaustive squat session HRV recovery was not associated with neuromuscular recovery. Most HR/HRV evidence comes from endurance sport. Autoregulating load gave strength gains similar to fixed percentage prescription.",
+   "practical_rule": "Use a short daily self-report (sleep, energy, soreness) as the primary readiness signal and treat resting heart rate only as supporting context against a personal baseline, never as a stand-alone verdict. Interpret trends, not single days.",
+   "applied_as": "Daily check-in (sleep, energy, soreness, resting heart rate against the athlete's own baseline) -> band go hard / moderate / light or rest. Moderate: effort capped, no step, one exercise fewer. Light: at most 3 exercises at 70 %; rest when the score is below 35 or the resting heart rate is clearly elevated on an already poor day. Resting heart rate never decides alone. Strong soreness blocks a region whatever the calendar says.",
+   "arx_caveat": "Single-item wellness questions are not validated instruments: the score is a transparent signal, not a diagnosis.",
+   "parameters": [
+    "arx_report.READINESS_BANDS",
+    "arx_plan.BAND_FILL",
+    "arx_plan.REST_SCORE_BELOW",
+    "arx_plan.LIGHT_DAY_SHARE",
+    "arx_report.RHR_ELEVATED_BPM"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Saw AE, Main LC, Gastin PB",
+     "year": 2016,
+     "title": "Monitoring the athlete training response: subjective self-reported measures trump commonly used objective measures: a systematic review",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsports-2015-094758",
+     "pmid": "26423706",
+     "type": "systematic review",
+     "key_finding": "56 studies with concurrent subjective and objective measures. They generally did not correlate; subjective measures reflected acute and chronic training loads with superior sensitivity and consistency. Subjective well-being worsened with acute load increases and chronic training and improved when load fell."
+    },
+    {
+     "authors": "Jeffries AC, Wallace L, Coutts AJ, et al.",
+     "year": 2020,
+     "title": "Athlete-Reported Outcome Measures for Monitoring Training Responses: A Systematic Review of Risk of Bias and Measurement Property Quality According to the COSMIN Guidelines",
+     "journal": "Int J Sports Physiol Perform",
+     "doi": "10.1123/ijspp.2020-0386",
+     "pmid": "32957081",
+     "type": "systematic review",
+     "key_finding": "COSMIN review of athlete-reported outcome measures: multiple-item instruments had mostly adequate measurement properties except content validity and measurement error; apart from 2 studies no validity studies existed for single items, so the most frequently used single-item measures have not been validated."
+    },
+    {
+     "authors": "Bosquet L, Merkari S, Arvisais D, Aubert AE",
+     "year": 2008,
+     "title": "Is heart rate a convenient tool to monitor over-reaching? A systematic review of the literature",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsm.2007.042200",
+     "pmid": "18308872",
+     "type": "meta-analysis",
+     "key_finding": "Overload training in competitive athletes: short-term (<=2 weeks) interventions moderately increased resting HR (SMD 0.55) and LF/HF ratio (SMD 0.52) and decreased maximal HR (SMD -0.75); long-term interventions did not alter resting values. The small-to-moderate changes may fall within day-to-day variability, so they need other signs to be meaningful. An erratum exists."
+    },
+    {
+     "authors": "Bellenger CR, Fuller JT, Thomson RL, et al.",
+     "year": 2016,
+     "title": "Monitoring Athletic Training Status Through Autonomic Heart Rate Regulation: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-016-0484-2",
+     "pmid": "26888648",
+     "type": "meta-analysis",
+     "key_finding": "27 studies in endurance-trained athletes. Positive adaptation showed small increases in resting vagal HRV (RMSSD SMD 0.58); overreaching showed only a small increase in resting RMSSD (SMD 0.26) and trivial changes in other resting indices, i.e. resting HRV was largely unaffected by overreaching."
+    },
+    {
+     "authors": "Dobbs WC, Fedewa MV, Macdonald HV, et al.",
+     "year": 2020,
+     "title": "Profiles of Heart Rate Variability and Bar Velocity after Resistance Exercise",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000002304",
+     "pmid": "32079921",
+     "type": "cohort",
+     "key_finding": "8 resistance-trained men, 8x10 squats at 70% 1RM, followed for 72 h. HRV recovery scores differed from bar-velocity recovery at one or more time points and showed no intraindividual association: HRV recovery was not associated with neuromuscular performance recovery."
+    },
+    {
+     "authors": "Hickmott LM, Chilibeck PD, Shaw KA, Butcher SJ",
+     "year": 2022,
+     "title": "The Effect of Load and Volume Autoregulation on Muscular Strength and Hypertrophy: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med Open",
+     "doi": "10.1186/s40798-021-00404-9",
+     "pmid": "35038063",
+     "type": "meta-analysis",
+     "key_finding": "15 studies in resistance-trained individuals. Autoregulated (RIR-based RPE or velocity-based) vs percentage-based load prescription: no significant difference in 1RM (MD 2.07 kg, 95% CI -0.32 to 4.46). Velocity-loss thresholds <=25% gave greater strength, thresholds >20-25% greater hypertrophy."
+    },
+    {
+     "authors": "Kellmann M, Bertollo M, Bosquet L, et al.",
+     "year": 2018,
+     "title": "Recovery and Performance in Sport: Consensus Statement",
+     "journal": "Int J Sports Physiol Perform",
+     "doi": "10.1123/ijspp.2017-0759",
+     "pmid": "29345524",
+     "type": "consensus",
+     "key_finding": "International consensus statement (2016 symposium): monitoring recovery and balancing stress and recovery are essential; because responses vary between and within individuals, individual monitoring and a multidisciplinary approach are advised."
+    }
+   ]
+  },
+  "youth": {
+   "title": "Children and adolescents",
+   "statement": "Position papers from the NSCA (2009), the Canadian Society for Exercise Physiology (2008), an international consensus (2014) and the American Academy of Pediatrics (2020) agree that appropriately designed and supervised resistance training is relatively safe and beneficial for children and adolescents. There is no minimum age; recommended practice is qualified instruction, gradual progression and appropriately sized equipment. Experimental programmes did not affect growth in height or weight, and estimated injury rates were 0.053-0.176 per 100 participant-hours. In US emergency-room data two thirds of injuries in 8-13 year-olds involved hands and feet ('dropping', 'pinching') and were judged largely preventable by supervision. Eccentric training in youth athletes is supported, but studied methods are mainly Nordic hamstring and flywheel exercise. No source examined maximal-effort motor-driven eccentric training in youth; the full texts of the 2014 consensus and the AAP report could not be opened, so only their abstracts were used.",
+   "practical_rule": "Youth may train under qualified supervision with technique first, gradual progression and sub-maximal eccentric efforts. All-out maximal eccentric sets on a motorised machine are untested in this age group and should not be the default.",
+   "applied_as": "Under 18: effort capped at moderate (no all-out sets), no progression steps by the app, at most 4 exercises, a supervision note on every plan.",
+   "arx_caveat": "All-out maximal eccentric sets on a motorised machine are untested in this age group.",
+   "parameters": [
+    "arx_plan.MINOR_BANDS",
+    "arx_plan.MINOR_MAX_EXERCISES"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Lloyd RS, Faigenbaum AD, Stone MH, et al.",
+     "year": 2014,
+     "title": "Position statement on youth resistance training: the 2014 International Consensus",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsports-2013-092952",
+     "pmid": "24055781",
+     "type": "consensus",
+     "key_finding": "International consensus adapted from the UK Strength and Conditioning Association position statement and reviewed and endorsed by professional organisations in sports medicine, exercise science and paediatrics. Only this short abstract could be read; the full text is behind a paywall, so no specific recommendation is quoted."
+    },
+    {
+     "authors": "Faigenbaum AD, Kraemer WJ, Blimkie CJ, et al.",
+     "year": 2009,
+     "title": "Youth resistance training: updated position statement paper from the national strength and conditioning association",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0b013e31819df407",
+     "pmid": "19620931",
+     "type": "position stand",
+     "key_finding": "NSCA position statement (update of 1996): many benefits of adult resistance training are attainable by children and adolescents who follow age-specific guidelines; the report covers risks, benefits, types and amount of training and programme design, stressing appropriate prescription and supervision."
+    },
+    {
+     "authors": "Behm DG, Faigenbaum AD, Falk B, Klentrou P",
+     "year": 2008,
+     "title": "Canadian Society for Exercise Physiology position paper: resistance training in children and adolescents",
+     "journal": "Appl Physiol Nutr Metab",
+     "doi": "10.1139/H08-020",
+     "pmid": "18461111",
+     "type": "position stand",
+     "key_finding": "CSEP position paper: with proper methods resistance training is relatively safe for children and adolescents; no minimum age. Recommends low-to-moderate intensity 2-3 times/week on non-consecutive days, 1-2 sets initially progressing to 4 sets of 8-15 repetitions for 8-12 exercises, under qualified instruction and supervision with appropriately sized equipment. Children's strength gains are attributed primarily to neurological adaptations."
+    },
+    {
+     "authors": "Stricker PR, Faigenbaum AD, McCambridge TM, COUNCIL ON SPORTS MEDICINE AND FITNESS",
+     "year": 2020,
+     "title": "Resistance Training for Children and Adolescents",
+     "journal": "Pediatrics",
+     "doi": "10.1542/peds.2020-1011",
+     "pmid": "32457216",
+     "type": "position stand",
+     "key_finding": "AAP clinical report, a revision of the 2008 policy statement, reviewing benefits and risks of resistance training for children and adolescents and noting secular declines in youth muscular fitness. Only the abstract could be read (publisher page blocked)."
+    },
+    {
+     "authors": "Malina RM",
+     "year": 2006,
+     "title": "Weight training in youth-growth, maturation, and safety: an evidence-based review",
+     "journal": "Clin J Sport Med",
+     "doi": "10.1097/01.jsm.0000248843.31874.be",
+     "pmid": "17119361",
+     "type": "review",
+     "key_finding": "Evidence-based review of 22 experimental programmes in pre- and early-pubertal youth: strength improved significantly, growth in height and weight was not influenced; only 10 studies monitored injuries, three injuries were reported; estimated rates 0.176, 0.053 and 0.055 per 100 participant-hours."
+    },
+    {
+     "authors": "Myer GD, Quatman CE, Khoury J, et al.",
+     "year": 2009,
+     "title": "Youth versus adult \"weightlifting\" injuries presenting to United States emergency rooms: accidental versus nonaccidental injury mechanisms",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0b013e3181b86712",
+     "pmid": "19855330",
+     "type": "cohort",
+     "key_finding": "US emergency-room surveillance 2002-2005, 4111 patients aged 8-30. Accidental injuries decreased with age while sprains/strains increased; two thirds of injuries in the 8-13 group were to hand and foot, related to 'dropping' and 'pinching', with more fractures. Authors judge most youth injuries potentially preventable with supervision and stricter safety guidelines."
+    },
+    {
+     "authors": "Bright TE, Handford MJ, Mundy P, et al.",
+     "year": 2023,
+     "title": "Building for the Future: A Systematic Review of the Effects of Eccentric Resistance Training on Measures of Physical Performance in Youth Athletes",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-023-01843-y",
+     "pmid": "37097414",
+     "type": "systematic review",
+     "key_finding": "22 studies in youth athletes aged <=18. Eccentric resistance training improved strength, jump, sprint and change-of-direction performance; methods were mainly Nordic hamstring exercise and flywheel training; at least 3 familiarisation trials are needed for flywheel training."
+    }
+   ]
+  },
+  "older_adults": {
+   "title": "Older athletes",
+   "statement": "The NSCA position statement and the ICFSR expert consensus both recommend resistance training for older adults as a potent countermeasure against loss of muscle mass, strength and function. A network meta-analysis of 151 trials found low weekly volume most effective for physical function, lean mass and muscle size in healthy older adults, with moderate-to-high volume needed for the largest strength gains. Whether older people recover more slowly is NOT established: a review of 11 studies was split (four worse in older, two the opposite, the rest no difference), a scoping review of 27 studies found findings too inconsistent for clear recommendations, and a 2025 meta-analysis of 36 studies found advancing age not associated with greater muscle damage, with soreness and CK actually higher in the young. The data are mostly from men and mostly from damaging laboratory protocols. For maintenance, older adults needed a higher dose than younger adults to hold muscle size.",
+   "practical_rule": "Do not prescribe extra rest days by age alone; let the individual response (soreness, performance, check-in) set the spacing. Older adults should keep enough weekly training to hold muscle size.",
+   "applied_as": "No extra rest days by age: the check-in, soreness and the athlete's own measured recovery response set the spacing. 60+: a note when the plan falls below two weekly exposures (needed to hold muscle size).",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.OLDER_BANDS",
+    "arx_plan.rest_days"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Fragala MS, Cadore EL, Dorgo S, et al.",
+     "year": 2019,
+     "title": "Resistance Training for Older Adults: Position Statement From the National Strength and Conditioning Association",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000003230",
+     "pmid": "31343601",
+     "type": "position stand",
+     "key_finding": "NSCA position statement: resistance training is a powerful intervention against loss of muscle strength and mass and their consequences for functioning, mobility and independence; recommendations cover programme design, physiological adaptations, functional benefits and frailty, sarcopenia and chronic conditions."
+    },
+    {
+     "authors": "Izquierdo M, Merchant RA, Morley JE, et al.",
+     "year": 2021,
+     "title": "International Exercise Recommendations in Older Adults (ICFSR): Expert Consensus Guidelines",
+     "journal": "J Nutr Health Aging",
+     "doi": "10.1007/s12603-021-1665-8",
+     "pmid": "34409961",
+     "type": "consensus",
+     "key_finding": "ICFSR expert consensus (36 authors): exercise prescription for older adults should be based on the intended outcome and individualised and controlled like a medical treatment, with a dose-response effect across modalities, volumes and intensities."
+    },
+    {
+     "authors": "Fernandes JFT, Wilson LJ, Dingley AF, et al.",
+     "year": 2025,
+     "title": "Advancing Age Is Not Associated With Greater Exercise-Induced Muscle Damage: A Systematic Review, Meta-Analysis, and Meta-Regression",
+     "journal": "J Aging Phys Act",
+     "doi": "10.1123/japa.2024-0165",
+     "pmid": "40174882",
+     "type": "meta-analysis",
+     "key_finding": "36 studies comparing older and younger groups. Change in muscle function at 24 h, 72 h and peak did not differ (SMD -0.16 to -0.35); soreness was greater in younger adults (SMD -0.34 to -0.62), as was CK at 24 h and peak (SMD -0.32). Conclusion: advancing age is not associated with greater symptoms of exercise-induced muscle damage."
+    },
+    {
+     "authors": "Hayes EJ, Stevenson E, Sayer AA, et al.",
+     "year": 2023,
+     "title": "Recovery from Resistance Exercise in Older Adults: A Systematic Scoping Review",
+     "journal": "Sports Med Open",
+     "doi": "10.1186/s40798-023-00597-1",
+     "pmid": "37395837",
+     "type": "systematic review",
+     "key_finding": "Scoping review, 27 studies in adults >=65 years: considerable variability in protocols and inconsistent findings, data in women lacking; current data make it challenging to give clear recommendations for prescribing resistance exercise."
+    },
+    {
+     "authors": "Fernandes JFT, Lamb KL, Norris JP, et al.",
+     "year": 2021,
+     "title": "Aging and Recovery After Resistance-Exercise-Induced Muscle Damage: Current Evidence and Implications for Future Research",
+     "journal": "J Aging Phys Act",
+     "doi": "10.1123/japa.2020-0201",
+     "pmid": "33291066",
+     "type": "review",
+     "key_finding": "Brief review of 11 studies in older males: four reported worse symptoms in older than younger, two the opposite and the remainder no age difference (the abstract gives n=6 for the remainder, which does not sum to 11). Authors conclude resistance training can be practised by older people without concern for impaired recovery."
+    },
+    {
+     "authors": "Radaelli R, Rech A, Molinari T, et al.",
+     "year": 2025,
+     "title": "Effects of Resistance Training Volume on Physical Function, Lean Body Mass and Lower-Body Muscle Hypertrophy and Strength in Older Adults: A Systematic Review and Network Meta-analysis of 151 Randomised Trials",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-024-02123-z",
+     "pmid": "39405023",
+     "type": "meta-analysis",
+     "key_finding": "Network meta-analysis of 151 trials (n=6306) in adults >=60 years. Low-volume training was most effective for timed up-and-go, 6-min walk, lean body mass (SMD 0.25) and muscle hypertrophy (SMD 0.40); moderate and high volume were most effective for lower-limb strength. Results held mainly for healthy older adults."
+    }
+   ]
+  },
+  "paired_sets": {
+   "title": "Saving time between exercises",
+   "statement": "A 2025 meta-analysis (19 studies, 313 participants) found that supersets give similar total repetitions and volume load in a shorter session, with similar chronic gains in maximal strength (SMD 0.10), strength endurance and hypertrophy (SMD -0.05), at the price of higher lactate, energy cost and perceived exertion. Agonist-antagonist pairing preserves or increases repetitions, whereas pairing exercises for the same muscle reduces volume load. An 8-week RCT in 43 trained adults reported the same gains in 36% less session time. Acute studies show more fatigue 24 h later after supersets and tri-sets, so more recovery between sessions may be needed. Chronic data are few and short, and none used motor-driven maximal-effort sets.",
+   "practical_rule": "Alternating exercises for opposing or unrelated muscle groups saves roughly a third of session time without measurable loss of results. Do not pair exercises that share a prime mover or a limiting muscle.",
+   "applied_as": "The change-over between two different exercises is measured (the athlete's median). Above 5 minutes the plan says what about 4 minutes would save: unrelated muscles need no passive rest.",
+   "arx_caveat": "True supersets are impractical on a machine that is re-rigged for every exercise; the finding is used for the change-over time only.",
+   "parameters": [
+    "arx_plan.TRANSITION_NOTE_MIN",
+    "arx_plan.TRANSITION_TARGET_MIN"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Zhang X, Weakley J, Li H, et al.",
+     "year": 2025,
+     "title": "Superset Versus Traditional Resistance Training Prescriptions: A Systematic Review and Meta-analysis Exploring Acute and Chronic Effects on Mechanical, Metabolic, and Perceptual Variables",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-025-02176-8",
+     "pmid": "39903375",
+     "type": "meta-analysis",
+     "key_finding": "19 studies, 313 participants. Supersets vs traditional sets: similar total repetitions (SMD -0.03) and volume load (SMD 0.05) with higher training efficiency (SMD 1.74); higher lactate, energy cost and RPE (SMD 0.77); similar chronic maximal strength (SMD 0.10), strength endurance (SMD 0.07) and hypertrophy (SMD -0.05). Agonist-antagonist supersets increased repetitions (SMD 0.68); similar-biomechanics supersets reduced volume load (SMD -1.08)."
+    },
+    {
+     "authors": "Robbins DW, Young WB, Behm DG, Payne WR",
+     "year": 2010,
+     "title": "Agonist-antagonist paired set resistance training: a brief review",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0b013e3181f00bfc",
+     "pmid": "20733520",
+     "type": "review",
+     "key_finding": "Brief review of agonist-antagonist paired sets: evidence for acute performance enhancement is equivocal and practically limited, but paired sets appear to be an efficacious and time-efficient way of developing strength and power."
+    },
+    {
+     "authors": "Robbins DW, Young WB, Behm DG",
+     "year": 2010,
+     "title": "The effect of an upper-body agonist-antagonist resistance training protocol on volume load and efficiency",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0b013e3181e3826e",
+     "pmid": "20847705",
+     "type": "cohort",
+     "key_finding": "16 trained men, bench pull and bench press at 4RM loads in about 10 minutes, as paired or traditional sets. Volume load per set and session totals were lower with traditional sets; paired sets were more efficient (volume load per time)."
+    },
+    {
+     "authors": "Weakley JJS, Till K, Read DB, et al.",
+     "year": 2017,
+     "title": "The effects of traditional, superset, and tri-set resistance training structures on perceived intensity and physiological responses",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-017-3680-3",
+     "pmid": "28698987",
+     "type": "RCT",
+     "key_finding": "Randomised crossover, 14 men: supersets and tri-sets improved efficiency and shortened training time but gave greater lactate responses, raised CK at 24 h and left countermovement jump still reduced at 24 h, when it had recovered after traditional sets; athletes may need additional recovery."
+    },
+    {
+     "authors": "Burke R, Hermann T, Piñero A, et al.",
+     "year": 2026,
+     "title": "Less time, same gains: Comparison of superset vs. traditional set training on muscular adaptations",
+     "journal": "Science & Sports",
+     "doi": "10.1016/j.scispo.2025.07.011",
+     "pmid": "",
+     "type": "RCT",
+     "key_finding": "From the PREPRINT abstract: 43 resistance-trained men and women, six exercises, 4 sets each to failure at 8-12RM, twice weekly for 8 weeks, superset vs traditional. Bayesian analysis gave consistent evidence of the same average increases in muscle thickness and the same average changes in strength, power, endurance and body composition; the superset group completed sessions in 36% less time."
+    }
+   ]
+  },
+  "arx_evidence_base": {
+   "title": "How much of this applies to a motor-driven adaptive-resistance machine",
+   "statement": "No controlled trial of an ARX-type protocol (one all-out motor-driven set per exercise, maximal concentric and eccentric effort, 1-3 sessions/week) was found; everything here is indirect. The closest conceptual source describes 'connected adaptive resistance exercise' machines that adjust resistance in real time to the user's force and states that formal investigations of outcomes are still required. Acute studies on such a machine show automatic eccentric overload (men 27.1 kg eccentric vs 14.7 kg concentric) and very large fatigue within 25 continuous maximal repetitions (concentric strength loss 77.5% in men and 62.5% in women), a degree of fatigue that fixed-load sets do not reach. Older isokinetic dynamometer studies show that coupled maximal eccentric+concentric training beat concentric-only training for strength, that gains are specific to the trained mode, and that a motor-driven isokinetic device with eccentric overload matched traditional lifting for 1RM in young athletes while adding more muscle thickness. Against it: a review suggests isotonic eccentric training tends to give greater strength gain than isokinetic, and an electric-motor device gave the same 6-week results as a flywheel. One study found 1 vs 3 weekly volume-matched sessions of isokinetic multi-joint eccentric training gave similar strength gains. Note that 'accommodating resistance' in gym usage (bands and chains) is a different principle and was not reviewed.",
+   "practical_rule": "Treat general resistance-training evidence as the best available guide and label ARX-specific claims as unproven. Force on the machine is mode- and speed-specific, so compare a user only with their own earlier sets at the same settings; expect within-set force loss far larger than in conventional sets.",
+   "applied_as": "General resistance-training evidence is the guide; statements specific to the machine are labelled as unproven. An athlete is only ever compared with their own earlier sets at the same settings (range of motion within 5 %, tempo within 15 %, same protocol), and the very large force loss within a set is treated as normal for this kind of machine.",
+   "arx_caveat": "No controlled trial of a one-set, all-out, motor-driven protocol exists yet.",
+   "parameters": [
+    "arx_report.ROM_TOLERANCE",
+    "arx_report.TEMPO_TOLERANCE"
+   ],
+   "evidence_level": "indirect",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Nuzzo JL, Pinto MD, Nosaka K",
+     "year": 2023,
+     "title": "Connective Adaptive Resistance Exercise (CARE) Machines for Accentuated Eccentric and Eccentric-Only Exercise: Introduction to an Emerging Concept",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-023-01842-z",
+     "pmid": "37097413",
+     "type": "review",
+     "key_finding": "Concept paper on connected adaptive resistance exercise (CARE): software and hardware providing a resistance that adjusts in real time to the individual's volitional force within and between repetitions, enabling accentuated eccentric and eccentric-only exercise; presents preliminary data only and states that formal investigations of participation and clinical outcomes are still required."
+    },
+    {
+     "authors": "Nuzzo JL, Pinto MD, Nosaka K",
+     "year": 2023,
+     "title": "Muscle strength and activity in men and women performing maximal effort biceps curl exercise on a new machine that automates eccentric overload and drop setting",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-023-05157-9",
+     "pmid": "36856799",
+     "type": "cohort",
+     "key_finding": "12 men and 9 women, 25 consecutive coupled maximal eccentric-concentric biceps curls on a CARE machine. Maximal resistance was higher eccentrically than concentrically (men 27.1 vs 14.7 kg; women 16.7 vs 7.6 kg); by repetition 25 eccentric strength had fallen 63.5% (men) and 44.1% (women) and concentric strength 77.5% and 62.5%. Acute study, no training outcomes."
+    },
+    {
+     "authors": "Nuzzo JL, Pinto MD, Nosaka K",
+     "year": 2023,
+     "title": "Overview of muscle fatigue differences between maximal eccentric and concentric resistance exercise",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.14419",
+     "pmid": "37269142",
+     "type": "review",
+     "key_finding": "Overview of 30 studies: maximal eccentric and concentric exercise both cause strength loss that plateaus and rarely exceeds 60% of baseline; in upper-body muscles the loss was similar (31.4% vs 33.6%), in lower-body muscles it was smaller after eccentric (13.3%) than concentric (39.7%) exercise."
+    },
+    {
+     "authors": "Colliander EB, Tesch PA",
+     "year": 1990,
+     "title": "Effects of eccentric and concentric muscle actions in resistance training",
+     "journal": "Acta Physiol Scand",
+     "doi": "10.1111/j.1748-1716.1990.tb08973.x",
+     "pmid": "2275403",
+     "type": "cohort",
+     "key_finding": "22 men trained 3 times/week for 12 weeks with 5 sets of either 12 maximal concentric or 6 coupled maximal eccentric+concentric quadriceps actions. Both improved peak torque, but the coupled group improved more in peak torque, vertical jump and 3RM half-squat; fibre area changes were small, so gains were attributed mainly to neural adaptation."
+    },
+    {
+     "authors": "Horwath O, Paulsen G, Esping T, et al.",
+     "year": 2019,
+     "title": "Isokinetic resistance training combined with eccentric overload improves athletic performance and induces muscle hypertrophy in young ice hockey players",
+     "journal": "J Sci Med Sport",
+     "doi": "10.1016/j.jsams.2018.12.017",
+     "pmid": "30660559",
+     "type": "RCT",
+     "key_finding": "22 resistance-trained ice hockey players (18 y), 8 weeks, isokinetic training with eccentric overload on a computerised robotic engine system (1080 Quantum) vs traditional isotonic training. Similar increases in 1RM squat and jump-squat power (11-17%); only the isokinetic/eccentric group improved drop jump (9.8%) and increased vastus intermedius and rectus femoris thickness."
+    },
+    {
+     "authors": "Maroto-Izquierdo S, Fernandez-Gonzalo R, Magdi HR, et al.",
+     "year": 2019,
+     "title": "Comparison of the musculoskeletal effects of different iso-inertial resistance training modalities: Flywheel vs. electric-motor",
+     "journal": "Eur J Sport Sci",
+     "doi": "10.1080/17461391.2019.1588920",
+     "pmid": "30957699",
+     "type": "RCT",
+     "key_finding": "40 active students, 12 sessions over 6 weeks of single-leg squat on an electric-motor device (eccentric at 100% or 150% of concentric speed) or a flywheel, plus controls. All training groups gained thigh lean mass (2.5-5.8%), 1RM (22.4-30.2%), jump and power, with no differences between devices."
+    },
+    {
+     "authors": "Crane JS, Thompson BJ, Harrell DC, et al.",
+     "year": 2022,
+     "title": "Comparison of High Versus Low Eccentric-Based Resistance Training Frequencies on Short-Term Muscle Function Adaptations",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000003482",
+     "pmid": "31996614",
+     "type": "cohort",
+     "key_finding": "30 subjects, 4 weeks of volume-matched isokinetic multi-joint eccentric training on 1 vs 3 days/week. No group x trial interaction for eccentric strength (p=0.06); gains 27.4% (1 day) and 36.8% (3 days); the 3-day group reported lower RPE and soreness."
+    },
+    {
+     "authors": "Guilhem G, Cornu C, Guével A",
+     "year": 2010,
+     "title": "Neuromuscular and muscle-tendon system adaptations to isotonic and isokinetic eccentric exercise",
+     "journal": "Ann Phys Rehabil Med",
+     "doi": "10.1016/j.rehab.2010.04.003",
+     "pmid": "20542752",
+     "type": "review",
+     "key_finding": "Review comparing isotonic and isokinetic eccentric training: the literature tends to show greater strength gain with the isotonic mode, possibly through greater neuromuscular activation, but specific adaptations are hard to determine for lack of standardised comparative studies."
+    }
+   ]
+  },
+  "exercise_order": {
+   "title": "Exercise order within a session",
+   "statement": "Strength gains are largest in the exercises performed first: a meta-analysis of 11 studies found multi-joint strength favoured by starting with multi-joint exercises (ES 0.32) and single-joint strength by starting with single-joint exercises (ES -0.58), with no order effect when all tests were pooled and none for hypertrophy (ES 0.03). Acutely, more repetitions are completed in whatever is placed first, regardless of muscle size. Pre-exhaustion offered no advantage in a 12-week RCT, and in another trial gave similar strength and hypertrophy with less training load. The ACSM 2026 stand lists placement at the beginning of the session among the factors enhancing strength.",
+   "practical_rule": "Put the exercise whose progress matters most first, and do not read a lower result in an exercise done late in the session as a regression. Avoid exhausting a muscle that the next exercise depends on, unless that is the intent.",
+   "applied_as": "The exercise whose measurement matters most today (fresh benchmark rotation) comes before anything that loads its muscles; then big movements before small ones. A value measured after a shared-muscle exercise is marked 'pre-loaded', gets a lower target and is never read as a regression. A muscle that is another exercise's helper is not exhausted first (Row before Biceps Curl).",
+   "arx_caveat": null,
+   "parameters": [
+    "arx_plan.best_order",
+    "arx_plan.means_before_target",
+    "arx_evidence.pair_prior",
+    "arx_plan.CONTEXT_LOSS_MIN_PCT"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Nunes JP, Grgic J, Cunha PM, et al.",
+     "year": 2021,
+     "title": "What influence does resistance exercise order have on muscular strength gains and muscle hypertrophy? A systematic review and meta-analysis",
+     "journal": "Eur J Sport Sci",
+     "doi": "10.1080/17461391.2020.1733672",
+     "pmid": "32077380",
+     "type": "meta-analysis",
+     "key_finding": "11 studies of good-to-excellent quality. No difference between orders when all strength tests were pooled (ES -0.11, p=0.306); multi-joint strength favoured starting with multi-joint exercises (ES 0.32, p=0.034), single-joint strength favoured starting with single-joint exercises (ES -0.58, p=0.032); no order effect for hypertrophy (ES 0.03, p=0.862)."
+    },
+    {
+     "authors": "Simão R, de Salles BF, Figueiredo T, et al.",
+     "year": 2012,
+     "title": "Exercise order in resistance training",
+     "journal": "Sports Med",
+     "doi": "10.2165/11597240-000000000-00000",
+     "pmid": "22292516",
+     "type": "review",
+     "key_finding": "Review: total repetitions, and thus volume, are greater when an exercise is placed at the beginning of a session regardless of the muscle mass involved; pre-exhaustion might not increase recruitment of the larger muscle; exercises should be ordered by priority for the training goal."
+    },
+    {
+     "authors": "Fisher JP, Carlson L, Steele J, Smith D",
+     "year": 2014,
+     "title": "The effects of pre-exhaustion, exercise order, and rest intervals in a full-body resistance training intervention",
+     "journal": "Appl Physiol Nutr Metab",
+     "doi": "10.1139/apnm-2014-0162",
+     "pmid": "25092528",
+     "type": "RCT",
+     "key_finding": "39 trained participants, 12 weeks: pre-exhaustion, the same order with rest between exercises, or compound-first order. No significant between-group effects for chest press, leg press or pull-down strength or body composition; effect sizes for strength were large in all groups (1.15-1.62)."
+    },
+    {
+     "authors": "Trindade TB, Prestes J, Neto LO, et al.",
+     "year": 2019,
+     "title": "Effects of Pre-exhaustion Versus Traditional Resistance Training on Training Volume, Maximal Strength, and Quadriceps Hypertrophy",
+     "journal": "Front Physiol",
+     "doi": "10.3389/fphys.2019.01424",
+     "pmid": "31824336",
+     "type": "RCT",
+     "key_finding": "Untrained men, 9 weeks: leg press alone (n=12) vs a set of leg extension to failure before leg press (n=12), plus controls. Leg press 1RM +15% vs +16% and leg extension +11% vs +17%; quadriceps thickness increased in both, with a lower training load in the pre-exhaustion group."
+    }
+   ]
+  },
+  "recovery_between_sessions": {
+   "title": "Rest between sessions for the same muscle",
+   "statement": "Training to failure slows recovery: in trained men neuromuscular performance stayed reduced for up to 24-48 h after sets to failure, while non-failure protocols, even with the same total volume, recovered significantly faster; muscle function remained reduced at 48 h especially when sets to failure contained many repetitions. Muscle protein synthesis is more than doubled at 24 h and almost back to baseline by 36 h after heavy training. Nevertheless two trials of three full-body sessions on consecutive vs non-consecutive days found similar strength and body-composition gains over 7-12 weeks, so 48-72 h spacing is convention rather than a demonstrated requirement at moderate effort. After unaccustomed maximal eccentric work, recovery can take many days (see topic 6), and hypertrophy relates to protein synthesis only once early muscle damage has attenuated. No study tested recovery from a single all-out eccentric-overloaded set in accustomed users.",
+   "practical_rule": "After an all-out set to failure allow about 48 h before loading the same muscle hard again, and longer while eccentric work is still new or soreness persists; other muscles can be trained sooner. Judge readiness by performance and soreness rather than by a fixed calendar.",
+   "applied_as": "Rest per muscle after a load: deep 3 days, moderate 2, sub-maximal 1; helper muscles (limiters) one level lower. Different muscles can be trained on consecutive days. The athlete's own recovery response is measured and shown next to the default.",
+   "arx_caveat": "The studies report reduced performance for up to 48 h after conventional sets to failure. The third day after a DEEP set is this app's own margin for maximal eccentric efforts, which those studies did not test - a default, not a finding.",
+   "parameters": [
+    "arx_base.REQUIRED_REST",
+    "arx_evidence.RECOVERY_BANDS"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Morán-Navarro R, Pérez CE, Mora-Rodríguez R, et al.",
+     "year": 2017,
+     "title": "Time course of recovery following resistance training leading or not to failure",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-017-3725-7",
+     "pmid": "28965198",
+     "type": "cohort",
+     "key_finding": "10 resistance-trained men, bench press and squat, 3x5(10), 6x5(10) and 3x10(10). Training to failure, even vs the same total volume not to failure, caused a larger acute decline in jump height and bar velocity; recovery from the non-failure protocols was significantly faster between 24 and 48 h; failure slowed recovery up to 24-48 h."
+    },
+    {
+     "authors": "Pareja-Blanco F, Rodríguez-Rosell D, Aagaard P, et al.",
+     "year": 2020,
+     "title": "Time Course of Recovery From Resistance Exercise With Different Set Configurations",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000002756",
+     "pmid": "30036284",
+     "type": "cohort",
+     "key_finding": "10 men, 10 protocols of 3 sets in bench press and squat. Protocols to failure, especially with a high number of repetitions, caused larger reductions in mechanical muscle function that remained up to 48 h, with greater increases in creatine kinase."
+    },
+    {
+     "authors": "Pareja-Blanco F, Rodríguez-Rosell D, Sánchez-Medina L, et al.",
+     "year": 2017,
+     "title": "Acute and delayed response to resistance exercise leading or not leading to muscle failure",
+     "journal": "Clin Physiol Funct Imaging",
+     "doi": "10.1111/cpf.12348",
+     "pmid": "26970332",
+     "type": "cohort",
+     "key_finding": "10 men, 3x6 vs 3x12 repetitions at 70% 1RM (12 possible). The to-failure protocol reduced bar velocity until 24 h (bench press) and 6 h (squat), decreased jump height up to 48 h, raised CK at 48 h and reduced HRV immediately post-exercise."
+    },
+    {
+     "authors": "Yang Y, Bay PB, Wang YR, et al.",
+     "year": 2018,
+     "title": "Effects of Consecutive Versus Non-consecutive Days of Resistance Training on Strength, Body Composition, and Red Blood Cells",
+     "journal": "Front Physiol",
+     "doi": "10.3389/fphys.2018.00725",
+     "pmid": "29967584",
+     "type": "RCT",
+     "key_finding": "30 recreationally active young men, 12 weeks, three sessions on consecutive days (~24 h apart) vs non-consecutive days (~48-72 h apart), 3x10RM of five exercises. No training x group interaction for any strength or body composition parameter (p=0.075-0.974)."
+    },
+    {
+     "authors": "MacDougall JD, Gibala MJ, Tarnopolsky MA, et al.",
+     "year": 1995,
+     "title": "The time course for elevated muscle protein synthesis following heavy resistance exercise",
+     "journal": "Can J Appl Physiol",
+     "doi": "10.1139/h95-038",
+     "pmid": "8563679",
+     "type": "cohort",
+     "key_finding": "6 young men, 12 sets of 6-12RM elbow flexion in one arm. Muscle protein synthesis is elevated 50% at 4 h and 109% at 24 h; at about 36 h it had returned to within 14% of the control arm (non-significant)."
+    },
+    {
+     "authors": "Damas F, Phillips SM, Libardi CA, et al.",
+     "year": 2016,
+     "title": "Resistance training-induced changes in integrated myofibrillar protein synthesis are related to hypertrophy only after attenuation of muscle damage",
+     "journal": "J Physiol",
+     "doi": "10.1113/JP272472",
+     "pmid": "27219125",
+     "type": "cohort",
+     "key_finding": "10 young men over 10 weeks. Myofibrillar protein synthesis and muscle damage after a session were highest in week 1 and neither related to hypertrophy; at weeks 3 and 10, with damage attenuated, the protein synthesis response correlated strongly with hypertrophy (r about 0.9)."
+    }
+   ]
+  },
+  "grip_and_straps": {
+   "title": "Grip as a limiter, hooks and straps",
+   "statement": "Grip can limit pulling work, and straps remove that limit in the deadlift: with straps men showed less grip fatigue, higher bar velocity and lower perceived exertion, and women completed more repetitions with better preserved grip strength; another study reported greater force and duration with straps in sets to failure. In the lat pull-down, however, straps changed neither 1RM (96.5 vs 96.6 kg), repetitions at 70% 1RM nor latissimus activation. A 2026 review concludes that straps can enhance maximal strength and grip perception, that effects on pulling/back exercises are inconsistent, that they do not appear to increase muscle recruitment, and that no evidence exists on chronic effects. All studies are acute and small (10-16 participants).",
+   "practical_rule": "When the hands give out before the target muscles in heavy pulls, a grip aid is reasonable, and sets with and without it should be logged separately because they are not comparable. Do not expect straps to raise lat pull-down performance.",
+   "applied_as": "The grip is tracked as a limiter; a budget compares the planned helper work with what the athlete usually does in a session. An aid is suggested only for hinge exercises for the legs (dead lifts), where studies show a benefit - not for pull-downs, where they do not. Days with and without an aid are never compared with each other.",
+   "arx_caveat": "All studies are acute and small; nothing is known about long-term effects.",
+   "parameters": [
+    "arx_plan.AID_MIN_EXERCISES",
+    "arx_plan.BUDGET_TOLERANCE",
+    "arx_evidence.AID_REMOVES"
+   ],
+   "evidence_level": "low",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Martins R, Rosa M, Padovan R, et al.",
+     "year": 2026,
+     "title": "Are Lifting Straps a Game Changer for Resistance Training or an Overrated Tool? An Exploratory Review of Current Evidence and Future Research Directions",
+     "journal": "Int J Sports Physiol Perform",
+     "doi": "10.1123/ijspp.2025-0296",
+     "pmid": "41569827",
+     "type": "review",
+     "key_finding": "Narrative review: lifting straps can enhance maximal strength and grip perception; for pulling/back exercises no consistent effects have been observed; they may increase mechanical work in the deadlift but do not appear to increase muscle recruitment; no scientific evidence supports chronic effects of training with straps."
+    },
+    {
+     "authors": "Jukic I, García-Ramos A, Baláš J, et al.",
+     "year": 2021,
+     "title": "Ergogenic effects of lifting straps on movement velocity, grip strength, perceived exertion and grip security during the deadlift exercise",
+     "journal": "Physiol Behav",
+     "doi": "10.1016/j.physbeh.2020.113283",
+     "pmid": "33306977",
+     "type": "cohort",
+     "key_finding": "16 men, 4x4 deadlifts at 80% 1RM with and without straps. With straps (same load) mean and peak velocity were higher, the magnitude of grip fatigue lower, perceived grip security and power greater and perceived exertion lower."
+    },
+    {
+     "authors": "Trahey KM, Lapp EM, Talipan TN, et al.",
+     "year": 2023,
+     "title": "The Effect of Lifting Straps on Deadlift Performance in Females",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000004494",
+     "pmid": "37729509",
+     "type": "cohort",
+     "key_finding": "10 women, 3 sets of as many repetitions as possible at 80% 1RM. With straps they performed significantly more repetitions with no significant difference in bar velocity, and grip strength loss was significantly lower."
+    },
+    {
+     "authors": "Valério DF, Berton R, Barbieri JF, et al.",
+     "year": 2021,
+     "title": "The effects of lifting straps in maximum strength, number of repetitions and muscle activation during lat pull-down",
+     "journal": "Sports Biomech",
+     "doi": "10.1080/14763141.2019.1610490",
+     "pmid": "31198105",
+     "type": "RCT",
+     "key_finding": "12 resistance-trained men, lat pull-down. No difference with vs without straps in 1RM (96.5 +/- 12.7 vs 96.6 +/- 11.9 kg), in repetitions over 3 sets to failure at 70% 1RM, or in latissimus dorsi activation."
+    },
+    {
+     "authors": "Coswig VS, Machado Freitas DF, Gentil P, et al.",
+     "year": 2015,
+     "title": "Kinematics and Kinetics of Multiple Sets Using Lifting Straps During Deadlift Training",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000000986",
+     "pmid": "26595133",
+     "type": "cohort",
+     "key_finding": "11 subjects, 3 sets to failure at 90% 1RM deadlift with and without straps. Straps resulted in greater force (20-28%) and longer duration and lower speed; authors conclude straps increase the work performed by the target muscles."
+    }
+   ]
+  },
+  "body_measurements": {
+   "title": "Body weight, girths, body fat: what simple measurements can tell",
+   "statement": "Simple measures are repeatable but their error is often as large as the change expected from training. Classic anthropometry guidance: weight and height are the most precise, circumferences show strong between-observer differences and should be taken by one observer, and skinfold error can be large enough to make interpretation problematic; aim for reliability R > 0.95. Consumer BIA devices are highly reliable (precision error 0.0-0.49%) but inaccurate for tracking: against a four-compartment model the standard error for CHANGE in body fat was 1.7-2.6 percentage points. Unstandardised conditions (food, fluid, prior exercise) blunt or exaggerate measured change with most methods. Circumference-plus-skinfold estimates of thigh muscle CSA had ICC 0.96-0.98 and tracked 8 weeks of training in a pattern similar to pQCT while underestimating absolute size. A sports nutrition review concludes skinfolds are the method least affected by day-to-day variability.",
+   "practical_rule": "Keep body measures optional, taken by the same person, same site, same time of day and fasted state, and show trends over many weeks. Ignore differences between two single readings that lie within the method's error (about 2 percentage points for a change in scale body fat); for girths no verified threshold was found, so rely on the trend only.",
+   "applied_as": "A strictly optional log: trends only, shown from two values on and labelled as a rough trend; differences within the method's error (about 2 percentage points for body fat from a scale) are not interpreted. The AI sees relative changes only.",
+   "arx_caveat": null,
+   "parameters": [],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "Ulijaszek SJ, Kerr DA",
+     "year": 1999,
+     "title": "Anthropometric measurement error and the assessment of nutritional status",
+     "journal": "Br J Nutr",
+     "doi": "10.1017/s0007114599001348",
+     "pmid": "10655963",
+     "type": "review",
+     "key_finding": "Review of anthropometric measurement error (TEM, %TEM, reliability R): weight and height are most precise; waist and hip circumference show strong between-observer differences and should where possible be taken by one observer; skinfolds can carry such large error that interpretation is problematic; R > 0.95 should be sought. An erratum exists."
+    },
+    {
+     "authors": "Siedler MR, Rodriguez C, Stratton MT, et al.",
+     "year": 2023,
+     "title": "Assessing the reliability and cross-sectional and longitudinal validity of fifteen bioelectrical impedance analysis devices",
+     "journal": "Br J Nutr",
+     "doi": "10.1017/S0007114522003749",
+     "pmid": "36404739",
+     "type": "cohort",
+     "key_finding": "73 adults, 15 BIA devices (14 consumer-grade) vs a four-compartment model; 37 returned after 12-16 weeks. Precision error 0.0-0.49%; cross-sectional constant error -3.5 to +11.7% body fat; for CHANGE, constant error -0.4 to +1.3% with standard error of the estimate 1.7-2.6% and concordance 0.37-0.78."
+    },
+    {
+     "authors": "Tinsley GM, Harty PS, Stratton MT, et al.",
+     "year": 2022,
+     "title": "Tracking changes in body composition: comparison of methods and influence of pre-assessment standardisation",
+     "journal": "Br J Nutr",
+     "doi": "10.1017/S0007114521002579",
+     "pmid": "34325758",
+     "type": "cohort",
+     "key_finding": "Resistance-trained men, 6 weeks of training with a hyperenergetic diet, multiple methods under standardised and unstandardised conditions. Most methods showed meaningful errors when conditions were unstandardised, blunting or exaggerating true change; DXA and select digital anthropometry were more robust."
+    },
+    {
+     "authors": "DeFreitas JM, Beck TW, Stock MS, et al.",
+     "year": 2010,
+     "title": "A comparison of techniques for estimating training-induced changes in muscle cross-sectional area",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0b013e3181ec86f3",
+     "pmid": "20802282",
+     "type": "cohort",
+     "key_finding": "25 untrained men, 8 weeks of training. Two circumference-plus-skinfold equations for thigh muscle CSA had ICCs of 0.983 and 0.961 but significantly underestimated CSA vs pQCT; the error was consistent, so they showed increases with a pattern similar to pQCT. An erratum exists."
+    },
+    {
+     "authors": "Kasper AM, Langan-Evans C, Hudson JF, et al.",
+     "year": 2021,
+     "title": "Come Back Skinfolds, All Is Forgiven: A Narrative Review of the Efficacy of Common Body Composition Methods in Applied Sports Practice",
+     "journal": "Nutrients",
+     "doi": "10.3390/nu13041075",
+     "pmid": "33806245",
+     "type": "review",
+     "key_finding": "Narrative review of body composition methods in applied sport: DXA is preferred when bone or limb-specific estimates are needed but requires control of food intake, prior exercise and hydration; across methods, skinfolds appear the least affected by day-to-day variability."
+    },
+    {
+     "authors": "Schoenfeld BJ, Nickerson BS, Wilborn CD, et al.",
+     "year": 2020,
+     "title": "Comparison of Multifrequency Bioelectrical Impedance vs. Dual-Energy X-ray Absorptiometry for Assessing Body Composition Changes After Participation in a 10-Week Resistance Training Program",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000002708",
+     "pmid": "29927888",
+     "type": "cohort",
+     "key_finding": "21 young men, 10-week programme. Mean changes did not differ between multifrequency BIA and DXA (fat mass -1.13 vs -1.19 kg; fat-free mass 0.10 vs 0.37 kg; SEE 1.0 kg and 1.5 kg), but the two methods were poor predictors of each other for segmental changes."
+    }
+   ]
+  },
+  "progression": {
+   "title": "Progression steps",
+   "statement": "Position stands recommend increasing the load only once the current workload is mastered: 2-10 % when one to two repetitions more than the target are possible (ACSM 2009). The 2026 ACSM stand lists training to fatigue, time under tension and periodization among the variables without a consistent effect on outcomes, and puts consistency of training first.",
+   "practical_rule": "Earn the step: first finish the set, then raise the target - in small increments.",
+   "applied_as": "A step of 1-3 % per session (the athlete's own rate on comparable days) only when the exercise is progressing AND the last set reached the effort target; otherwise the same force with full effort. The app stays at the lower end of the 2-10 % range because force is measured exactly and sessions are frequent. No steps for minors, on a 'maintain' profile or on a day with a moderate or poor check-in.",
+   "arx_caveat": "On a machine without an external load a 'step' is a target force, not a weight; the recommendation is transferred by analogy.",
+   "parameters": [
+    "arx_plan.STEP_RANGE_PCT",
+    "arx_plan.target_for"
+   ],
+   "evidence_level": "low",
+   "reviewed": "2026-09-18",
+   "references": [
+    {
+     "authors": "American College of Sports Medicine",
+     "year": 2009,
+     "title": "American College of Sports Medicine position stand. Progression models in resistance training for healthy adults",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0b013e3181915670",
+     "pmid": "19204579",
+     "type": "position stand",
+     "key_finding": "When training at a specific RM load, a 2-10 % increase in load is recommended when the individual can perform the current workload for one to two repetitions over the desired number."
+    },
+    {
+     "authors": "Currier BS, D'Souza AC, Singh MAF, et al.",
+     "year": 2026,
+     "title": "American College of Sports Medicine Position Stand. Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults: An Overview of Reviews",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000003897",
+     "pmid": "41843416",
+     "type": "position stand",
+     "key_finding": "ACSM Position Stand 2026, overview of 137 systematic reviews (>30,000 participants), updating the 2009 stand. Strength was enhanced by loads >=80% 1RM, full range of motion, 2-3 sets, placement at the beginning of the session and >=2 sessions/week; hypertrophy by higher volumes (>=10 sets/week) and eccentric overload. Training to momentary fatigue, equipment type, set structure, time under tension and periodization did not consistently affect outcomes."
+    }
+   ]
+  }
+ }
+}

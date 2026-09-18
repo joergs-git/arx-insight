@@ -772,12 +772,12 @@
  },
  "commitment_maintain": {
   "meaning": {
-   "en": "Keep what you have: fewer exercises, no progression steps, force held. About {minutes} min a week.",
-   "de": "Halten, was du hast: weniger Übungen, keine Steigerungsschritte, Kraft wird gehalten. Etwa {minutes} Min. pro Woche."
+   "en": "Keep what you have: fewer exercises, no progression steps - but every set stays a hard one. About {minutes} min a week.",
+   "de": "Halten, was du hast: weniger Übungen, keine Steigerungsschritte - aber jeder Satz bleibt ein harter. Etwa {minutes} Min. pro Woche."
   },
   "action": {
-   "en": "Keep the force high - volume can drop a lot, intensity cannot.",
-   "de": "Die Kraft hoch halten - der Umfang darf stark sinken, die Intensität nicht."
+   "en": "Volume can drop a lot, intensity cannot: it is the effort that preserves what you built.",
+   "de": "Der Umfang darf stark sinken, die Intensität nicht: Die Ausbelastung erhält, was du aufgebaut hast."
   }
  },
  "guard_youth": {
@@ -788,16 +788,6 @@
   "action": {
    "en": "At most {k} exercises, no all-out sets, no progression steps by the app - and only with an adult who knows the machine.",
    "de": "Höchstens {k} Übungen, keine Sätze bis zum Limit, keine Steigerungsschritte durch die App - und nur mit einem Erwachsenen, der die Maschine kennt."
-  }
- },
- "guard_older": {
-  "meaning": {
-   "en": "60+: the plan gives one more rest day after a deep load and halves the progression steps.",
-   "de": "60+: Der Plan gibt nach einer tiefen Belastung einen Ruhetag mehr und halbiert die Steigerungsschritte."
-  },
-  "action": {
-   "en": "A cautious default - your own recovery data replaces it as it builds up.",
-   "de": "Eine vorsichtige Voreinstellung - deine eigenen Erholungsdaten ersetzen sie, sobald genug da sind."
   }
  },
  "pva_followed": {
@@ -888,6 +878,26 @@
   "action": {
    "en": "The next full session then moves back accordingly; the recommended day stays {next_date} if you rest today.",
    "de": "Die nächste volle Einheit verschiebt sich dann entsprechend; der empfohlene Tag bleibt der {next_date}, wenn du heute pausierst."
+  }
+ },
+ "guard_older_dose": {
+  "meaning": {
+   "en": "60+: with {spw} session a week strength holds, but muscle size tends to slip - older athletes need about two exposures a week to keep it.",
+   "de": "60+: Mit {spw} Einheit pro Woche hält die Kraft, die Muskelmasse geht aber eher zurück - ältere Athleten brauchen etwa zwei Reize pro Woche, um sie zu halten."
+  },
+  "action": {
+   "en": "If muscle size matters to you, add a second short session; rest days are not set by age in this app.",
+   "de": "Wenn dir Muskelmasse wichtig ist, eine zweite kurze Einheit ergänzen; Ruhetage richten sich in dieser App nicht nach dem Alter."
+  }
+ },
+ "plan_return_after_break": {
+  "meaning": {
+   "en": "You have not done this exercise since {last_date}. After months away the first session back causes by far the most soreness - the protection your muscles had built has faded.",
+   "de": "Diese Übung hast du seit {last_date} nicht mehr gemacht. Nach Monaten Pause verursacht die erste Einheit mit Abstand den meisten Muskelkater - der aufgebaute Schutz ist verblasst."
+  },
+  "action": {
+   "en": "Controlled and clearly below your old {base_kg}; from the second session on the normal targets apply again.",
+   "de": "Kontrolliert und klar unter deinen alten {base_kg}; ab der zweiten Einheit gelten wieder die normalen Ziele."
   }
  }
 }

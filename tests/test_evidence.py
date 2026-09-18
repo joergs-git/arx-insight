@@ -143,6 +143,24 @@ class Familiarisation(unittest.TestCase):
         self.assertAlmostEqual(e["tempo_s_reference"], 5.0, delta=0.1)
 
 
+class AidsAndComparability(unittest.TestCase):
+    def test_days_with_and_without_a_grip_aid_are_not_compared(self):
+        d = lambda day: datetime(2026, 9, day, 10, 0)
+        kw = dict(start_pos=20, end_pos=9)
+        rows = [fx.make_set(i + 1, DEADLIFT, d(day), con=(150 * f, 0.05), ecc=(240 * f, 0.05), **kw)
+                for i, (day, f) in enumerate([(1, 1.0), (4, 1.0), (8, 1.0), (11, 1.25), (15, 1.25), (18, 1.25)])]
+        plain = built(rows, "2026-09-19")
+        hooks = built(rows, "2026-09-19", aids={"10": {"aids": ["hooks"], "since": "2026-09-10"}})
+        e0 = next(e for e in plain["exercises"] if e["name"] == "Dead Lift")
+        e1 = next(e for e in hooks["exercises"] if e["name"] == "Dead Lift")
+        self.assertEqual([o["comparable"] for o in e0["occ"]], [True] * 6)
+        self.assertEqual([o["comparable"] for o in e1["occ"]], [False] * 3 + [True] * 3)        # the jump came with the hooks
+        p0 = next(p for p in plain["history"]["progress_factors"]["exercises"] if p["name"] == "Dead Lift")
+        p1 = next(p for p in hooks["history"]["progress_factors"]["exercises"] if p["name"] == "Dead Lift")
+        self.assertEqual(p0["status"], "progressing")
+        self.assertNotEqual(p1["status"], "progressing")                                       # no progress "for free"
+
+
 class RestEffect(unittest.TestCase):
     """More rest = less loss is only believed when the athlete's data really shows it."""
     def test_four_mixed_observations_prove_nothing(self):

@@ -82,6 +82,8 @@ TRANSITION_MIN = 2.0           # set-up between two exercises when the athlete's
 STEP_RANGE_PCT = (1.0, 3.0)    # progression step per session when it is earned
 CONTEXT_LOSS_MIN_PCT = 3.0     # smaller expected losses do not change a target
 LIGHT_DAY_SHARE = 0.70         # force on a light day
+RETURN_DAYS = 180              # an exercise not done for this long restarts gently: the protection against
+                               # eccentric muscle damage (repeated-bout effect) fades within 6-12 months
 BUDGET_TOLERANCE = 1.15        # planned limiter load above this share of the usual one = high
 BUDGET_MIN_SESSIONS = 3
 AID_MIN_EXERCISES = 3          # this many exercises on one limiter also trigger an aid hint
@@ -94,7 +96,8 @@ MINOR_BANDS, OLDER_BANDS = ("13-15", "16-17"), ("60-69", "70+")
 MINOR_MAX_EXERCISES = 4
 
 # Commitment profiles: the honest trade-off between time and effort (chosen in the goal interview;
-# the engine pre-selects one). effort: "goal" = what the goal asks for, "moderate" = capped below
+# the engine pre-selects one). "maintain" cuts the volume but keeps the effort - intensity is what
+# preserves an adaptation (science.json: maintenance). effort: "goal" = what the goal asks for, "moderate" = capped below
 # failure; extra_sets: second set on the first two exercises; step: progression steps allowed;
 # size: exercises more / fewer than the time budget gives ("cover" = one per trained body region
 # at most - the minimum that still reaches everything); plateau_set: a plateau may get a 2nd set.
@@ -102,20 +105,23 @@ COMMITMENT = {
     "min_time_max_effort":   {"effort": "goal",     "extra_sets": 0, "step": True,  "size": "cover", "plateau_set": False},
     "balanced":              {"effort": "goal",     "extra_sets": 0, "step": True,  "size": 0,  "plateau_set": True},
     "more_time_less_brutal": {"effort": "moderate", "extra_sets": 1, "step": True,  "size": 1,  "plateau_set": True},
-    "maintain":              {"effort": "moderate", "extra_sets": 0, "step": False, "size": -1, "plateau_set": False},
+    "maintain":              {"effort": "goal",     "extra_sets": 0, "step": False, "size": -1, "plateau_set": False},
 }
 EFFORT_TARGETS = {   # label -> what the set should reach (effort v3, see arx_detail)
     "deep":     {"label": "deep", "inroad_min": INROAD_DEEP},
     "moderate": {"label": "moderate", "inroad_min": INROAD_MODERATE},
     "submax":   {"label": "submax", "inroad_min": 0},
 }
-# every default above that rests on sport science names its entry in science.json (tests check it)
+# Every default above that rests on sport science names its entry in science.json (a test checks
+# that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
-    "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "EFFORT_TARGETS": "proximity_to_failure",
-    "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance", "STEP_RANGE_PCT": "progression",
-    "COVER_DAYS": "weekly_volume", "DUE_INTERVAL_RANGE": "frequency", "MINOR_BANDS": "youth",
-    "OLDER_BANDS": "older_adults", "order": "exercise_order", "aids": "grip_and_straps",
-    "BAND_FILL": "autoregulation", "plateau_set": "weekly_volume", "LIGHT_DAY_SHARE": "autoregulation",
+    "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
+    "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
+    "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
+    "DUE_INTERVAL_RANGE": "frequency", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
+    "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
+    "LIGHT_DAY_SHARE": "autoregulation", "REST_SCORE_BELOW": "autoregulation", "TRANSITION_TARGET_MIN": "paired_sets",
+    "RETURN_DAYS": "eccentric", "NEW_WEIGHT": "eccentric",
 }
 
 
@@ -194,11 +200,11 @@ def transition_minutes(work: list[dict]) -> tuple[float, bool]:
 # =============================================================================
 # State of the muscles, rolled forward
 # =============================================================================
-def rest_days(rank: int, age: str | None) -> int:
-    """Days of rest after a load. 60+: one more day after a deep load - a precautionary default
-    (the evidence on age and recovery is mixed); the athlete's own recovery response wins once it
-    is known."""
-    return REQUIRED_REST[rank] + (1 if (rank == 3 and age in OLDER_BANDS) else 0)
+def rest_days(rank: int, age: str | None = None) -> int:
+    """Days of rest after a load. The same at every age: whether older athletes recover more slowly
+    is not established (science.json: older_adults) - check-in, soreness and the athlete's own
+    recovery response set the spacing, not the birth date."""
+    return REQUIRED_REST[rank]
 
 
 def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: str | None = None) -> dict:
@@ -206,10 +212,7 @@ def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: s
     direct (target) work of each muscle."""
     out = {}
     for m, v in ((load.get("recovery") or {}).get("muscles") or {}).items():
-        ready = v["ready_on"]
-        if age in OLDER_BANDS and v.get("needed_days") == REQUIRED_REST[3] and v.get("last_date"):
-            ready = max(ready, (date.fromisoformat(ready) + timedelta(days=1)).isoformat())
-        out[m] = {"ready_on": ready, "last_target": None, "sore": v.get("sore")}
+        out[m] = {"ready_on": v["ready_on"], "last_target": None, "sore": v.get("sore")}
     for s in work:
         for m, role in _muscles(catalog.get(str(s["exercise"]), {}), s["exercise"], s["date"], aids).items():
             if role == "target":
@@ -522,7 +525,7 @@ def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) ->
 
 
 def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: str | None, is_bench: bool,
-               row: dict, cfg: dict) -> dict:
+               row: dict, cfg: dict, returning: bool = False) -> dict:
     """Force target, sets and the rule behind them (see the module docstring)."""
     e = c["series"]
     out = {"target_peak_kg": None, "target_con_mean_kg": None, "target_rule": None, "step_pct": 0.0, "base_kg": None,
@@ -550,6 +553,10 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         out["target_rule"], out["target_peak_kg"] = "light_day", round(base["kg"] * LIGHT_DAY_SHARE, 1)
         out["interp"] = item("plan_light_day", {"target_kg": out["target_peak_kg"], "share_pct": LIGHT_DAY_SHARE * 100}, cfg)
         return out
+    if returning:                                  # months away: the first session back is the one that hurts
+        out["target_rule"] = "return_after_break"
+        out["interp"] = item("plan_return_after_break", {"last_date": occ[-1]["date"], "base_kg": base["kg"]}, cfg)
+        return out
     profile = COMMITMENT[commitment]
     last_inroad = occ[-1].get("inroad")
     # the last set stopped short of the effort the goal asks for (a borderline value counts as reached)
@@ -560,8 +567,6 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     if prog.get("status") == "progressing" and may_step and not room:
         per_session = abs(prog.get("change_pct") or 0.0) / max(1, (prog.get("n") or 2) - 1)
         step = min(STEP_RANGE_PCT[1], max(STEP_RANGE_PCT[0], per_session))
-        if age in OLDER_BANDS:
-            step = step / 2
         rule, code = "step", "plan_step"
     elif is_bench:                                                    # today's clean measurement
         rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
@@ -637,8 +642,12 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
     for pos, (c, row) in enumerate(zip(seq, rows), 1):
         sub_max = c["restriction"] == "careful" or c["status"] == "limited" or c["new"]
         eff = dict(EFFORT_TARGETS["submax"]) if sub_max else dict(effort)
+        last = (c["series"] or {}).get("last_date")
+        returning = bool(last) and (day - date.fromisoformat(last)).days > RETURN_DAYS
+        if returning and EFFORT_RANK[eff["label"]] > EFFORT_RANK["moderate"]:
+            eff = dict(EFFORT_TARGETS["moderate"])
         is_bench = c["name"] == meta["benchmark"]
-        tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg)
+        tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg, returning=returning)
         if COMMITMENT[commitment]["extra_sets"] and pos <= 2 and not sub_max and band in (None, "go_hard"):
             tgt["sets"] = max(tgt["sets"], 1 + COMMITMENT[commitment]["extra_sets"])
         prev = seq[pos - 2] if pos > 1 else None
@@ -702,17 +711,18 @@ def limiter_budget(session: dict, work: list[dict], catalog: dict, ev: dict, cfg
 
 def aid_hints(session: dict, budget: dict, cfg: dict, possible: dict) -> list[dict]:
     """Where an aid (hooks / straps) frees the most: only when a limiter is over budget or carries
-    AID_MIN_EXERCISES exercises, only for exercises that offer an aid and use none yet - first the
-    one whose goal is farthest from the limiter (a hinge for the legs needs no grip training)."""
+    AID_MIN_EXERCISES exercises, only for exercises that offer an aid and use none yet - and only
+    for exercises that train the LEGS through the hands (dead lifts): that is where studies show a
+    benefit; for pull-downs they found none (science.json: grip_and_straps)."""
     hints = []
     for m, b in budget.items():
         if b["status"] != "high" and len(b["by_exercise"]) < AID_MIN_EXERCISES:
             continue
-        rows = [r for r in b["by_exercise"] if not r["aid"] and possible.get(r["name"])]
+        region_of = {it["name"]: it["regions"] for it in session["exercises"]}
+        rows = [r for r in b["by_exercise"] if not r["aid"] and possible.get(r["name"]) and "legs" in region_of[r["name"]]]
         if not rows:
             continue
-        region_of = {it["name"]: it["regions"] for it in session["exercises"]}
-        pick = min(rows, key=lambda r: (0 if "legs" in region_of[r["name"]] else 1, -r["load"], r["name"]))
+        pick = min(rows, key=lambda r: (-r["load"], r["name"]))
         aid = possible[pick["name"]][0]
         hints.append(item("aid_hint", {"exercise": pick["name"], "aid": aid, "muscle": m, "k": len(b["by_exercise"]),
                                        "share_pct": b["share_pct"]}, cfg, exercise=pick["name"], muscle=m, aid=aid))
@@ -867,8 +877,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                                                          "total": session["est_minutes"]}, cfg)
     if age in MINOR_BANDS:
         session["guard"] = item("guard_youth", {"k": MINOR_MAX_EXERCISES}, cfg)
-    elif age in OLDER_BANDS:
-        session["guard"] = item("guard_older", {}, cfg)
+    elif age in OLDER_BANDS and spw < 2:           # holding muscle size needs about two exposures a week at 60+
+        session["guard"] = item("guard_older_dose", {"spw": spw}, cfg)
 
     # --- the week: roll the muscle state forward, rotate the benchmark, plan on -------------------------------
     compact = lambda s: {"date": s["date"], "weekday": s["weekday"], "session_type": s["session_type"], "regions": s["regions"],
@@ -1005,7 +1015,7 @@ def check_plan(session: dict, pool: list[dict], state: dict, today: date, effort
 # =============================================================================
 LEGACY_RULE = {"step": "trend_up_room", "hold_reach_effort": "hold_reach_inroad", "hold": "hold_reach_inroad",
                "retest_fresh": "hold_reach_inroad", "plateau_add_set": "hold_reach_inroad", "plateau_hold": "hold_reach_inroad",
-               "light_day": "sub_max_careful", "new_exercise": "sub_max_careful"}
+               "light_day": "sub_max_careful", "new_exercise": "sub_max_careful", "return_after_break": "sub_max_careful"}
 
 
 def legacy_session_plan(plan: dict, exercises: list[dict], recovery: dict) -> list[dict]:

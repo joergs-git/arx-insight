@@ -270,9 +270,45 @@ class How(unittest.TestCase):
         self.assertTrue(all(it["effort_target"]["label"] != "deep" and it["step_pct"] == 0 and it["sets"] == 1
                             for it in sess["exercises"]))
 
-    def test_older_athletes_get_one_more_day_after_a_deep_load(self):
-        self.assertEqual(planner.rest_days(3, "60-69") - planner.rest_days(3, "40-49"), 1)
-        self.assertEqual(planner.rest_days(2, "70+"), planner.rest_days(2, None))
+    def test_age_alone_adds_no_rest_day_but_one_session_a_week_gets_a_word(self):
+        self.assertEqual(planner.rest_days(3, "70+"), planner.rest_days(3, "18-29"))          # science.json: older_adults
+        rows = history([ROW, PRESS, SQUAT])
+        older = {1: ("f", datetime(1960, 5, 1))}
+        one = report(rows, "2026-09-18", users=older, sessions_per_week=1)["plan"]["next_session"]
+        two = report(rows, "2026-09-18", users=older, sessions_per_week=2)["plan"]["next_session"]
+        self.assertEqual(one["guard"]["code"], "guard_older_dose")
+        self.assertNotIn("guard", two)
+
+    def test_an_exercise_not_done_for_months_restarts_gently(self):
+        rows = history([ROW, PRESS, SQUAT]) + session(datetime(2026, 1, 10, 10), [CURL], first_id=900)
+        sess = report(rows, "2026-09-18", session_minutes=45)["plan"]["next_session"]
+        curl = next(it for it in sess["exercises"] if it["name"] == "Biceps Curl")
+        self.assertEqual((curl["target_rule"], curl["target_peak_kg"], curl["step_pct"]), ("return_after_break", None, 0.0))
+        self.assertNotEqual(curl["effort_target"]["label"], "deep")
+
+
+class Science(unittest.TestCase):
+    """Every planner default that rests on sport science names an entry of science.json - and the
+    entry is referenced and reviewed."""
+    def setUp(self):
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(here, "science.json"), encoding="utf-8") as f:
+            self.science = json.load(f)
+
+    def test_every_default_cites_an_entry_with_references(self):
+        self.assertGreaterEqual(len(planner.SCIENCE), 15)
+        for const, topic in planner.SCIENCE.items():
+            self.assertTrue(hasattr(planner, const.split(".")[0]) or const.split(".")[0] == "REQUIRED_REST", const)
+            entry = self.science["topics"].get(topic)
+            self.assertIsNotNone(entry, f"{const} cites unknown topic {topic}")
+            self.assertTrue(entry["references"] and entry["reviewed"] and entry["applied_as"] and entry["practical_rule"], topic)
+
+    def test_references_are_traceable(self):
+        for topic, entry in self.science["topics"].items():
+            self.assertIn(entry["evidence_level"], self.science["evidence_levels"], topic)
+            for r in entry["references"]:
+                self.assertTrue(r.get("doi") or r.get("pmid"), (topic, r.get("title")))
+                self.assertTrue(r["authors"] and r["year"] and r["title"] and r["journal"], (topic, r))
 
 
 class Limiters(unittest.TestCase):
