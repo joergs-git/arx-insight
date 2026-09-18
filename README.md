@@ -128,7 +128,20 @@ suspect an injury, consult a physician or qualified trainer.
 5. If Windows shows a blue *“Windows protected your PC”* box, click **More info → Run anyway** (it's an unsigned script; the source is this repo).
 6. Wait. The installer sets everything up, finds your ARX database, and opens the app in your browser. It also puts an **“ARX Insight”** icon on your Desktop — use that next time.
 
-To **update** later: repeat steps 1–4 (download the ZIP again, extract, run the installer). Your settings and goals are kept, and a running old version is replaced automatically.
+To **update** later: repeat steps 1–4 (download the ZIP again, extract, run the installer). Your settings and goals are kept, the Desktop shortcut is pointed at the new folder, and a running old version is replaced automatically — you can delete the old folder afterwards.
+
+**Can two ARX Insight windows run at the same time?**
+No — since v0.3.1 exactly one app process runs. Start it a second time (a stray double-click, or an
+old Desktop shortcut) and it tells you that ARX Insight is already running, opens it in the browser
+and closes itself. Start a **newer** version and it asks the old one to quit, waits for it and only
+then starts, so the old black console window disappears by itself. (Before v0.3.1 a Windows quirk
+let the old and the new version run side by side until you closed the old window by hand.) The
+black window titled *“ARX Insight – close this window to stop”* **is** the app: closing it stops it.
+
+**The coach panel says “AI coach unavailable” — what now?**
+The report itself never depends on the AI. The panel names the reason (rejected or missing key, no
+credit, rate limit, no internet, service overloaded, …) and offers **Try again**; only successful
+answers are cached, so a failed attempt is never billed twice.
 
 **Where do I get a Claude API key?**
 Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys) → *API Keys*.

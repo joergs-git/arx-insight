@@ -8,6 +8,10 @@
 #   4. finds your ARX database automatically (asks you to pick it if it can't)
 #   5. creates a Desktop shortcut and launches the app in your browser
 # Nothing here touches the ARX app itself; the database is only ever read.
+#
+# v0.3.1: run it again after every update - it refreshes the packages, points the Desktop shortcut
+# at the new folder and starts the app in ITS OWN window (a running older version is replaced by the
+# app itself, so only one ARX Insight runs at a time). This setup window closes by itself.
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot -Parent          # program folder (parent of \windows)
@@ -62,6 +66,12 @@ if (-not (Test-Path $vpy)) {
     Say "Packages ready."
 } else {
     Say "Private environment already present - reusing it."
+    # An update may need newer packages. Never fatal: offline, the installed ones keep working.
+    Say "Checking the required packages..."
+    try {
+        & $vpy -m pip install --upgrade -r (Join-Path $Root "requirements.txt") --quiet --disable-pip-version-check
+        if ($LASTEXITCODE -eq 0) { Say "Packages up to date." } else { Warn "Could not update the packages (offline?) - continuing with the installed ones." }
+    } catch { Warn "Could not update the packages (offline?) - continuing with the installed ones." }
 }
 
 # --- 3. Firebird client library -------------------------------------------
@@ -153,10 +163,13 @@ try {
 } catch { Warn "Could not create a Desktop shortcut (not critical)." }
 
 # --- 7. launch -------------------------------------------------------------
+# The app gets its OWN console window (the same launcher the Desktop shortcut uses). Running it
+# inside this setup window kept a dead "Press any key" console open after every update. A running
+# older ARX Insight is replaced by the app itself - only one runs at a time.
 Write-Host ""
 Write-Host "===== Setup complete - starting ARX Insight =====" -ForegroundColor Green
 Write-Host ""
-$env:ARX_DATA_DIR = $App
-$env:ARX_FBCLIENT = $fbDll
-$env:FIREBIRD = $fbDir
-& $vpy (Join-Path $Root "arx_app.py")
+Start-Process -FilePath (Join-Path $Root "Start ARX Insight.bat") -WorkingDirectory $Root
+Say "ARX Insight is starting in its own window. This setup window closes by itself."
+Start-Sleep -Seconds 4
+exit 0

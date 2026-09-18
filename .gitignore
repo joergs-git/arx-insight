@@ -15,3 +15,5 @@ tasks/
 # local copy of the ARX app dump / database data - must never be published
 ARX/
 .ai_cache.json
+# runtime state of the local app (pid, port, shutdown secret)
+instance.json
