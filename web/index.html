@@ -35,7 +35,7 @@
   .card .sub{color:var(--ink2);margin-bottom:22px}
   .field{margin-bottom:22px}
   .field label{display:block;font-family:var(--disp);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px}
-  .field input[type=text],.field input[type=password],.field input[type=number]{
+  .field input[type=text],.field input[type=password],.field input[type=number],.field input[type=date],.field select{
     width:100%;font-size:21px;padding:15px 16px;border:2px solid var(--rule2);border-radius:10px;background:var(--panel2);color:var(--ink);min-height:58px}
   .segbig{display:flex;gap:10px;flex-wrap:wrap}
   .segbig button{flex:1;min-width:120px;min-height:60px;border:2px solid var(--rule2);background:var(--panel2);color:var(--ink2);
@@ -147,13 +147,53 @@
   .finding .ic{font-size:22px;line-height:1.2}.finding b{color:var(--ink)}
   @media(max-width:720px){.hero{grid-template-columns:1fr}}
   /* two-column report: main sections left, AI panel right; both scroll together */
-  #r_body{max-width:min(1500px,92vw)}
-  /* the coach column is wide enough for the whiteboard tables (plan = 7 columns) */
-  .report-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(460px,40%);gap:34px;align-items:start}
+  /* v0.5.0: ONE reading direction - status strip, then three chapters; the coach speaks INSIDE each chapter */
+  #r_body{max-width:min(1180px,94vw)}
   /* grid/flex children default to min-width:auto, so a wide table or chart would push the whole
      page wider than a phone screen - cap them, inner tables/charts scroll on their own */
-  #r_main,#r_side,.kpi,.excard,.panel,.verdict > *{min-width:0}
-  @media(max-width:1100px){.report-grid{grid-template-columns:minmax(0,1fr)}}
+  #r_main,.kpi,.excard,.panel,.verdict > *{min-width:0}
+  .status{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px;background:var(--rule);border:2px solid var(--ink);margin-top:14px}
+  .status > div{background:var(--panel);padding:12px 16px;min-width:0}
+  .status .label{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+  .status .v{font-family:var(--disp);font-weight:700;font-size:24px;line-height:1.1;text-transform:uppercase}
+  .status .s{font-size:14px;color:var(--ink2);margin-top:2px}
+  .chapnav{position:sticky;top:66px;z-index:8;display:flex;gap:2px;background:var(--bg);padding:10px 0 8px;margin-top:6px;overflow-x:auto}
+  .chapnav a{flex:1;min-width:150px;text-align:center;text-decoration:none;color:var(--ink2);background:var(--panel);border:2px solid var(--rule2);border-radius:8px;
+    font-family:var(--disp);font-size:16px;letter-spacing:.08em;text-transform:uppercase;padding:10px 8px;white-space:nowrap}
+  .chapnav a b{color:var(--accent);margin-right:6px}
+  .chapter{scroll-margin-top:130px;border-top:3px solid var(--ink);margin-top:34px;padding-top:6px}
+  .chapter > .chaphead{display:flex;align-items:baseline;gap:14px;margin:10px 0 0}
+  .chapter > .chaphead .no{font-family:var(--disp);font-weight:700;font-size:54px;line-height:1;color:var(--accent)}
+  .chapter > .chaphead h2{font-size:clamp(26px,4vw,38px);margin:0;text-transform:uppercase}
+  .coach{background:linear-gradient(180deg,var(--panel2),var(--panel));border:2px solid var(--rule2);border-left:6px solid var(--accent);border-radius:10px;padding:16px 20px;margin:14px 0 6px;font-size:18px;line-height:1.5}
+  .coach .who{font-family:var(--disp);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);background:none;border:0;padding:0;margin-bottom:6px;display:flex;gap:10px;align-items:center;cursor:default}
+  .coach .who small{color:var(--ink3);letter-spacing:.04em;text-transform:none;font-family:var(--body);font-size:12px}
+  .coach h3{font-size:24px;margin:0 0 6px;text-transform:none}
+  .coach p{margin:0 0 8px}.coach .then{color:var(--ink);font-weight:600}
+  .coach ul{margin:8px 0 0;padding:0;list-style:none}.coach li{position:relative;padding-left:22px;margin-bottom:6px;font-size:17px;color:var(--ink2)}
+  .coach li::before{content:"›";position:absolute;left:4px;color:var(--accent);font-weight:700}
+  .coach .verd{display:grid;gap:6px;margin-top:10px}
+  .coach .verd div{font-size:16px;color:var(--ink2)}.coach .verd b{color:var(--ink)}
+  .coach.skel{color:var(--ink3);border-left-color:var(--rule2)}
+  .coach.skel .bar{height:14px;border-radius:7px;background:var(--panel2);margin:10px 0;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+  .pen{color:var(--accent);font-weight:700}
+  #chatFab{position:fixed;right:22px;bottom:22px;z-index:20;border-radius:30px;box-shadow:0 6px 24px rgba(0,0,0,.55);display:none}
+  #chat{position:fixed;right:0;top:0;bottom:0;width:min(460px,100vw);z-index:30;background:var(--panel);border-left:2px solid var(--ink);display:none;flex-direction:column}
+  #chat.open{display:flex}
+  #chat header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:2px solid var(--rule)}
+  #chat header h3{flex:1;margin:0;font-size:22px;text-transform:uppercase;color:var(--accent)}
+  #chatLog{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:92%;padding:10px 14px;border-radius:12px;font-size:17px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  .msg.q{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:3px}
+  .msg.a{align-self:flex-start;background:var(--panel2);color:var(--ink);border-bottom-left-radius:3px}
+  .msg.err{align-self:flex-start;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn)}
+  #chatSug{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 8px}
+  #chatSug button{border:1px solid var(--rule2);background:var(--panel2);color:var(--ink2);border-radius:18px;font-size:14px;padding:7px 12px;text-align:left}
+  #chatForm{display:flex;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:2px solid var(--rule)}
+  #chatForm textarea{flex:1;min-height:52px;max-height:140px;resize:none;font:inherit;font-size:17px;padding:10px 12px;border:2px solid var(--rule2);border-radius:10px;background:var(--panel2);color:var(--ink)}
+  @media(max-width:720px){.chapnav{top:auto;bottom:0;position:fixed;left:0;right:0;z-index:15;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-top:2px solid var(--ink)}
+    .chapnav a{min-width:0;font-size:13px;padding:9px 4px}#r_body{padding-bottom:90px}#chatFab{bottom:84px;right:12px}}
   .who{font-family:var(--disp);font-size:26px;font-weight:700;text-transform:uppercase;background:none;border:0;color:var(--ink);padding:0;text-align:left;border-bottom:2px dashed transparent;cursor:pointer}
   .who:hover{border-bottom-color:var(--accent);color:var(--accent)}
   .banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--good-bg);border:2px solid var(--good);border-radius:8px;padding:14px 18px;margin:16px 0;font-size:17px}
@@ -190,13 +230,12 @@
     html,body{background:var(--bg)!important;color:var(--ink)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:15px}
     #r_body{padding:6mm 22px 12mm;max-width:none}
     .topbar{position:static;padding:10px 22px 12px}
-    .topbar .btn,.topbar .spacer,.seg,.exhead .seg,.banner .btn,#aibox .badge{display:none}
+    .topbar .btn,.topbar .spacer,.seg,.exhead .seg,.banner .btn,.chapnav,#chatFab,#chat,.coach .btn{display:none!important}
     section{padding-block:18px 2px}
-    .report-grid{display:block}
-    #r_side{margin-top:26px;break-before:page}
-    .ai{background:var(--panel);font-size:16px}
+    #ch2{break-before:page}
+    .coach{background:var(--panel);font-size:15px}
     /* keep the small units together (a KPI strip, a chart, a table row block); big cards may break */
-    .kpis,.chartwrap,.verdict,.banner,ol.plan li,.ai .tablewrap,.excard,tr,.hero,.finding{break-inside:avoid}
+    .kpis,.chartwrap,.verdict,.banner,ol.plan li,.excard,tr,.hero,.finding,.coach,.status{break-inside:avoid}
     ol.plan li.v4 details{display:none}.strip{grid-auto-columns:1fr}
     h2.sec,.eyebrow,.ai h4,h3{break-after:avoid}
     .grid-prog{grid-template-columns:repeat(2,1fr)}
@@ -222,6 +261,11 @@
       <input type="number" id="setFreq" min="1" max="7" value="2"></div>
     <div class="field"><label id="s_key">Anthropic API key (optional, for AI analysis)</label>
       <input type="password" id="setKey" placeholder="sk-ant-..."></div>
+    <div class="field"><label id="s_model">AI model</label><div class="segbig" id="setModel"></div></div>
+    <div class="field" style="display:flex;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><label id="s_effb">Thinking effort: analysis</label><select id="setEffB"></select></div>
+      <div style="flex:1;min-width:220px"><label id="s_effc">Thinking effort: chat</label><select id="setEffC"></select></div></div>
+    <div class="field"><div class="tiles" id="setAuto" style="grid-template-columns:1fr"></div></div>
     <div class="field"><label id="s_share">What the AI coach may see</label>
       <div class="tiles" id="setShare" style="grid-template-columns:1fr 1fr"></div>
       <div class="foot" id="s_share_sub" style="margin-top:8px"></div></div>
@@ -345,6 +389,13 @@
     <button class="btn" id="r_exit">Exit</button>
   </div>
   <main class="wrap" id="r_body"></main>
+  <button class="btn" id="chatFab">💬 Coach</button>
+  <aside id="chat" aria-label="Coach chat">
+    <header><h3 id="chat_h">Coach</h3><span class="foot" id="chatLeft"></span><button class="btn ghost" id="chatClose" style="min-height:44px;padding:0 14px">✕</button></header>
+    <div id="chatLog"></div>
+    <div id="chatSug"></div>
+    <form id="chatForm"><textarea id="chatText" maxlength="1000" rows="2"></textarea><button class="btn" id="chatSend" type="submit" style="min-height:52px">➤</button></form>
+  </aside>
 </div>
 
 <script>
@@ -358,6 +409,7 @@ const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"applica
 // HTML-escape everything that comes from the database or the network before it goes into innerHTML
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
+let COACH=null, COACH_T=null, RENDERED_ONCE=false, AI={models:[],model:"",efforts:[],effort_board:"high",effort_chat:"medium",auto:true};
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false}, SELF_UPDATE=false, UPD_STEP=0;
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
@@ -400,7 +452,7 @@ function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id
 api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
-  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update;
+  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI;
   $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned);
   if(!b.configured){openSettings("search");return;}
   // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
@@ -431,12 +483,22 @@ function openSettings(origin){
   [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
   [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
   $("#setFreq").value=CFG.sessions_per_week||2;
+  $("#s_model").textContent=de?"KI-Modell":"AI model";
+  $("#s_effb").textContent=de?"Denkaufwand: Analyse":"Thinking effort: analysis"; $("#s_effc").textContent=de?"Denkaufwand: Chat":"Thinking effort: chat";
+  $("#setModel").innerHTML=(AI.models||[]).map(m=>`<button data-v="${esc(m[0])}" aria-pressed="${AI.model===m[0]}">${esc(m[1])}</button>`).join("");
+  const opts=cur=>(AI.efforts||[]).map(e=>`<option ${e===cur?'selected':''}>${e}</option>`).join("");
+  $("#setEffB").innerHTML=opts(AI.effort_board); $("#setEffC").innerHTML=opts(AI.effort_chat);
+  renderAuto();
   $("#s_share").textContent=de?"Was der KI-Coach sehen darf":"What the AI coach may see";
   $("#s_share_sub").textContent=de?"Nie gesendet werden: Namen, Geburtsdatum, Größe, Gewicht, Notizen. Gesendet werden nur zusammengefasste Trainingszahlen - und das hier, wenn eingeschaltet.":"Never sent: names, date of birth, height, weight, notes. Only aggregated training numbers are sent - plus the following when switched on.";
   renderShare();
   $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
   show("setup");
 }
+function renderAuto(){ const de=CFG.language==="de";
+  $("#setAuto").innerHTML=`<button data-k="auto" aria-pressed="${AI.auto}">${AI.auto?'✓ ':''}${de?'Coach-Analyse automatisch erstellen':'Create the coach analysis automatically'}<small>${de?'Ein API-Aufruf je neuem Datenstand (neue Sätze, Check-in, Profil); gleiche Daten kosten nichts. Aus: Analyse nur auf Knopfdruck.':'One API call per new data state (new sets, check-in, profile); the same data costs nothing. Off: analysis only on request.'}</small></button>`; }
+$("#setAuto").addEventListener("click",()=>{AI.auto=!AI.auto;renderAuto();});
+$("#setModel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;AI.model=b.dataset.v;[...$("#setModel").children].forEach(x=>x.setAttribute("aria-pressed",x===b));});
 function renderShare(){ const de=CFG.language==="de";
   const t=(k,on,h,sub)=>`<button data-k="${k}" aria-pressed="${on}">${on?'✓ ':''}${h}<small>${sub}</small></button>`;
   $("#setShare").innerHTML=t("profile",SHARE.profile,de?"Altersgruppe + Geschlecht":"Age band + sex",de?'z. B. "50-59, männlich" - für altersgerechte Hinweise':'e.g. "50-59, male" - for age-appropriate advice')
@@ -444,11 +506,13 @@ function renderShare(){ const de=CFG.language==="de";
 $("#setShare").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;SHARE[b.dataset.k]=!SHARE[b.dataset.k];renderShare();});
 $("#setupSave").addEventListener("click",async()=>{
   const lang=$("#setLang [aria-pressed=true]").dataset.v, units=$("#setUnits [aria-pressed=true]").dataset.v;
-  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value,ai_share_profile:SHARE.profile,ai_share_body:SHARE.body};
+  AI.effort_board=$("#setEffB").value||AI.effort_board; AI.effort_chat=$("#setEffC").value||AI.effort_chat;
+  const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value,ai_share_profile:SHARE.profile,ai_share_body:SHARE.body,
+    model:AI.model,ai_effort_board:AI.effort_board,ai_effort_chat:AI.effort_chat,ai_auto:AI.auto};
   const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
   CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
-  if(SETTINGS_ORIGIN==="report" && CUR){ if(REPORT) REPORT.ai_narrative=null; loadReport(); }
+  if(SETTINGS_ORIGIN==="report" && CUR){ loadReport(); }
   else { show("search");$("#q").focus(); }
 });
 
@@ -482,6 +546,7 @@ function renderMix(){
     .map(([k,v])=>`<div class="mixv"><div class="k">${k}</div><div class="v">${Math.round(v*100)}<small style="font-size:.4em">%</small></div></div>`).join("");
 }
 ["#gMain","#gCond"].forEach(s=>$(s).addEventListener("input",renderMix));
+$("#gFreq").addEventListener("input",()=>renderInterview());      // the split hint depends on the sessions per week
 $("#gFocus").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   const g=b.dataset.g, cur=FOCUS_R[g]||"normal", nxt=FCYCLE[(FCYCLE.indexOf(cur)+1)%FCYCLE.length];
   if(nxt==="normal")delete FOCUS_R[g];else FOCUS_R[g]=nxt; renderFocusTiles();});
@@ -522,7 +587,8 @@ function renderInterview(){
   $("#g_struct_sub").textContent={"":de?"Bis 2 Einheiten pro Woche Ganzkörper, ab 3 ein rotierender Split (Drücken / Ziehen / Beine).":"Up to 2 sessions a week full body, from 3 a rotating split (push / pull / legs).",
     full_body:de?"Jede Einheit trifft den ganzen Körper. Dafür braucht jeder Muskel danach seine Pause - mehr als 2-3 Einheiten pro Woche gehen so kaum.":"Every session hits the whole body. Each muscle then needs its rest - more than 2-3 sessions a week hardly fit.",
     split:de?"Jede Einheit nur ein Teil (Drücken, Ziehen oder Beine): kürzere Einheiten, mehr Sätze je Muskel, Training an aufeinanderfolgenden Tagen möglich.":"Each session only a part (push, pull or legs): shorter sessions, more sets per muscle, training on consecutive days possible."}[STRUCT]
-    +(de?" Studienlage: Bei gleichem Wochenumfang bringen beide dasselbe - es entscheidet, was in deine Woche passt.":" Evidence: at equal weekly volume both give the same results - what fits your week decides.");
+    +(de?" Studienlage: Bei gleichem Wochenumfang bringen beide dasselbe - es entscheidet, was in deine Woche passt.":" Evidence: at equal weekly volume both give the same results - what fits your week decides.")
+    +((+$("#gFreq").value||2)<2?(de?" Bei EINER Einheit pro Woche plant die App immer Ganzkörper: Im Split käme jeder Muskel nur alle 2-3 Wochen dran - zu selten für Wachstum.":" With ONE session a week the app always plans full body: in a split every muscle would only be trained every 2-3 weeks - too rare to grow."):"");
   $("#gExp").innerHTML=EXPS.map(x=>`<button data-v="${x[0]}" aria-pressed="${EXPERIENCE===x[0]}">${de?x[1]:x[2]}</button>`).join("");
   const kinds=[["",de?"Keins":"None"],["force",de?"Kraft in einer Übung":"Force on an exercise"],["body_weight",de?"Körpergewicht":"Body weight"],["waist",de?"Taille":"Waist"]];
   $("#gTKind").innerHTML=kinds.map(k=>`<button data-v="${k[0]}" aria-pressed="${TKIND===k[0]}">${k[1]}</button>`).join("");
@@ -612,7 +678,7 @@ $("#goalSave").addEventListener("click",async()=>{
   const vals={}; $$("#gBody input").forEach(i=>{if(i.value!=="")vals[i.dataset.k]=toMetric(+i.value,i.dataset.u);});
   if(Object.keys(vals).length) await post("/api/body",{user_id:CUR.id,...vals});     // optional - only when something was typed
   if(GOAL_MODE==="new"){ openLimits(); }        // new users set restrictions once
-  else { CUR.language=PLANG||null; if(REPORT) REPORT.ai_narrative=null; loadReport(); }
+  else { CUR.language=PLANG||null; loadReport(); }
 });
 
 // ---------- restrictions (injury-aware) ----------
@@ -700,7 +766,7 @@ async function openCheckin(origin,ck){
 $("#ckSkip").addEventListener("click",()=>{try{localStorage.setItem("arx_ck_skip_"+CUR.id,CK_DATE);}catch(e){} if(CK_ORIGIN==="report"){show("report");return;} loadReport();});
 $("#ckSave").addEventListener("click",async()=>{
   const body={user_id:CUR.id,date:CK_DATE,sleep:CK.sleep,energy:CK.energy,soreness:CK.soreness,rhr:$("#ckRhr").value?+$("#ckRhr").value:null,pain:CK.pain};
-  await post("/api/checkin",body); if(REPORT) REPORT.ai_narrative=null; loadReport();
+  await post("/api/checkin",body); loadReport();
 });
 $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
 
@@ -780,31 +846,52 @@ function renderReport(){
   const exl=Object.entries(r.sets_excluded||{}).filter(([,n])=>n>0).map(([k,n])=>`${n} ${(exNames[k]||[k,k])[n>1?0:1]}`);
   const exclLine=exl.length?`<p class="foot" style="margin:6px 0 0">${r.sets_total-r.sets_working} ${de0?'Sätze nicht gewertet':'sets not counted'}: ${exl.join(', ')}. ${de0?'Nur echte Arbeitssätze fließen in Bestwerte, Trend, Belastung und Plan ein.':'Only real working sets feed bests, trends, load and the plan.'}</p>`:'';
 
-  // order: KPIs -> goal -> restrictions -> LAST SESSION (what you just did) -> readiness -> the rest
-  let main=goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)+lastSessionHtml(r)+planHtml(r)+findingsHtml(r)+loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals,r,exclLine);
-  main+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
+  // ---- v0.5.0: status strip, then THREE chapters in one reading direction; the coach speaks inside each ----
+  const ns=(r.plan||{}).next_session, rd=r.readiness, ls=r.last_session;
+  const flagT={overload_risk:[de0?"zu wenig Erholung":"too little recovery","var(--accent)"],detraining_risk:[de0?"zu lange Pause":"long gap","var(--warn)"],
+    underload:[de0?"Reiz zu gering":"under-stimulated","var(--warn)"],ok:[de0?"ausgewogen":"balanced","var(--good)"]}[(r.load||{}).flag||"ok"];
+  const bandCol=rd?({go_hard:"var(--good)",moderate:"var(--warn)",light_or_rest:"var(--accent)"}[rd.band]||"var(--ink2)"):"var(--ink3)";
+  const whenTxt=!ns?"—":(ns.days_from_today===0?(de0?"Heute":"Today"):ns.days_from_today===1?(de0?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
+  const status=`<div class="status">
+    <div><div class="label">${de0?'Letzte Einheit':'Last session'}</div><div class="v">${ls?dShort(ls.date):'—'}</div><div class="s">${ls?`${ls.working_sets} ${de0?'Sätze':'sets'} · ${ls.wall_minutes} min`:(de0?'noch keine':'none yet')}</div></div>
+    <div><div class="label">${de0?'Heute':'Today'}</div><div class="v" style="color:${bandCol}">${rd&&rd.score!=null?rd.score+' / 100':'Check-in?'}</div><div class="s">${rd?'':`<a href="#" onclick="openCheckin('report');return false" style="color:var(--accent)">☀ ${de0?'20 Sekunden':'20 seconds'}</a>`}${rd?({go_hard:de0?'volle Intensität':'go hard',moderate:de0?'moderat':'moderate',light_or_rest:de0?'leicht oder Pause':'light or rest'}[rd.band]||''):''}</div></div>
+    <div><div class="label">${de0?'Nächstes Training':'Next training'}</div><div class="v" style="color:var(--accent)">${whenTxt}</div><div class="s">${ns?`${dShort(ns.date)} · ${ns.exercises.length} ${de0?'Übungen':'exercises'} · ≈ ${ns.est_minutes} min`:''}</div></div>
+    <div><div class="label">${de0?'Belastung':'Load'}</div><div class="v" style="color:${flagT[1]}">${flagT[0]}</div><div class="s">${(r.load||{}).weekly_rate!=null?`${r.load.weekly_rate} ${de0?'Einheiten/Woche':'sessions/week'} · ${de0?'Ziel':'target'} ${r.sessions_per_week||2}`:''}</div></div></div>
+    <div id="coach_focus"></div>`;
+  const nav=`<nav class="chapnav"><a href="#ch1"><b>1</b>${de0?'Letzte Einheit':'Last session'}</a><a href="#ch2"><b>2</b>${de0?'Nächstes Training':'Next training'}</a><a href="#ch3"><b>3</b>${de0?'Verlauf':'History'}</a><a href="#" id="navAsk"><b>💬</b>${de0?'Fragen':'Ask'}</a></nav>`;
+  const chap=(id,no,title,body)=>`<div class="chapter" id="${id}"><div class="chaphead"><span class="no">${no}</span><h2>${title}</h2></div>${body}</div>`;
+  const ch1=lastSessionHtml(r)+`<details class="more"><summary>${de0?'Maschineneinstellungen gegen Empfehlung':'Machine settings vs recommended'}</summary>${settingsHtml(r)}</details>`;
+  const ch2=planHtml(r)+checkinHtml(r)+`<details class="more"><summary>${de0?'Bereitschaft je Muskel':'Readiness per muscle'}</summary>${readinessHtml(r.load)}</details>`;
+  let ch3=`<div id="coach_hist"></div>`+findingsHtml(r);
+  ch3+=`<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${t.progress}</div><h2 class="sec">${t.ht}</h2></div>
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
     <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>${de0?'Verlauf':'History'}</span><span><i class="dot" style="background:var(--good)"></i>${de0?'Trend':'Trend'}</span><span><i class="dot" style="background:var(--fc)"></i>${de0?'Prognose':'Forecast'}</span></div></section>`;
-  main+=`<section><div class="eyebrow">${t.wb}</div><h2 class="sec">${t.wb}</h2>
-    <div class="panel chartwrap"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
-    <p class="foot" style="margin-top:8px">${de0?'Abdeckung max':'Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></section>`;
-  main+=bodyHtml(r);
-  main+=settingsHtml(r);
+  ch3+=loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals,r,exclLine)+bodyHtml(r);
+  ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
+    <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
+  ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;
+  const main=status+nav+goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)
+    +chap("ch1",1,de0?'Letzte Einheit':'Last session',ch1)+chap("ch2",2,de0?'Nächstes Training':'Next training',ch2)
+    +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3);
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
   const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
 
-  $("#r_body").innerHTML = updateBannerHtml() + unmappedHtml(r) +
-    `<div class="report-grid"><div id="r_main">${main}</div><aside id="r_side"><div class="ai" id="aibox"></div></aside></div>` + footer;
+  $("#r_body").innerHTML = updateBannerHtml() + unmappedHtml(r) + `<div id="r_main">${main}</div>` + footer;
 
   drawSessionCharts();drawWB();renderProg();
   const ng=$("#ngSeg"); if(ng) ng.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
     let cur=((REPORT.plan.profile||{}).next_groups||[]).slice(); const gp=b.dataset.g;
     if(!gp) cur=[]; else cur=cur.includes(gp)?cur.filter(x=>x!==gp):[...cur,gp];
-    await post("/api/next_groups",{user_id:CUR.id,groups:cur}); REPORT.ai_narrative=null; loadReport();});
+    await post("/api/next_groups",{user_id:CUR.id,groups:cur}); loadReport();});
   $("#xseg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;XMODE=b.dataset.x;[...$("#xseg").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.x===XMODE));renderProg();});
-  renderAISide(); autoLoadAI();
+  $("#navAsk").addEventListener("click",e=>{e.preventDefault();openChat();});
+  $("#sciBox").addEventListener("toggle",loadScience,{once:true});
+  // open where the athlete is: a fresh session first, otherwise the plan
+  if(!RENDERED_ONCE){ RENDERED_ONCE=true; const fresh=ls&&r.today&&(new Date(r.today)-new Date(ls.date))/864e5<=1;
+    if(!fresh&&ns){ const el=$("#ch2"); if(el) setTimeout(()=>el.scrollIntoView({block:"start"}),50); } }
+  COACH=null; renderCoach(); pollCoach(true);
 }
 
 // muscle vocabulary of exercises.json -> readable names
@@ -870,7 +957,8 @@ function lastSessionHtml(r){
   }
   const fs=ls.false_starts?` · ${ls.false_starts} ${de?(ls.false_starts>1?'Fehlstarts':'Fehlstart'):(ls.false_starts>1?'false starts':'false start')}`:'';
   const flags=(ls.flags||[]).map(f=>`<span class="chip flat" title="${esc(f.detail||'')}">${esc(f.type.replace(/_/g,' '))}</span>`).join(' ');
-  return `<section><div class="eyebrow">${t.last}</div><h2 class="sec">${ls.date} · ${ls.working_sets} ${de?'Sätze':'sets'} · ${ls.wall_minutes} min</h2>
+  return `<section style="padding-top:8px"><h2 class="sec" style="font-size:22px;color:var(--ink2)">${ls.date} · ${ls.working_sets} ${de?'Sätze':'sets'} · ${ls.wall_minutes} min</h2>
+    <div id="coach_last"></div>
     <p class="lead">${de?'Deine Übungen in Ausführungsreihenfolge, jede gegen das letzte Mal.':'Your exercises in the order performed, each against the last time you did them.'} ${de?'Gestrichelt = die vorige Kurve.':'Dashed = the previous curve.'}</p>
     ${cards}
     <div class="panel" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:17px;white-space:nowrap">
@@ -1008,8 +1096,7 @@ function settingsHtml(r){
     return `<tr><td>${label}</td><td class="num">${ideal!=null?ideal+(unit||''):'—'}</td><td class="num" style="color:${act==null?'var(--ink3)':dev?'var(--warn)':'var(--good)'}">${act!=null?act+(unit||''):'—'}</td></tr>`;
   };
   const F=r.featured, who=F&&F.meta?`${F.meta.name} · ${String(F.meta.date).slice(0,10)}`:(de?'dein Satz':'your set');
-  return `<section><div class="eyebrow">${de?'Optimale Einstellungen':'Recommended settings'}</div>
-   <h2 class="sec">${de?'Wissenschaftlich validierte Maschineneinstellung':'Science-based machine settings'}</h2>
+  return `<section style="padding-top:10px">
    <p class="foot" style="margin:-2px 0 8px">${de?'Empfohlen für Muskel- und Kraftaufbau · rechts dein erster Satz der letzten Einheit zum Vergleich':'Recommended for muscle & strength · your first set of the last session on the right for comparison'} (${who}).</p>
    <div class="panel"><table style="width:100%;border-collapse:collapse;font-size:18px">
      <tr class="foot"><td></td><td class="num">${de?'Empfohlen':'Recommended'}</td><td class="num">${de?'Dein Satz':'Your set'}</td></tr>
@@ -1066,7 +1153,7 @@ function loadHtml(l,target){
     <div class="verdict" style="border-left-color:${col};background:var(--panel)">
       <div class="big" style="color:${col}">${head}</div>
       <p><b style="color:${col}">${label}.</b> ${expl}<br><span class="foot">${sub}</span><br>${groups}</p>
-    </div>${checkinHtml(REPORT)}${readinessHtml(l)}</section>`;
+    </div></section>`;
 }
 function exChart(e){
   const W=460,H=190,L=44,R=14,Tp=14,B=30, occ=e.occ, useDay=XMODE==="day";
@@ -1146,20 +1233,22 @@ function sessionRowsHtml(sess){ const de=CFG.language==="de";
       x.status==="limited"?`<span class="chip flat">${de?'eingeschränkt':'limited'}: ${(x.limited_by||[]).map(mname).join(', ')}</span>`:'',
       x.aid?`<span class="chip">🪝 ${x.aid==="hooks"?(de?'Haken':'hooks'):(de?'Schlaufen':'straps')}</span>`:'',
       x.aid_hint?`<span class="chip flat">🪝 ${de?'Griffhilfe empfohlen':'grip aid suggested'}</span>`:''].filter(Boolean).join(' ');
-    const tgt=x.target_peak_kg!=null?`<span>${de?'Ziel':'Target'} <b>${uKg(x.target_peak_kg)}</b> ${LKg()}${x.step_pct?` <small style="color:var(--good)">+${x.step_pct} %</small>`:''}</span>`
-      :`<span><b>${sub?(de?'submaximal':'sub-max'):'—'}</b></span>`;
-    const eff=sub?`<span>${de?'ohne Ausbelastung':'no all-out set'}</span>`:`<span>${de?'Kraftabfall':'force drop'} <b>≥ ${x.effort_target.inroad_min} %</b></span>`;
-    const st=x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>`:'';
+    const c=x.coach||null, pen=k=>c&&c.pen&&c.pen[k]?'<span class="pen" title="Coach">✎</span> ':'';
+    const tgt=x.target_peak_kg!=null?`<span>${pen('target')}${de?'Ziel':'Target'} <b>${uKg(x.target_peak_kg)}</b> ${LKg()}${x.step_pct?` <small style="color:var(--good)">+${x.step_pct} %</small>`:''}</span>`
+      :`<span><b>${sub?(de?'submaximal':'sub-max'):(de?'nach Gefühl':'by feel')}</b></span>`;
+    const eff=sub?`<span>${pen('effort')}${de?'ohne Ausbelastung':'no all-out set'}</span>`:`<span>${pen('effort')}${de?'Kraftabfall':'force drop'} <b>≥ ${x.effort_target.inroad_min} %</b></span>`;
+    const st=x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>`:(c&&c.tempo?`<span>${esc(c.tempo)}</span>`:'');
     const why=[...(x.why_selected||[]),x.interp,x.context_note,...(x.order_rules||[])].filter(Boolean);
     const evid=(x.evidence||[]).map(e=>`<div class="foot">${de?'nach':'after'} ${esc(e.before)}: −${e.expected_loss_pct} % · ${e.source==="measured"?`${de?'bei dir gemessen':'measured on you'}, n = ${e.n} (${e.confidence})`:(de?'allgemeine Schätzung':'general estimate')}</div>`).join("");
     return `<li class="v4"><div><div class="row1"><span class="ex"><span class="grp ${x.group}">${x.group}</span> ${esc(x.name)}</span>${badges}</div>
-      <div class="nums">${tgt}${eff}<span>${x.sets} ${de?(x.sets>1?'Sätze':'Satz'):(x.sets>1?'sets':'set')}</span>${x.rest_before_min?`<span>${de?'Pause davor':'rest before'} <b>${x.rest_before_min}</b> min</span>`:''}${st}</div>
-      ${interpHtml(x.interp)}${x.context_note?interpHtml(x.context_note,'warn'):''}
-      <details><summary>${de?'Warum diese Übung, warum hier':'Why this exercise, why here'}</summary>${why.filter(w=>w!==x.interp&&w!==x.context_note).map(w=>interpHtml(w)).join("")}${evid}</details></div></li>`;}).join("")+`</ol>`;
+      <div class="nums">${tgt}${eff}<span>${pen('sets')}${x.sets} ${de?(x.sets>1?'Sätze':'Satz'):(x.sets>1?'sets':'set')}</span>${x.rest_before_min?`<span>${pen('rest')}${de?'Pause davor':'rest before'} <b>${x.rest_before_min}</b> min</span>`:''}${st}</div>
+      ${c&&c.cue?`<div class="interp good">🎯 ${esc(c.cue)}</div>`:''}
+      ${c&&(c.pen.target||c.pen.sets||c.pen.rest||c.pen.effort||c.pen.added)?`<div class="interp warn"><span class="pen">✎</span> Coach: ${esc(c.why)}</div>`:interpHtml(x.interp)}${x.context_note?interpHtml(x.context_note,'warn'):''}
+      <details><summary>${de?'Warum diese Übung, warum hier':'Why this exercise, why here'}</summary>${c&&c.why?`<div class="interp">Coach: ${esc(c.why)}</div>`:''}${c?interpHtml(x.interp):''}${why.filter(w=>w!==x.interp&&w!==x.context_note).map(w=>interpHtml(w)).join("")}${evid}</details></div></li>`;}).join("")+`</ol>`;
 }
 function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) return "";
   const ns=plan.next_session, pr=plan.profile||{};
-  if(!ns) return `<section><div class="eyebrow">${T().planh}</div><h2 class="sec">${de?'Nächstes Training':'Next training'}</h2>${interpHtml(plan.today.interp,'warn')}</section>`;
+  if(!ns) return `<section style="padding-top:8px"><div id="coach_next"></div>${interpHtml(plan.today.interp,'warn')}</section>`;
   const dfn=ns.days_from_today, whenTxt=dfn===0?(de?'Heute':'Today'):dfn===1?(de?'Morgen':'Tomorrow'):WDL()[ns.weekday];
   const typ=ns.session_type==="split"?ns.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body');
   const cm=(COMMITS.find(c=>c[0]===pr.commitment)||[])[de?1:2]||'';
@@ -1167,7 +1256,8 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
     <div class="facts"><b>${typ}</b> · ${ns.exercises.length} ${de?'Übungen':'exercises'} · ≈ <b>${ns.est_minutes} min</b><br>
     ${de?'Profil':'Profile'}: <b>${cm}</b>${pr.commitment_chosen?'':` <small>(${de?'automatisch gewählt':'chosen automatically'})</small>`} · ${pr.sessions_per_week}× ${de?'pro Woche':'a week'}
     ${ns.readiness_band_applied?` · ${de?'Check-in berücksichtigt':'check-in applied'}`:''}</div></div>`;
-  const why=`<ul class="why">${ns.why_this_date.map(w=>`<li>${esc(w.text.meaning)} <b>${esc(w.text.action)}</b></li>`).join("")}</ul>`;
+  // the engine's reasons: open without a coach, folded away once the coach has said it in its own words
+  const why=`<details class="more" id="whyBox" open style="margin-top:8px;border-top:0;padding-top:0"><summary>${de?'Warum dieser Tag - die Gründe im Einzelnen':'Why this day - the reasons in detail'}</summary><ul class="why">${ns.why_this_date.map(w=>`<li>${esc(w.text.meaning)} <b>${esc(w.text.action)}</b></li>`).join("")}</ul></details>`;
   const guard=ns.guard?interpHtml(ns.guard,'warn'):'';
   const fuller=ns.fuller_option?interpHtml(ns.fuller_option):'';
   // limiter budget: the grip first
@@ -1193,9 +1283,9 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
     <div class="segbig" id="ngSeg"><button data-g="" aria-pressed="${!act.length}" style="min-height:48px;font-size:16px">${de?'Automatisch':'Automatic'}</button>${pr.groups.map(gp=>`<button data-g="${esc(gp)}" aria-pressed="${act.includes(gp)}" style="min-height:48px;font-size:16px">${esc(GN[gp]||gp)}</button>`).join("")}</div></div>`:'';
   const ts=plan.today_session;
   const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${sessionRowsHtml(ts)}</details>`:'';
-  return `<section id="plan4"><div class="eyebrow">${T().planh}</div><h2 class="sec">${de?'Nächstes Training':'Next training'}</h2>
-    ${hero}${why}${guard}${fuller}${chooser}
-    ${sessionRowsHtml(ns)}
+  return `<section id="plan4" style="padding-top:8px">
+    ${hero}<div id="coach_next"></div>${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
+    <div id="planRows">${sessionRowsHtml(ns)}</div>
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}
     ${alts?`<details class="more"><summary>${de?'Alternativen & Lücken':'Alternatives & gaps'}</summary><div style="margin-top:10px;display:grid;gap:6px">${alts}</div></details>`:''}
@@ -1228,64 +1318,18 @@ function bodyHtml(r){ const de=CFG.language==="de", b=r.body;
     <p class="foot" style="margin:10px 0 0">${de?'Halbwissenschaftlich: Waage und Maßband schwanken stärker als echte Veränderungen. Nur der Trend über Wochen zählt.':'Semi-scientific: scales and tape vary more than real change does. Only the trend over weeks counts.'} ${add}</p></div></section>`; }
 function unmappedHtml(r){ const de=CFG.language==="de", u=r.unmapped_exercises||[]; if(!u.length) return "";
   return `<div class="banner" style="background:var(--warn-bg);border-color:var(--warn)"><b style="color:var(--warn)">⚙</b> ${de?'Unbekannte Übungscodes':'Unknown exercise codes'}: ${u.map(esc).join(', ')} — ${de?'in exercises.json Namen, Zielmuskeln und Limiter eintragen, dann zählen sie für Erholung und Plan richtig mit.':'add name, target muscles and limiters in exercises.json so they count correctly for recovery and the plan.'}</div>`; }
-// playful loading lines while the AI thinks
-const SPIN_DE=["🤖💪 Die KI lässt die Muskeln spielen und studiert deine Kraftdaten …",
-  "🧠🔥 Neuronen wärmen sich auf, Inroad wird vermessen … kurz durchatmen.",
-  "📈 Zahlen werden gestemmt, Empfehlungen geschmiedet … ein paar Sekunden noch."];
-const SPIN_EN=["🤖💪 The AI is flexing its neurons and studying your force data …",
-  "🧠🔥 Warming up the synapses, measuring inroad … hold that pose.",
-  "📈 Repping out the numbers, forging your recommendation … a few seconds."];
-let SPIN_T=null;
-function aiHeader(){const de=CFG.language==="de";return `<div class="aihdr"><span style="font-size:24px">🤖</span><h3>${T().aih}</h3><span class="badge">${de?'automatisch':'auto'}</span></div>`;}
-function mdEmoji(s){s=s.toLowerCase();
-  if(/letzte einheit|last session|letzte session|rückblick|review/.test(s))return'🔁';
-  if(/heute|today|bereit|ready|check-in/.test(s))return'☀️';
-  if(/meilenstein|milestone|fortschritt|progress|entwicklung/.test(s))return'📈';
-  if(/fokus|focus|merksatz|takeaway/.test(s))return'🎯';
-  if(/erhol|recover|belast|load|pause|rest/.test(s))return'🛌';
-  if(/ausbelast|inroad|effort|satz|quality|kurve|force/.test(s))return'🔥';
-  if(/kraft|strength/.test(s))return'📈';
-  if(/gesamt|overall|index|körper|body/.test(s))return'🧍';
-  if(/session|vorschlag|plan|next|einheit|empfehl/.test(s))return'🗓️';
-  if(/schulter|knie|einschränk|restrict|shoulder|knee|note|safety|sicher|grenzen|limits/.test(s))return'⚠️';
-  return'✨';}
-// Minimal markdown -> HTML for the coach board: headings, bullets, numbered lists, bold, inline
-// code, horizontal rules and GFM pipe TABLES (the plan / comparison / readiness tables).
-function mdToHtml(md){
-  const esc=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-  const inline=x=>esc(x).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');
-  let html="",inList=false,rows=[];
-  const closeList=()=>{if(inList){html+="</ul>";inList=false;}};
-  const cells=r=>r.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
-  const isSep=r=>/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r);
-  const flushTable=()=>{ if(!rows.length) return;
-    let head=null, body=rows;
-    if(rows.length>=2&&isSep(rows[1])){head=cells(rows[0]); body=rows.slice(2);}
-    body=body.filter(r=>!isSep(r));
-    let t='<div class="tablewrap"><table>';
-    if(head) t+='<thead><tr>'+head.map(c=>`<th>${inline(c)}</th>`).join('')+'</tr></thead>';
-    t+='<tbody>'+body.map(r=>'<tr>'+cells(r).map(c=>`<td>${inline(c)}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>';
-    html+=t; rows=[]; };
-  for(const raw of md.split(/\r?\n/)){
-    const line=raw.trim();
-    if(/^\|/.test(line)){closeList();rows.push(line);continue;} else flushTable();
-    if(!line){closeList();continue;} let m;
-    if(/^(-{3,}|\*{3,}|_{3,})$/.test(line)){closeList();html+="<hr>";}
-    else if(m=line.match(/^#{1,6}\s+(.*)/)){closeList();html+=`<h4>${mdEmoji(m[1])} ${inline(m[1])}</h4>`;}
-    else if(m=line.match(/^[-*•]\s+(.*)/)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${inline(m[1])}</li>`;}
-    else if(m=line.match(/^\d+[.)]\s+(.*)/)){if(!inList){html+="<ul>";inList=true;}html+=`<li>${inline(m[1])}</li>`;}
-    else{closeList();html+=`<p>${inline(line)}</p>`;}
-  }
-  flushTable(); closeList(); return html;
-}
-// A failed coach call explains itself (and offers a retry) instead of looking like a missing key.
-// Codes come from the server (arx_report.classify_ai_error); "app_offline" is set here.
+// =====================================================================================================
+// v0.5.0 - the AI coach INSIDE the chapters (structured board), its memory, and the live chat.
+// /api/report never calls the API: the board is a background job (start -> poll status). The plan rows
+// below are the ONE plan of record: the engine's rows, overlaid with what the coach changed (marked ✎)
+// after the server validated it; an invalid coach plan never gets here (plan_source = engine_fallback).
+// =====================================================================================================
 const AI_ERR={
   invalid_key:["Der API-Schlüssel wurde abgelehnt. Bitte unter ⚙ Einstellungen prüfen.","The API key was rejected. Please check it under ⚙ Settings."],
   no_credit:["Das API-Guthaben ist aufgebraucht (Anthropic Console → Billing).","The API credit is used up (Anthropic Console → Billing)."],
   forbidden:["Dieser API-Schlüssel darf das eingestellte Modell nicht nutzen.","This API key is not allowed to use the configured model."],
-  model_unavailable:["Das eingestellte KI-Modell ist nicht verfügbar. Modell in der config.json prüfen.","The configured AI model is not available. Check the model in config.json."],
-  bad_request:["Der KI-Dienst hat die Anfrage abgelehnt.","The AI service rejected the request."],
+  model_unavailable:["Das eingestellte KI-Modell ist nicht verfügbar. Modell unter ⚙ Einstellungen wechseln.","The configured AI model is not available. Switch the model under ⚙ Settings."],
+  bad_request:["Der KI-Dienst hat die Anfrage abgelehnt (bei Claude Fable: Datenaufbewahrung von 30 Tagen im Anthropic-Konto nötig).","The AI service rejected the request (Claude Fable needs 30-day data retention enabled in the Anthropic account)."],
   rate_limit:["Zu viele Anfragen in kurzer Zeit. Bitte in einer Minute erneut versuchen.","Too many requests. Please try again in a minute."],
   overloaded:["Der KI-Dienst ist gerade überlastet. Bitte gleich noch einmal versuchen.","The AI service is overloaded right now. Please try again shortly."],
   server_error:["Der KI-Dienst meldet einen Fehler. Bitte später erneut versuchen.","The AI service reports an error. Please try again later."],
@@ -1293,36 +1337,121 @@ const AI_ERR={
   timeout:["Der KI-Dienst hat zu lange gebraucht. Bitte erneut versuchen.","The AI service took too long. Please try again."],
   refusal:["Das Modell hat die Antwort abgelehnt.","The model declined to answer."],
   truncated:["Die Antwort wurde am Token-Limit abgeschnitten. Geringeren KI-Aufwand wählen.","The answer hit the token limit. Choose a lower AI effort."],
+  bad_answer:["Die Antwort des Modells war nicht lesbar. Bitte erneut versuchen.","The model's answer could not be read. Please try again."],
+  daily_limit:["Das Tageslimit für neue Coach-Analysen ist erreicht. Morgen geht es weiter.","The daily limit for new coach analyses is reached. It continues tomorrow."],
+  chat_limit:["Dieses Gespräch hat sein Fragenlimit erreicht - mit dem nächsten Report beginnt ein neues.","This conversation reached its question limit - a new one starts with the next report."],
+  chat_daily_limit:["Das Tageslimit für Fragen ist erreicht.","The daily limit for questions is reached."],
   sdk_missing:["Das Python-Paket „anthropic“ fehlt. Bitte „Install ARX Insight“ erneut ausführen.","The Python package 'anthropic' is missing. Please run 'Install ARX Insight' again."],
   app_offline:["Die App antwortet nicht. Läuft das ARX-Insight-Fenster noch?","The app does not answer. Is the ARX Insight window still running?"],
   unknown:["Die KI-Analyse ist fehlgeschlagen.","The AI analysis failed."]};
-function aiErrorHtml(err){const de=CFG.language==="de", m=AI_ERR[err.code]||AI_ERR.unknown;
-  return `<div class="placeholder"><b style="color:var(--warn)">⚠ ${de?'KI-Coach nicht verfügbar':'AI coach unavailable'}</b><br>${de?m[0]:m[1]}
-    ${err.message&&err.message!==err.code?`<br><span class="foot">${esc(err.message)}</span>`:''}
-    <br><br><span class="foot">${de?'Der Report links ist vollständig – er braucht die KI nicht.':'The report on the left is complete – it does not need the AI.'}</span>
-    <br><br><button class="btn ghost" onclick="retryAI()" style="font-size:17px;min-height:48px;padding:10px 16px">↻ ${de?'Erneut versuchen':'Try again'}</button></div>`;}
-function retryAI(){ if(!REPORT) return; REPORT.ai_error=null; REPORT.ai_narrative=null; autoLoadAI(); }
-function renderAISide(loading){
-  const box=$("#aibox"); if(!box) return; const de=CFG.language==="de";
-  if(SPIN_T){clearInterval(SPIN_T);SPIN_T=null;}
-  if(loading){
-    const lines=de?SPIN_DE:SPIN_EN; let i=0;
-    const paint=()=>{box.innerHTML=aiHeader()+`<div class="spin">${lines[i%lines.length]}</div>`;i++;};
-    paint(); SPIN_T=setInterval(paint,2600);
-    return;
-  }
-  if(REPORT.ai_narrative){ box.innerHTML=aiHeader()+`<div class="badge" style="margin-bottom:12px">${T().aitag}</div>`+mdToHtml(REPORT.ai_narrative); return; }
-  if(REPORT.ai_error){ box.innerHTML=aiHeader()+aiErrorHtml(REPORT.ai_error); return; }
-  box.innerHTML=aiHeader()+`<div class="placeholder">${de?'Für die automatische KI-Analyse und die Empfehlung zur nächsten Einheit fehlt ein Claude API-Schlüssel. Trage ihn unter ⚙ Einstellungen ein.':'An AI analysis and next-session recommendation need a Claude API key. Add it under ⚙ Settings.'}<br><br><a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">${de?'Schlüssel bei Anthropic holen ↗':'Get a key from Anthropic ↗'}</a></div>`;
+const aiErrText=err=>{const m=AI_ERR[(err||{}).code]||AI_ERR.unknown;return (CFG.language==="de"?m[0]:m[1]);};
+const coachWho=(extra)=>`<div class="who">🤖 Coach${extra?` <small>${extra}</small>`:''}</div>`;
+
+async function pollCoach(first){
+  clearTimeout(COACH_T); if(!CUR||!REPORT||REPORT.error) return;
+  let st; try{ st=await api("/api/coach/status?user_id="+CUR.id); }catch(e){ st={state:"error",error:{code:"app_offline"}}; }
+  if(st.state==="none"&&first&&AI.auto){ try{ st=await post("/api/coach/start",{user_id:CUR.id}); }catch(e){} }
+  COACH=st; renderCoach();
+  if(st.state==="running") COACH_T=setTimeout(()=>pollCoach(false),2500);
+  // deep link ...&chat=1 opens the conversation as soon as the board is there (kiosk, checks)
+  if(st.state==="done"&&!CHAT_LINKED&&new URLSearchParams(location.search).get("chat")==="1"){ CHAT_LINKED=true; openChat(); }
 }
-async function autoLoadAI(){
-  if(REPORT.ai_narrative){ renderAISide(); return; }
-  if(!HAS_KEY){ renderAISide(); return; }
-  renderAISide(true);
-  try{ const r=await api("/api/report?user_id="+CUR.id+"&ai=1"); REPORT.ai_narrative=r.ai_narrative||null;
-       REPORT.ai_error=r.ai_error||(r.error?{code:"unknown",message:r.detail||r.error}:null); }
-  catch(e){ REPORT.ai_narrative=null; REPORT.ai_error={code:"app_offline",message:""}; }
-  renderAISide();
+async function startCoach(){ COACH={state:"running"}; renderCoach(); try{ COACH=await post("/api/coach/start",{user_id:CUR.id}); }catch(e){ COACH={state:"error",error:{code:"app_offline"}}; } renderCoach(); if(COACH.state==="running") COACH_T=setTimeout(()=>pollCoach(false),2500); }
+
+function renderCoach(){
+  const de=CFG.language==="de", st=COACH||{state:"none"}, slots=["coach_last","coach_next","coach_hist","coach_focus"].map(id=>$("#"+id));
+  const put=(i,html)=>{ if(slots[i]) slots[i].innerHTML=html; };
+  $("#chatFab").style.display="none";
+  slots.forEach((s,i)=>put(i,""));
+  if(st.state==="no_key"){ put(0,`<div class="coach skel">${coachWho()}${de?'Der KI-Coach kommentiert jedes Kapitel, passt den Plan an und beantwortet Rückfragen - sobald unter ⚙ Einstellungen ein Anthropic-API-Schlüssel hinterlegt ist. Alle Zahlen, Auffälligkeiten und der Plan funktionieren auch ohne.':'The AI coach comments on every chapter, adjusts the plan and answers follow-up questions - once an Anthropic API key is stored under ⚙ Settings. All figures, findings and the plan work without it.'} <a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent)">${de?'Schlüssel holen ↗':'get a key ↗'}</a></div>`); return; }
+  if(st.state==="none"){ put(0,`<div class="coach skel">${coachWho()}${de?'Noch keine Coach-Analyse für diesen Datenstand.':'No coach analysis for this data state yet.'} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Coach fragen':'Ask the coach'}</button></div>`); return; }
+  if(st.state==="running"){ const sk=`<div class="coach skel">${coachWho(de?'denkt nach …':'thinking …')}<div class="bar" style="width:72%"></div><div class="bar" style="width:94%"></div><div class="bar" style="width:58%"></div></div>`; put(0,sk); put(1,sk); put(2,sk); return; }
+  if(st.state==="error"||st.state==="limit"){ put(0,`<div class="coach" style="border-left-color:var(--warn)">${coachWho(de?'nicht verfügbar':'unavailable')}<p>${esc(aiErrText(st.error))}</p>${st.error&&st.error.message&&st.error.code!=="daily_limit"?`<p class="foot">${esc(st.error.message)}</p>`:''}${st.state==="error"?`<button class="btn" style="min-height:44px;font-size:16px" onclick="startCoach()">${de?'Erneut versuchen':'Try again'}</button>`:''}<p class="foot" style="margin-top:8px">${de?'Der Report darunter ist vollständig - er braucht die KI nicht.':'The report below is complete - it does not need the AI.'}</p></div>`); return; }
+  const rec=st.record, b=rec.board||{}, meta=`${esc(rec.model||'')} · ${esc((rec.created||'').replace('T',' ').slice(0,16))}`;
+  // chapter 1 - last session
+  const L=b.last_session||{}, icon={better:"▲",same:"＝",worse:"▼",first:"★",not_comparable:"≠"}, icol={better:"var(--good)",worse:"var(--accent)"};
+  put(0,`<div class="coach">${coachWho(meta)}<h3>${esc(L.headline||'')}</h3><p>${esc(L.meaning||'')}</p><p class="then">→ ${esc(L.consequence||'')}</p>
+    ${(L.verdicts||[]).length?`<div class="verd">${L.verdicts.map(v=>`<div><b style="color:${icol[v.rating]||'var(--ink2)'}">${icon[v.rating]||'•'} ${esc(v.exercise)}</b> — ${esc(v.note)}</div>`).join("")}</div>`:''}
+    ${(L.bullets||[]).length?`<ul>${L.bullets.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}</div>`);
+  // chapter 2 - next training (texts here, the rows go into the plan of record below)
+  const N=b.next_training||{}, fb=rec.plan_source!=="coach";
+  const changed=(rec.changes||[]).length;
+  put(1,`<div class="coach">${coachWho(fb?(de?'Plan der Engine gilt':'engine plan applies'):(changed?`<span class="pen">✎</span> ${changed} ${de?'Anpassung(en), vom Regelwerk geprüft':'adjustment(s), rule-checked'}`:(de?'bestätigt den Plan':'confirms the plan')))}
+    <p>${esc(N.readiness||'')}</p><p class="then">${esc(N.why_date||'')}</p>
+    ${fb?`<p class="foot" style="color:var(--warn)">${de?'Der Plan-Vorschlag des Coachs hat die Regelprüfung nicht bestanden (':'The coach\'s plan did not pass the rule check ('}${esc((rec.problems||[]).map(x=>x.code).filter((v,i,a)=>a.indexOf(v)===i).join(', '))}) - ${de?'es gilt unverändert der Plan der Engine.':'the engine\'s plan applies unchanged.'}</p>`:''}
+    ${[N.rest_note,N.grip_note,N.week_outlook].filter(Boolean).length?`<ul>${[N.rest_note,N.grip_note,N.week_outlook].filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}
+    ${(N.changes_vs_previous||[]).length?`<p class="foot" style="margin-top:8px"><b>${de?'Geändert gegenüber meiner letzten Empfehlung':'Changed against my last recommendation'}:</b> ${N.changes_vs_previous.map(esc).join(' · ')}</p>`:''}
+    ${(rec.unverified||[]).length?`<p class="foot" style="color:var(--warn)">${de?'Hinweis: Diese Kraftwerte im Text stehen so nicht in deinen Daten':'Note: these force values in the text are not in your data'}: ${rec.unverified.map(esc).join(', ')}</p>`:''}</div>`);
+  overlayCoachPlan(rec); if($("#whyBox")) $("#whyBox").open=false;
+  // chapter 3 - history
+  const H=b.history||{};
+  put(2,`<div class="coach">${coachWho(meta)}<p>${esc(H.four_weeks||'')}</p>${H.longer_term?`<p>${esc(H.longer_term)}</p>`:''}
+    ${(H.kpi_notes||[]).length?`<div class="verd">${H.kpi_notes.map(k=>`<div><b>${esc(k.exercise)}</b> — ${esc(k.note)}</div>`).join("")}</div>`:''}
+    ${(H.anomalies||[]).length?`<ul>${H.anomalies.map(a=>`<li>${esc(a.meaning)}${a.action?` <b style="color:var(--ink)">→ ${esc(a.action)}</b>`:''}</li>`).join("")}</ul>`:''}</div>`);
+  // status strip: the ONE thing + what to remember at the machine
+  put(3,`<div class="coach" style="margin-top:10px">${coachWho(de?'Fokus':'focus')}<p class="then" style="font-size:20px">${esc(b.focus||'')}</p>
+    ${(b.key_recommendations||[]).length?`<ul>${b.key_recommendations.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}</div>`);
+  $("#chatFab").style.display="block"; $("#chatFab").textContent="💬 "+(de?"Coach fragen":"Ask the coach");
+}
+// the plan of record: engine rows in the coach's order, coach values where the server accepted a change (✎)
+function overlayCoachPlan(rec){
+  const box=$("#planRows"), ns=((REPORT.plan||{}).next_session); if(!box||!ns) return;
+  const de=CFG.language==="de", rows=((rec.board||{}).next_training||{}).rows||[];
+  if(rec.plan_source!=="coach"||!rows.length){ box.innerHTML=sessionRowsHtml(ns); return; }
+  const imp=CFG.units==="imperial", toKg=v=>v>0?(imp?v/2.20462:v):null;
+  const byName={}; ns.exercises.forEach(x=>byName[x.name.toLowerCase()]=x);
+  const changed=new Set((rec.changes||[]).map(c=>`${c.exercise}|${c.field}`));
+  const items=rows.map((r,i)=>{ const e=byName[String(r.exercise).toLowerCase()];
+    const meta=(REPORT.exercises||[]).find(x=>x.name.toLowerCase()===String(r.exercise).toLowerCase())||{};
+    const base=e?{...e}:{name:r.exercise,group:meta.group||"?",new:!meta.name,status:"ready",limited_by:[],restriction:meta.restriction||"ok",why_selected:[],order_rules:[],evidence:[],settings:null,benchmark:false,aid:null,aid_hint:null};
+    return {...base,order:i+1,sets:r.sets,target_peak_kg:toKg(r.target),rest_before_min:r.rest_before_min,
+      effort_target:{label:r.effort,inroad_min:{deep:20,moderate:10,submax:0}[r.effort]},step_pct:0,
+      coach:{cue:r.cue,why:r.why,tempo:r.tempo,pen:{target:changed.has(`${base.name}|target`),sets:changed.has(`${base.name}|sets`),rest:changed.has(`${base.name}|rest_before_min`),effort:changed.has(`${base.name}|effort`),added:changed.has(`${base.name}|added`)}}}; });
+  const date=((rec.board||{}).next_training||{}).date, moved=date&&date!==ns.date;
+  box.innerHTML=(moved?`<div class="interp warn"><span class="pen">✎</span> ${de?'Der Coach legt die Einheit auf':'The coach moves the session to'} <b>${dShort(date)}</b>.</div>`:'')+sessionRowsHtml({...ns,exercises:items});
+}
+
+// ---- chat: questions about THIS report; answers stream into a buffer on the server, the page polls ----
+let CHAT_BUSY=false, CHAT_LINKED=false;
+function chatBubble(cls,text){ const d=document.createElement("div"); d.className="msg "+cls; d.textContent=text; $("#chatLog").appendChild(d); $("#chatLog").scrollTop=1e9; return d; }
+async function openChat(){
+  const de=CFG.language==="de"; if(!COACH||COACH.state!=="done"){ if($("#ch1")) $("#ch1").scrollIntoView(); return; }
+  $("#chat").classList.add("open"); $("#chat_h").textContent=de?"Frag den Coach":"Ask the coach";
+  $("#chatText").placeholder=de?"Frage zu diesem Report … (deine Daten bleiben namenlos)":"A question about this report … (your data stays name-free)";
+  $("#chatLog").innerHTML="";
+  let h={turns:[],left:0,suggested:[]}; try{ h=await api("/api/chat/history?user_id="+CUR.id); }catch(e){}
+  if(!h.turns.length) chatBubble("a",de?"Ich kenne deinen Report, den Plan und was ich dir zuletzt empfohlen habe. Was möchtest du wissen?":"I know your report, the plan and what I recommended last time. What would you like to know?");
+  h.turns.forEach(x=>{chatBubble("q",x.q);chatBubble("a",x.a);});
+  $("#chatLeft").textContent=h.left!=null?`${h.left} ${de?'Fragen frei':'questions left'}`:"";
+  $("#chatSug").innerHTML=(h.suggested||[]).map(q=>`<button type="button">${esc(q)}</button>`).join("");
+  $("#chatText").focus();
+}
+$("#chatFab").addEventListener("click",openChat);
+$("#chatClose").addEventListener("click",()=>$("#chat").classList.remove("open"));
+$("#chatSug").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;$("#chatText").value=b.textContent;sendChat();});
+$("#chatForm").addEventListener("submit",e=>{e.preventDefault();sendChat();});
+$("#chatText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendChat(); } });
+async function sendChat(){
+  const text=$("#chatText").value.trim(); if(!text||CHAT_BUSY) return; CHAT_BUSY=true;
+  const de=CFG.language==="de", id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  $("#chatText").value=""; $("#chatSug").innerHTML=""; chatBubble("q",text); const out=chatBubble("a","…");
+  let res; try{ res=await fetch("/api/chat/send",{method:"POST",headers:{...HDR,"content-type":"application/json"},body:JSON.stringify({user_id:CUR.id,text,client_msg_id:id})}).then(r=>r.json()); }catch(e){ res={error:"app_offline"}; }
+  if(!res||res.error){ out.className="msg err"; out.textContent=aiErrText({code:res&&res.error}); CHAT_BUSY=false; return; }
+  let got="";
+  const tick=async()=>{ let p; try{ p=await api(`/api/chat/poll?user_id=${CUR.id}&turn=${res.turn}&from=${got.length}`); }catch(e){ setTimeout(tick,1500); return; }   // a locked phone just resumes
+    if(p.text){ got+=p.text; out.textContent=got; $("#chatLog").scrollTop=1e9; }
+    if(p.state==="running"||p.state==="unknown"&&!got){ setTimeout(tick,700); return; }
+    if(p.state==="error"){ out.className="msg err"; out.textContent=aiErrText(p.error); }
+    CHAT_BUSY=false; };
+  tick();
+}
+// ---- the evidence behind the defaults (science.json), on demand ----
+async function loadScience(){ const de=CFG.language==="de", box=$("#sciBody"); if(!box) return;
+  let s; try{ s=await api("/api/science"); }catch(e){ box.textContent="—"; return; }
+  box.innerHTML=`<p>${de?'Kuratierte Literatur, Stand':'Curated literature, reviewed'} ${esc(s.reviewed||'')}. ${de?'Deine eigenen Messdaten haben immer Vorrang vor diesen Richtwerten.':'Your own measured data always outranks these defaults.'}</p>`+
+    Object.entries(s.topics||{}).map(([k,t])=>`<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--ink2)">${esc(t.title)} <small>(${esc(t.evidence_level)} · ${t.references.length})</small></summary>
+      <p style="margin:6px 0"><b style="color:var(--ink)">${esc(t.practical_rule)}</b></p><p style="margin:6px 0">${esc(t.applied_as)}</p>${t.arx_caveat?`<p style="margin:6px 0;color:var(--warn)">${esc(t.arx_caveat)}</p>`:''}
+      <ul style="margin:6px 0;padding-left:18px">${t.references.map(x=>`<li>${esc(x.authors)} (${x.year}). ${esc(x.title)}. <i>${esc(x.journal)}</i>.${x.doi?` <a href="https://doi.org/${encodeURI(x.doi)}" target="_blank" rel="noopener" style="color:var(--accent)">doi</a>`:''}</li>`).join("")}</ul></details>`).join("");
 }
 </script>
 </body>

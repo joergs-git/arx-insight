@@ -68,6 +68,16 @@ class Payload(unittest.TestCase):
         self.assertIn("effort_cap", p["planner"]["decision_space"])
         self.assertEqual(p["previous_recommendations"], [])
 
+    def test_the_coach_is_told_that_a_muscle_needs_its_weekly_stimulus(self):
+        report, cfg = make(sessions_per_week=1, structure="split")
+        planner_block = ai.build_payload(report, cfg)["planner"]
+        self.assertIn("Ganzkörper" if cfg["language"] == "de" else "full body", planner_block["structure_note"])
+        self.assertTrue(planner_block["dose_note"])                       # muscle goal at one session a week
+        self.assertEqual(planner_block["frequency_warnings"], [])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn("at least about once a week", prompt)
+        self.assertIn("never recommend alternating muscle groups at one session a week", prompt)
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)

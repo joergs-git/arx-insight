@@ -1129,5 +1129,55 @@
    "en": "Order, targets and rests are planned for exactly that; afterwards the plan continues automatically.",
    "de": "Reihenfolge, Ziele und Pausen sind genau dafür geplant; danach plant die App wieder automatisch."
   }
+ },
+ "sel_cover_group": {
+  "meaning": {
+   "en": "Full-body session: one big exercise for {groups} comes first.",
+   "de": "Ganzkörper-Einheit: Eine große Übung für {groups} kommt zuerst."
+  },
+  "action": {
+   "en": "With few sessions a week this is what keeps every muscle at a weekly stimulus - small exercises only fill what is left.",
+   "de": "Bei wenigen Einheiten pro Woche hält genau das jeden Muskel bei einem wöchentlichen Reiz - kleine Übungen füllen nur auf, was übrig ist."
+  }
+ },
+ "freq_gap": {
+  "meaning": {
+   "en": "{region}: about {days} days between two training stimuli in this plan.",
+   "de": "{region}: etwa {days} Tage zwischen zwei Trainingsreizen in diesem Plan."
+  },
+  "action": {
+   "en": "More than about {limit} days is too rare to grow - once a week is the lowest frequency with evidence for gains. A big exercise that includes it, fewer different exercises or a second weekly session close the gap.",
+   "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum - einmal pro Woche ist die niedrigste Frequenz mit belegten Zuwächsen. Eine große Übung, die sie mittrainiert, weniger verschiedene Übungen oder eine zweite Wocheneinheit schließen die Lücke."
+  }
+ },
+ "freq_gap_open": {
+  "meaning": {
+   "en": "{region}: no training stimulus planned for at least {days} days.",
+   "de": "{region}: seit mindestens {days} Tagen ist kein Trainingsreiz geplant."
+  },
+  "action": {
+   "en": "More than about {limit} days is too rare to grow. Give the region a slot - or take it out of the programme on purpose (region focus 'less' or 'off').",
+   "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum. Gib der Region einen Platz - oder nimm sie bewusst aus dem Programm (Regionen-Fokus 'weniger' oder 'aus')."
+  }
+ },
+ "dose_one_session_growth": {
+  "meaning": {
+   "en": "One session a week: strength gains at this dose are well documented (about +30-50 % in the first year in a large data set) - muscle growth less so.",
+   "de": "Eine Einheit pro Woche: Kraftzuwächse sind bei dieser Dosis gut belegt (etwa +30-50 % im ersten Jahr in einem großen Datensatz) - Muskelwachstum weniger."
+  },
+  "action": {
+   "en": "For muscle size the evidence points to more weekly sets per muscle (about 4). The biggest lever is a second short session; the app then still plans full body.",
+   "de": "Für Muskelmasse spricht die Studienlage für mehr Wochensätze je Muskel (etwa 4). Der größte Hebel ist eine zweite kurze Einheit; die App plant dann weiterhin Ganzkörper."
+  }
+ },
+ "structure_split_too_rare": {
+  "meaning": {
+   "en": "With {spw} session a week a split would train each muscle only every two to three weeks.",
+   "de": "Mit {spw} Einheit pro Woche würde ein Split jeden Muskel nur alle zwei bis drei Wochen trainieren."
+  },
+  "action": {
+   "en": "That is too rare to grow (about {limit} days is the limit), so every session is planned as full body. A split makes sense from two, better three sessions a week.",
+   "de": "Das ist zu selten für Wachstum (etwa {limit} Tage sind die Grenze), deshalb wird jede Einheit als Ganzkörper geplant. Ein Split lohnt sich ab zwei, besser drei Einheiten pro Woche."
+  }
  }
 }

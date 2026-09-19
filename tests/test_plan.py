@@ -178,6 +178,32 @@ class What(unittest.TestCase):
         self.assertIsNone(used_up["profile"]["next_groups"])                # a session came after the choice
         self.assertGreater(len({it["group"] for it in used_up["next_session"]["exercises"]}), 1)
 
+    def test_one_session_a_week_is_always_full_body_with_a_big_exercise_per_group(self):
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN, PULLDOWN], days=(1, 8, 15))
+        plan = report(rows, "2026-09-18", sessions_per_week=1, structure="split", session_minutes=25)["plan"]
+        sess = plan["next_session"]
+        self.assertEqual(sess["session_type"], "full_body")               # a split once a week = every muscle every 2-3 weeks
+        self.assertEqual(plan["structure_note"]["code"], "structure_split_too_rare")
+        groups = {it["group"] for it in sess["exercises"] if it["kind"] == "compound"}
+        self.assertEqual(groups, {"Push", "Pull", "Drive"})
+        self.assertIn("sel_cover_group", [w["code"] for it in sess["exercises"] for w in it["why_selected"]])
+        self.assertEqual(plan["dose_note"]["code"], "dose_one_session_growth")          # muscle goal, one session: said openly
+        two = report(rows, "2026-09-18", sessions_per_week=2, structure="split", session_minutes=25)["plan"]
+        self.assertIsNone(two["structure_note"])
+        self.assertIsNone(two["dose_note"])
+
+    def test_a_muscle_that_would_wait_too_long_is_flagged(self):
+        rows = history([ROW, PRESS, SQUAT, CURL], days=(1, 8, 15))
+        choice = {"groups": ["Push"], "set_at": "2026-09-15 18:00:00"}                   # only push next time, once a week
+        plan = report(rows, "2026-09-18", sessions_per_week=1, next_groups=choice)["plan"]
+        flagged = {n["region"]: n["days"] for n in plan["frequency_notes"]}
+        self.assertTrue(flagged and all(d > planner.MAX_MUSCLE_GAP_DAYS for d in flagged.values()), flagged)
+        self.assertIn("legs", flagged)                                    # the legs get nothing for far more than a week
+        self.assertIn("back", flagged)
+        self.assertNotIn("chest", flagged)
+        fine = report(history([ROW, PRESS, SQUAT]), "2026-09-16", sessions_per_week=2)["plan"]
+        self.assertEqual(fine["frequency_notes"], [])
+
     def test_the_week_plan_never_takes_a_worse_date_to_fill_the_horizon(self):
         week = report(history([ROW, PRESS, SQUAT]), "2026-09-16", sessions_per_week=1)["plan"]["week_plan"]
         gaps = [(date.fromisoformat(b["date"]) - date.fromisoformat(a["date"])).days for a, b in zip(week, week[1:])]

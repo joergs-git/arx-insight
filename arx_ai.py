@@ -36,7 +36,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -240,6 +240,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
             "week_outlook": [{"date": w["date"], "type": w["session_type"], "exercises": w["exercises"], "fresh_benchmark": w.get("benchmark")}
                              for w in plan.get("week_plan", [])],
             "cadence_note": _text(plan.get("cadence_note")),
+            # no trained muscle may wait longer than about a week: what the engine flags, and what one weekly session buys
+            "frequency_warnings": [_text(n) for n in plan.get("frequency_notes") or []],
+            "dose_note": _text(plan.get("dose_note")), "structure_note": _text(plan.get("structure_note")),
             "session_possible_today_instead": [x["name"] for x in (plan.get("today_session") or {}).get("exercises", [])] or None,
         }
 
@@ -365,8 +368,9 @@ HOW TO JUDGE - non-negotiable:
 3. Never invent numbers. Every force, percentage, date, count or minute you write must be in the payload (rounding is fine). If something is not there, say so in words.
 4. Safety first: restrictions (careful / avoid), pain today, the minors guard and a poor check-in outrank progress. You are not a doctor: no diagnosis, no medical advice.
 5. Minimum effective dose: the athlete's time is part of the goal. Never add volume "to be safe"; respect the chosen time-vs-effort profile (you may recommend another one when intent and delivered effort diverge - with its price in time).
-6. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
-7. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
+6. Frequency is a floor: a muscle needs a training stimulus at least about once a week to grow. One session a week therefore means full body with the big push, pull and leg exercises; a split only makes sense from two, better three sessions a week. If planner.frequency_warnings names a muscle, or your own change would leave a trained muscle without a stimulus for more than about 8 days, say so and fix it - never recommend alternating muscle groups at one session a week.
+7. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
+8. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}
