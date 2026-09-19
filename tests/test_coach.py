@@ -140,6 +140,26 @@ class Payload(unittest.TestCase):
         self.assertIn("minutes per session decide how many exercises are planned", ai.system_prompt("chat")[0]["text"])
         self.assertGreaterEqual(ai.PROMPT_VERSION, 5)
 
+    def test_the_coach_knows_todays_time_window_and_cannot_blow_it(self):
+        day = "2026-09-20"                                                   # the engine plans this day; the athlete has 15 minutes
+        report, cfg = make(today=day, checkin={"date": day, "minutes": 15})
+        p = ai.build_payload(report, cfg)
+        sess = report["plan"]["next_session"]
+        self.assertEqual(sess["date"], day)
+        self.assertEqual(p["readiness_today"]["minutes_available_today"], 15)
+        tw = p["planner"]["proposal"]["time_window"]
+        self.assertEqual((tw["minutes"], tw["exercises_kept"]), (15, len(sess["exercises"])))
+        self.assertTrue(tw["left_out_for_next_time"] and tw["engine_says"])
+        self.assertLessEqual(p["planner"]["decision_space"]["bounds"]["rows_max"], len(sess["exercises"]) + 1)
+        self.assertEqual(ai.lint_payload(p), [])
+        free = ai.build_payload(*make(today=day))
+        self.assertIsNone(free["readiness_today"]["minutes_available_today"])
+        self.assertIsNone(free["planner"]["proposal"]["time_window"])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn("minutes_available_today", prompt)
+        self.assertIn("never add rows or sets beyond it", prompt)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 6)
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)
