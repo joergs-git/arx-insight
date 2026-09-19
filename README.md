@@ -129,7 +129,7 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 | `web/vendor/qrcode.js` | QR Code Generator by Kazuhiko Arase (MIT licence, unchanged from npm `qrcode-generator` 1.4.4) — draws the codes in the browser, nothing is sent anywhere |
 | `windows/firewall.ps1` | On demand only (button in the Phone dialog, UAC prompt): one inbound rule for the app's ports, local subnet, private networks |
 | `arx_update.py` | One-click update: downloads the release ZIP from this GitHub page, checks it (newer version, expected files, no path outside the target), unpacks it next to your settings and runs its installer — only after a click on the PC itself |
-| `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids, plus a small library of exercises nobody has mapped yet |
+| `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids (17 exercises mapped since v0.6.2; `_library` holds exercises whose code is not known yet - currently none) |
 | `meanings.json` | The "what it means → what to do" sentences for every code (English / German) |
 | `science.json` | The evidence behind the planner's defaults, with verified references |
 | `config.json`, `goals.json`, `plans.json`, `access.json`, `ai/` | Your settings, per-person profiles / check-ins / optional body log, the plan ledger, the phone codes, and the coach's delivered boards + chat transcripts (kept **out** of git, in your data folder) |
