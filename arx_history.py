@@ -462,9 +462,12 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
                       "interp": item(code or f"finding_{ftype}", params, cfg)})
 
     by_name = {e["name"]: e for e in exercises}
+    # exercises switched off in the profile: what happened in the last session stays a fact, but nothing that
+    # looks ahead (progress status, range drift, order / repeat effects) is said about them any more
+    off = {e["name"] for e in exercises if e.get("excluded")}
     # range of motion drifted (not for a deliberately shortened range of a restricted exercise)
     for e in exercises:
-        if e["n"] >= 2 and not e["rom_stable"] and not e.get("restricted"):
+        if e["n"] >= 2 and not e["rom_stable"] and not e.get("restricted") and e["name"] not in off:
             latest_bad = not e["occ"][-1]["rom_valid"]
             add("rom_drift", "warn" if latest_bad else "info",
                 {"ref_cm": e["rom_cm_reference"], "latest_cm": e["rom_cm_latest"], "drift_spct": e["rom_drift_pct"],
@@ -472,6 +475,8 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
     # progress statuses worth a word
     for r in progress["exercises"]:
         p = r["interp"]["params"]
+        if r["name"] in off:
+            continue
         if r["status"] in ("regressing", "regressing_context", "plateau"):
             add(r["status"], "warn" if r["status"] == "regressing" else "info", p, exercise=r["name"],
                 day=r.get("latest_date"), n=r["n"], code=r["interp"]["code"])
@@ -483,10 +488,14 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
             add("pb", "good", {"best_kg": e["pb_comparable"], "n": e["trend_n"]}, exercise=e["name"], day=e["last_date"], n=e["trend_n"])
     # the athlete's own measured order / repeat effects
     for p in ev.get("pair_effects", []):
+        if p["before"] in off or p["then"] in off:
+            continue
         if p["n"] >= ORDER_EFFECT_N and p["loss_pct"] >= ORDER_EFFECT_PCT:
             add("order_effect", "warn", {"before": p["before"], "then": p["then"], "loss_pct": p["observed_loss_pct"], "n": p["n"]},
                 exercise=p["then"], day=p["observations"][-1]["date"], n=p["n"], conf=p["confidence"])
     for p in ev.get("repeat_effects", []):
+        if p["exercise"] in off:
+            continue
         if p["n"] >= ORDER_EFFECT_N and p["observed_loss_pct"] >= REPEAT_EFFECT_PCT:
             add("repeat_effect", "info", {"exercise": p["exercise"], "loss_pct": p["observed_loss_pct"], "n": p["n"]},
                 exercise=p["exercise"], day=p["observations"][-1]["date"], n=p["n"], conf=p["confidence"])
@@ -542,10 +551,11 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
         for m, role in _muscle_roles(s, catalog).items():
             if role == "target":
                 last_target[m] = max(last_target.get(m, ""), s["date"][:10])
-    external = set((cfg or {}).get("_external") or [])    # trained outside the ARX (profile: exercises switched off as "elsewhere")
+    # not the plan's business any more: trained outside the ARX, or every exercise for it was switched off
+    out_of_plan = set((cfg or {}).get("_out_of_plan") or (cfg or {}).get("_external") or [])
     for m, d in sorted(last_target.items()):
         gap = (today - date.fromisoformat(d)).days
-        if gap > NEGLECTED_DAYS and m not in external:
+        if gap > NEGLECTED_DAYS and m not in out_of_plan:
             add("neglected_muscle", "info", {"muscle": m, "days": gap, "last_date": d}, muscle=m, day=d, n=gap)
 
     def score(f):

@@ -1,43 +1,72 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <!-- ARX Insight banner (v0.7.1): measure -> plan -> track -> coach. Every number in it is invented. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#1B1E24"/><stop offset="1" stop-color="#0F1115"/>
-    </linearGradient>
-    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FF6A52" stop-opacity="0.30"/><stop offset="1" stop-color="#FF6A52" stop-opacity="0.02"/>
     </linearGradient>
   </defs>
 
   <rect width="1200" height="460" fill="url(#bg)"/>
   <rect x="0" y="0" width="1200" height="6" fill="#FF6A52"/>
 
-  <!-- wordmark -->
-  <text x="64" y="118" fill="#FF7A64" font-size="20" font-weight="700" letter-spacing="8">ARX INSIGHT</text>
-  <text x="62" y="196" fill="#F0EEE9" font-size="76" font-weight="800" letter-spacing="-1">Your ARX data,</text>
-  <text x="62" y="270" fill="#F0EEE9" font-size="76" font-weight="800" letter-spacing="-1">finally readable.</text>
-  <text x="64" y="322" fill="#B3B8C1" font-size="24">Local, private strength analytics for the ARX adaptive-resistance machine.</text>
+  <!-- wordmark + claim -->
+  <text x="64" y="100" fill="#FF7A64" font-size="20" font-weight="700" letter-spacing="8">ARX INSIGHT</text>
+  <text x="62" y="170" fill="#F0EEE9" font-size="62" font-weight="800" letter-spacing="-1">Your data-driven</text>
+  <text x="62" y="238" fill="#F0EEE9" font-size="62" font-weight="800" letter-spacing="-1">strength coach.</text>
+  <text fill="#B3B8C1" font-size="20">
+    <tspan x="64" y="286">Reads every rep off your ARX machine, builds the next</tspan>
+    <tspan x="64" y="314">session from your own data - day, exercises, order,</tspan>
+    <tspan x="64" y="342">targets - and checks what came of it. Local and private.</tspan>
+  </text>
 
-  <!-- group chips -->
-  <g font-size="17" font-weight="700" letter-spacing="1">
-    <rect x="64" y="356" width="92" height="38" rx="6" fill="#C9552F"/><text x="110" y="381" fill="#fff" text-anchor="middle">DRIVE</text>
-    <rect x="166" y="356" width="82" height="38" rx="6" fill="#3E86A8"/><text x="207" y="381" fill="#fff" text-anchor="middle">PUSH</text>
-    <rect x="258" y="356" width="82" height="38" rx="6" fill="#5E9138"/><text x="299" y="381" fill="#fff" text-anchor="middle">PULL</text>
+  <!-- what it does, in its order -->
+  <g font-size="16" font-weight="700" letter-spacing="1.5">
+    <rect x="64" y="384" width="124" height="36" rx="6" fill="#3B82F6"/><text x="126.0" y="408" fill="#fff" text-anchor="middle">MEASURE</text>
+    <path d="M197,395 L204,402 L197,409" fill="none" stroke="#7D828C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="214" y="384" width="88" height="36" rx="6" fill="#FF6A52"/><text x="258.0" y="408" fill="#fff" text-anchor="middle">PLAN</text>
+    <path d="M311,395 L318,402 L311,409" fill="none" stroke="#7D828C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="328" y="384" width="98" height="36" rx="6" fill="#3FC6AE"/><text x="377.0" y="408" fill="#0F1115" text-anchor="middle">TRACK</text>
+    <path d="M435,395 L442,402 L435,409" fill="none" stroke="#7D828C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="452" y="384" width="128" height="36" rx="6" fill="#B18BEA"/><text x="516.0" y="408" fill="#0F1115" text-anchor="middle">AI COACH</text>
   </g>
 
-  <!-- stylized force curve -->
-  <g transform="translate(690,150)">
-    <rect x="-20" y="-40" width="500" height="250" rx="10" fill="#14161B" stroke="#2B2F38" stroke-width="2"/>
-    <text x="0" y="-8" fill="#7D828C" font-size="15" font-weight="700" letter-spacing="2">FORCE CURVE  ·  PEAK 167 kg</text>
-    <!-- gridlines -->
-    <line x1="0" y1="30" x2="460" y2="30" stroke="#23272F" stroke-width="1.5"/>
-    <line x1="0" y1="90" x2="460" y2="90" stroke="#23272F" stroke-width="1.5"/>
-    <line x1="0" y1="150" x2="460" y2="150" stroke="#23272F" stroke-width="1.5"/>
-    <!-- area + line: a rising then working curve -->
-    <path d="M0,150 L40,120 L80,70 L120,95 L160,55 L200,80 L240,45 L280,70 L320,40 L360,62 L400,35 L440,58 L440,150 L0,150 Z" fill="url(#fill)"/>
-    <path d="M0,150 L40,120 L80,70 L120,95 L160,55 L200,80 L240,45 L280,70 L320,40 L360,62 L400,35 L440,58" fill="none" stroke="#FF6A52" stroke-width="3.5" stroke-linejoin="round"/>
-    <!-- rep peak dots -->
-    <g fill="#14161B" stroke="#B3B8C1" stroke-width="2.5">
-      <circle cx="80" cy="70" r="5"/><circle cx="160" cy="55" r="5"/><circle cx="240" cy="45" r="5"/><circle cx="320" cy="40" r="5"/><circle cx="400" cy="35" r="5"/>
+  <!-- 1 the last session: every rep, concentric blue / eccentric red, the previous set as a ghost -->
+  <g>
+    <rect x="690" y="52" width="450" height="176" rx="10" fill="#14161B" stroke="#2B2F38" stroke-width="2"/>
+    <text x="712" y="82" fill="#7D828C" font-size="14" font-weight="700" letter-spacing="2">LAST SESSION  ·  ROW  ·  EVERY REP</text>
+    <line x1="712" y1="194" x2="1118" y2="194" stroke="#23272F" stroke-width="1.5"/>
+    <line x1="712" y1="164" x2="1118" y2="164" stroke="#23272F" stroke-width="1.5"/>
+    <line x1="712" y1="134" x2="1118" y2="134" stroke="#23272F" stroke-width="1.5"/>
+    <line x1="712" y1="104" x2="1118" y2="104" stroke="#23272F" stroke-width="1.5"/>
+    <path d="M720,145 L748,148 L756,117 L784,121 L800,146 L828,149 L836,118 L864,122 L880,149 L908,152 L916,122 L944,126 L960,153 L988,156 L996,127 L1024,131 L1040,158 L1068,161 L1076,134 L1104,138" fill="none" stroke="#7D828C" stroke-width="2" stroke-dasharray="5 6" stroke-linejoin="round"/>
+    <path d="M712,176 L720,138 L748,141" fill="none" stroke="#3B82F6" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M748,141 L756,108 L784,112 L792,145" fill="none" stroke="#F0483E" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M792,145 L800,139 L828,142" fill="none" stroke="#3B82F6" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M828,142 L836,109 L864,113 L872,148" fill="none" stroke="#F0483E" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M872,148 L880,142 L908,145" fill="none" stroke="#3B82F6" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M908,145 L916,113 L944,117 L952,152" fill="none" stroke="#F0483E" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M952,152 L960,146 L988,149" fill="none" stroke="#3B82F6" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M988,149 L996,118 L1024,122 L1032,157" fill="none" stroke="#F0483E" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M1032,157 L1040,151 L1068,154" fill="none" stroke="#3B82F6" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M1068,154 L1076,125 L1104,129 L1112,170" fill="none" stroke="#F0483E" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <g font-size="12" font-weight="700" letter-spacing="0.5">
+      <rect x="712" y="209" width="10" height="10" rx="2" fill="#3B82F6"/><text x="728" y="219" fill="#B3B8C1">CONCENTRIC</text>
+      <rect x="830" y="209" width="10" height="10" rx="2" fill="#F0483E"/><text x="846" y="219" fill="#B3B8C1">ECCENTRIC</text>
+      <line x1="948" y1="214" x2="972" y2="214" stroke="#7D828C" stroke-width="2" stroke-dasharray="5 6"/><text x="980" y="219" fill="#B3B8C1">LAST TIME</text>
     </g>
+  </g>
+
+  <!-- 2 the next training: the ONE plan -->
+  <g>
+    <rect x="690" y="246" width="450" height="182" rx="10" fill="#14161B" stroke="#2B2F38" stroke-width="2"/>
+    <text x="712" y="276" fill="#7D828C" font-size="14" font-weight="700" letter-spacing="2">NEXT TRAINING  ·  SATURDAY  ·  25 MIN</text>
+    <text x="712" y="308" fill="#FF6A52" font-size="16" font-weight="700">1</text><text x="736" y="308" fill="#F0EEE9" font-size="16" font-weight="600">Pull Down</text><text x="1118" y="308" fill="#B3B8C1" font-size="15" text-anchor="end">fresh measurement</text>
+    <circle cx="970" cy="303" r="6" fill="none" stroke="#3FC6AE" stroke-width="2"/><circle cx="970" cy="303" r="2" fill="#3FC6AE"/>
+    <text x="712" y="334" fill="#FF6A52" font-size="16" font-weight="700">2</text><text x="736" y="334" fill="#F0EEE9" font-size="16" font-weight="600">Horizontal Press</text><text x="1118" y="334" fill="#B3B8C1" font-size="15" text-anchor="end">96 kg · deep</text>
+    <text x="712" y="360" fill="#FF6A52" font-size="16" font-weight="700">3</text><text x="736" y="360" fill="#F0EEE9" font-size="16" font-weight="600">Dead Lift</text><text x="1118" y="360" fill="#B3B8C1" font-size="15" text-anchor="end">effort before force</text>
+    <text x="712" y="386" fill="#FF6A52" font-size="16" font-weight="700">4</text><text x="736" y="386" fill="#F0EEE9" font-size="16" font-weight="600">Triceps Pressdown</text><text x="1118" y="386" fill="#B3B8C1" font-size="15" text-anchor="end">34 kg</text>
+    <line x1="712" y1="392" x2="1118" y2="392" stroke="#23272F" stroke-width="1.5"/>
+    <path d="M715,411 L719,415 L726,406" fill="none" stroke="#3FC6AE" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="736" y="416" fill="#3FC6AE" font-size="14" font-weight="700" letter-spacing="0.5">last plan: 4 of 4 done  ·  3 of 3 targets met</text>
   </g>
 </svg>

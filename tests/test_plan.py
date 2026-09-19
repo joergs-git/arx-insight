@@ -642,6 +642,53 @@ class Excluded(unittest.TestCase):
         self.assertIn("Lateral Raise", gap(unwanted["plan"]))               # not wanted: the muscles stay the plan's business
         self.assertIn("elbow_flexors", neglected(unwanted))
 
+    def test_a_switched_off_exercise_leaves_no_trace_in_the_plan(self):
+        """Owner's rule (v0.7.1): what is switched off has no significance whatsoever. The reference is a
+        catalog that never contained the exercise: 'not for me' must give the very same report; 'elsewhere'
+        may only ever REMOVE a suggestion (its muscles count as covered), never add one."""
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT])
+        without = {c: m for c, m in BIG.items() if c not in ("41", "14")}               # no High Pull, no Calf Raise
+
+        def clean(r):
+            r = json.loads(json.dumps(r, default=str))
+            r.pop("generated", None)
+            r["plan"].pop("excluded", None)
+            return r
+        ref = clean(report(rows, "2026-09-18", session_minutes=30, _catalog=without))
+        off = clean(report(rows, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"41": "unwanted", "14": "unwanted"}))
+        self.assertEqual(off, ref)
+        away = clean(report(rows, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"41": "elsewhere", "14": "elsewhere"}))
+        offered = lambda r: [{c["name"] for c in d["candidates"]} for d in r["plan"]["decision_space"]["dates"]]
+        self.assertEqual([d["date"] for d in away["plan"]["decision_space"]["dates"]], [d["date"] for d in ref["plan"]["decision_space"]["dates"]])
+        for a, b in zip(offered(away), offered(ref)):
+            self.assertLessEqual(a, b)                                     # upper back + shoulders elsewhere: fewer ideas, never more
+        self.assertLessEqual({a["name"] for a in away["plan"]["next_session"]["alternatives"]},
+                             {a["name"] for a in ref["plan"]["next_session"]["alternatives"]})
+        self.assertNotIn("Overhead Press", {n for s_ in offered(away) for n in s_})          # the shoulders are trained elsewhere
+
+    def test_an_exercise_with_a_history_goes_quiet_when_it_is_switched_off(self):
+        rows = history([ROW, PRESS, SQUAT, CURL], factors=[1.0, 0.97, 0.94, 0.91, 0.88]) \
+            + session(datetime(2026, 8, 25, 10), [PRESSDOWN], first_id=900)             # triceps: only long ago
+        plain = report(rows, "2026-09-16")
+        about = lambda r, name: [f["type"] for f in r["history"]["findings"]["all"] if f.get("exercise") == name]
+        self.assertTrue(about(plain, "Biceps Curl"))                       # falling numbers are worth a finding ...
+        self.assertIn("Biceps Curl", [x["name"] for x in plain["load"]["recovery"]["exercises"]])
+        for reason in planner.EXCLUDE_REASONS:
+            r = report(rows, "2026-09-16", excluded_exercises={"11": reason, "12": reason})
+            self.assertEqual(about(r, "Biceps Curl"), [], reason)          # ... until the athlete switches it off
+            quiet = {"Biceps Curl", "Triceps Pressdown"}
+            rec = r["load"]["recovery"]
+            self.assertFalse(quiet & {x["name"] for x in rec["exercises"]})
+            self.assertFalse(quiet & (set(rec["ready_today"]) | {x["name"] for x in rec["limited_today"]} | {x["name"] for x in rec["not_ready"]}))
+            self.assertFalse(quiet & {x["name"] for x in r["coach"]["exercises"]})
+            self.assertFalse(quiet & {x["name"] for x in (r["coach"].get("deload") or {}).get("declining", [])})
+            self.assertFalse(quiet & set(r["evidence"].get("never_fresh") or []))
+            neglected = {f["muscle"] for f in r["history"]["findings"]["all"] if f["type"] == "neglected_muscle"}
+            self.assertFalse(neglected & {"elbow_flexors", "triceps"}, reason)    # no exercise is left for them: nobody's business
+            self.assertIn("elbow_flexors", rec["muscles"])                  # the body did the curls yesterday: recovery still counts them
+            kept = {e["name"]: e["excluded"] for e in r["exercises"]}
+            self.assertEqual((kept["Biceps Curl"], kept["Row"]), (reason, None))   # the history itself stays - it is data
+
     def test_switching_off_known_exercises_is_no_reason_for_a_beginner_session(self):
         rows = history([ROW, PRESS, SQUAT, DEADLIFT])
         plan = report(rows, "2026-09-18", session_minutes=40, excluded_exercises={"19": "elsewhere", "10": "unwanted"})["plan"]

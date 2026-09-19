@@ -202,6 +202,16 @@ def external_muscles(cfg: dict, catalog: dict) -> list[str]:
                    for m in (catalog[c].get("targets") or [])})
 
 
+def muscles_out_of_plan(cfg: dict, catalog: dict) -> list[str]:
+    """Muscles the plan has nothing to say about any more: trained outside the ARX (external_muscles)
+    or left without ANY exercise - every catalog exercise that is for them was switched off, whatever
+    the reason. A finding must not call them neglected or promise them a slot."""
+    excluded = excluded_of(cfg, catalog)
+    still = {m for c, meta in (catalog or {}).items() if str(c) not in excluded for m in (meta.get("targets") or [])}
+    gone = {m for c in excluded for m in (catalog[c].get("targets") or []) if m not in still}
+    return sorted(gone | set(external_muscles(cfg, catalog)))
+
+
 def excluded_block(cfg: dict, catalog: dict) -> dict | None:
     """What was left out on the athlete's own wish, said openly (a plan never omits silently):
     {exercises: [{code, name, reason}], external_muscles, notes: [items]}. None = nothing excluded."""
@@ -466,15 +476,18 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         targets = sorted(_targets(c))
         since = {m: ((day - date.fromisoformat(state[m]["last_target"])).days if (state.get(m) or {}).get("last_target") else None)
                  for m in targets}
-        # a NEW exercise is only ever suggested for muscles the ARX is responsible for - not for one the
-        # athlete trains elsewhere; an exercise the athlete does is judged on all its targets, as always
-        judged = [m for m in targets if m not in external] if c["new"] else targets
-        if not judged:
-            continue
-        never = all(since[m] is None for m in judged)
-        days_due = max((since[m] for m in judged if since[m] is not None), default=None)
-        days_away = min((since[m] for m in judged if since[m] is not None), default=None)   # the most recently trained target
-        worst = next((m for m in judged if since[m] == days_due), judged[0])
+        never = all(v is None for v in since.values())
+        days_due = max((v for v in since.values() if v is not None), default=None)
+        days_away = min((v for v in since.values() if v is not None), default=None)   # the most recently trained target
+        worst = next((m for m in targets if since[m] == days_due), targets[0] if targets else None)
+        if c["new"]:
+            # a NEW exercise is only ever suggested for a gap in muscles the ARX is responsible for. Muscles the
+            # athlete trains elsewhere never justify it - and they never make an exercise MORE eligible either:
+            # the gap is judged on all targets as always, then it has to lie in a muscle that is not external.
+            gap = [m for m in targets if (since[m] is None if never else (since[m] or 0) > COVER_DAYS) and m not in external]
+            if not gap:
+                continue
+            worst = gap[0] if worst in external or worst not in gap else worst
         due = 2.0 if never else min((days_due or 0) / interval, 2.0)
         cover = 1.0 if (never or (days_due or 0) > COVER_DAYS) else 0.0
         if c["new"] and not cover:
