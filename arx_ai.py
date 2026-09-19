@@ -851,7 +851,7 @@ class ChatManager:
             except Exception as exc:
                 live.update(state="error", error=classify_ai_error(exc).info())
         threading.Thread(target=run, daemon=True).start()
-        return {"turn": turn_id, "state": "running"}
+        return {"turn": turn_id, "state": "running", "new": True}      # new: not a repeat of a message already sent
 
     def poll(self, user_id, turn_id: str, start: int = 0) -> dict:
         with self._lock:

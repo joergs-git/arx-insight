@@ -22,3 +22,6 @@ plans.json
 .detail_cache.json
 # the coach's delivered boards and chat transcripts (per person)
 ai/
+
+# phone access codes (v0.6.0) - like config.json they belong to the data folder, never into git
+access.json

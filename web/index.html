@@ -225,12 +225,36 @@
 
   /* PDF (browser print): the same dark report design as on screen, one column, the coach board
      as a full section after the report, no page breaks inside cards/tables */
+  /* ---- v0.6.0: phone access - dialogs, QR codes, what a phone role does not see ---- */
+  .modal{position:fixed;inset:0;z-index:40;background:rgba(8,9,11,.78);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:4vh 12px}
+  .modal.open{display:flex}
+  .sheet{background:var(--panel);border:2px solid var(--ink);border-radius:14px;padding:24px;width:min(720px,100%);font-size:17px}
+  .sheet h2{display:flex;align-items:center;gap:12px;margin:0 0 6px;font-size:28px}.sheet h2 span{flex:1}
+  .sheet h3{margin:22px 0 8px;font-size:19px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+  .sheet p{margin:8px 0;color:var(--ink2)}.sheet p b{color:var(--ink)}
+  .sheet .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .sheet .row .btn{font-size:17px;min-height:48px;padding:10px 16px}
+  .sheet select{font:inherit;font-size:17px;padding:10px 12px;border-radius:10px;border:2px solid var(--rule2);background:var(--panel2);color:var(--ink);min-height:48px}
+  .qrbox{display:flex;gap:20px;flex-wrap:wrap;align-items:center;background:var(--panel2);border:2px solid var(--rule);border-radius:12px;padding:16px;margin:10px 0}
+  .qrbox .qr{flex:0 0 auto;line-height:0}.qrbox .qrtext{flex:1;min-width:220px}
+  .qrbox code{display:block;margin-top:8px;font-size:14px;color:var(--ink3);overflow-wrap:anywhere}
+  .pill{display:inline-block;border-radius:14px;padding:3px 12px;font-size:15px;font-weight:600;border:2px solid var(--rule2);color:var(--ink2)}
+  .pill.on{border-color:var(--good);color:var(--good)}.pill.off{border-color:var(--rule2);color:var(--ink3)}.pill.bad{border-color:var(--warn);color:var(--warn)}
+  .devs{list-style:none;margin:6px 0;padding:0}.devs li{padding:7px 0;border-bottom:1px solid var(--rule);color:var(--ink2)}
+  .narrow{display:none}@media(max-width:720px){.chapnav .wide{display:none}.chapnav .narrow{display:inline}}
+  body:not([data-role=local]) .localonly{display:none!important}
+  body[data-role=local] .phoneonly{display:none!important}
+  body[data-role=athlete] .notathlete{display:none!important}
+  .linkfoot{margin:34px 0 10px;padding:14px 16px;border:2px dashed var(--rule2);border-radius:10px;color:var(--ink3);font-size:15px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .linkfoot .btn{font-size:15px;min-height:42px;padding:6px 14px}
+  @media(max-width:720px){.topbar{padding:10px 12px;gap:8px}.topbar .btn{font-size:16px;padding:8px 12px;min-height:44px}.topbar .who{font-size:21px}.topbar .meta{display:none}
+    .sheet{padding:18px 14px}.center{padding:24px 12px}.card{padding:20px 16px}}
   @media print{
     @page{margin:0}
     html,body{background:var(--bg)!important;color:var(--ink)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:15px}
     #r_body{padding:6mm 22px 12mm;max-width:none}
     .topbar{position:static;padding:10px 22px 12px}
-    .topbar .btn,.topbar .spacer,.seg,.exhead .seg,.banner .btn,.chapnav,#chatFab,#chat,.coach .btn{display:none!important}
+    .topbar .btn,.topbar .spacer,.seg,.exhead .seg,.banner .btn,.chapnav,#chatFab,#chat,.coach .btn,.modal,.linkfoot{display:none!important}
     section{padding-block:18px 2px}
     #ch2{break-before:page}
     .coach{background:var(--panel);font-size:15px}
@@ -277,9 +301,20 @@
 <div class="screen" id="search"><div class="center">
   <div class="logo">ARX Insight</div>
   <div id="updStart" style="width:min(760px,94vw)"></div>
+  <div id="phoneStart" style="width:min(760px,94vw)"></div>
   <div class="bigsearch"><input type="text" id="q" autocomplete="off" placeholder="Name suchen…"></div>
   <div class="results" id="results"></div>
 </div></div>
+
+<!-- NO ACCESS (v0.6.0): a phone without a valid code -->
+<div class="screen" id="noaccess"><div class="center">
+  <div class="logo">ARX Insight</div>
+  <div class="card"><h2 id="na_h">No access</h2><p id="na_p" style="font-size:19px;color:var(--ink2)"></p>
+    <button class="btn ghost" id="na_forget" style="width:100%;margin-top:10px">Forget this access</button></div>
+</div></div>
+
+<!-- dialogs of the phone access (rendered by openPhone / openLink) -->
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 
 <!-- GOAL (v0.4.0: a short interview - what for, how much time, how hard; everything else is optional) -->
 <div class="screen" id="goal"><div class="center">
@@ -382,11 +417,13 @@
     <button class="btn ghost" id="r_profile" title="Edit this athlete">✎</button>
     <div class="meta" id="r_meta"></div>
     <div class="spacer"></div>
-    <button class="btn ghost" id="r_settings">⚙</button>
+    <button class="btn ghost localonly" id="r_link" title="Phone access for this athlete">📱</button>
+    <button class="btn ghost notathlete" id="r_settings">⚙</button>
     <button class="btn ghost" id="r_limits">⚠</button>
     <button class="btn ghost" id="r_checkin">☀</button>
     <button class="btn ghost" id="r_pdf">PDF</button>
-    <button class="btn" id="r_exit">Exit</button>
+    <button class="btn ghost" id="r_html" title="Download the report as one file">⬇</button>
+    <button class="btn notathlete" id="r_exit">Exit</button>
   </div>
   <main class="wrap" id="r_body"></main>
   <button class="btn" id="chatFab">💬 Coach</button>
@@ -403,14 +440,24 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 // Every /api call carries the X-ARX-Token header: the server rejects requests without it, and a
 // foreign web page cannot add a custom header - so nobody else can read data or trigger a billed
 // AI call. "local" on this machine (v0.6.0 puts the phone's access token here).
-const HDR={"X-ARX-Token":"local"};
-const api=(p)=>fetch(p,{headers:HDR}).then(r=>r.json());
-const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"application/json"},body:JSON.stringify(b)}).then(r=>r.json());
+// ---------- access (v0.6.0) ----------
+// On this machine the header says "local". A phone carries the code from its QR code: it arrives in the URL
+// FRAGMENT (#t=...), which is never sent to a server or written to a log, is stored on this device and removed
+// from the address bar at once. What the device may do comes back from /api/bootstrap (ACCESS.role).
+let TOKEN="local", ACCESS={role:"local"};
+(function(){ const m=location.hash.match(/[#&]t=([A-Za-z0-9_-]{8,80})/);
+  try{ if(m){ localStorage.setItem("arx_token",m[1]); history.replaceState(null,"",location.pathname+location.search); }
+       TOKEN=(m&&m[1])||localStorage.getItem("arx_token")||"local"; }catch(e){ if(m) TOKEN=m[1]; } })();
+const HDR={"X-ARX-Token":TOKEN};
+const gate=async r=>{ const j=await r.json().catch(()=>({})); if(r.status===401||(r.status===429&&j&&j.error==="too_many_attempts")) accessLost(r.status); return j; };
+const api=(p)=>fetch(p,{headers:HDR}).then(gate);
+const post=(p,b)=>fetch(p,{method:"POST",headers:{...HDR,"content-type":"application/json"},body:JSON.stringify(b)}).then(gate);
 // HTML-escape everything that comes from the database or the network before it goes into innerHTML
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
 let COACH=null, COACH_T=null, RENDERED_ONCE=false, AI={models:[],model:"",efforts:[],effort_board:"high",effort_chat:"medium",auto:true};
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false}, SELF_UPDATE=false, UPD_STEP=0;
+let PHONE=null, PHONE_T=null;                   // phone access: state from bootstrap, poll timer of the open dialog
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
 const KEY_URL="https://console.anthropic.com/settings/keys";
@@ -448,22 +495,45 @@ const T=()=>STR[CFG.language];
 
 function show(id){$$(".screen").forEach(s=>s.classList.toggle("active",s.id===id));window.scrollTo(0,0);}
 
+// ---------- a phone without a valid code ----------
+function accessLost(status){ const de=(navigator.language||"en").toLowerCase().startsWith("de"), had=TOKEN!=="local";
+  $("#na_h").textContent=de?"Kein Zugang":"No access";
+  $("#na_p").textContent=status===429?(de?"Zu viele Versuche mit einem ungültigen Code. Bitte in ein paar Minuten noch einmal versuchen.":"Too many attempts with an invalid code. Please try again in a few minutes.")
+    :had?(de?"Dieser Zugangscode ist nicht (mehr) gültig – abgelaufen, ersetzt oder widerrufen. Bitte am ARX-PC verlängern lassen oder den neuen QR-Code scannen.":"This access code is not valid (any more) – expired, replaced or revoked. Ask for it to be renewed at the ARX PC, or scan the new QR code.")
+        :(de?"Bitte den QR-Code scannen, der am ARX-PC unter „📱 Handy“ angezeigt wird.":"Please scan the QR code shown on the ARX PC under “📱 Phone”.");
+  $("#na_forget").textContent=de?"Zugang auf diesem Gerät vergessen":"Forget the access on this device"; $("#na_forget").style.display=had?"":"none";
+  show("noaccess"); }
+function forgetAccess(){ try{localStorage.removeItem("arx_token");}catch(e){} TOKEN="local"; HDR["X-ARX-Token"]="local"; accessLost(401); }
+$("#na_forget").addEventListener("click",forgetAccess);
+document.addEventListener("click",e=>{ if(e.target.closest(".lfForget")) forgetAccess(); });      // "forget the access" at the bottom of a phone's pages
+// where "back to the start" leads: the search on the PC and for a trainer, the own report for an athlete link
+function home(){ if(ACCESS.role==="athlete"){ startAthlete(); return; } show("search"); $("#q").focus(); }
+async function startAthlete(){ CUR={id:ACCESS.user_id,name:ACCESS.name||""};
+  const g=await api("/api/goal?user_id="+CUR.id); if(!CUR) return;
+  CUR.restrictions=(g&&g.restrictions)||{}; CUR.language=(g&&g.language)||null;
+  if(!g||!g.goal) openGoal(); else if(new URLSearchParams(location.search).get("checkin")==="0") loadReport(); else gateCheckin(); }
+
 // ---------- boot ----------
 api("/api/bootstrap").then(b=>{
+  if(!b||!b.version) return;                       // no valid code: the "no access" screen is already showing
+  ACCESS=b.access||{role:"local"}; document.body.dataset.role=ACCESS.role; PHONE=b.phone||null;
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
   SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI;
-  $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned);
+  $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned); renderPhoneStart();
+  if(ACCESS.role==="athlete"){ startAthlete(); return; }
   if(!b.configured){openSettings("search");return;}
+  if(new URLSearchParams(location.search).get("demo")==="phone"){ openPhone(true); return; }   // README screenshot: made-up address and code, no screen (and no name) behind it
   // deep link: ?user=<id> opens that person's report directly (bookmark / kiosk / screenshots)
   const deep=new URLSearchParams(location.search).get("user");
-  if(deep){ api("/api/users?q=").then(async list=>{ const u=list.find(x=>String(x.id)===deep); if(!u){show("search");$("#q").focus();return;}
+  if(deep){ api("/api/users?q=").then(async list=>{ const u=list.find(x=>String(x.id)===deep); if(!u){home();return;}
     CUR={id:u.id,name:u.name}; const g=await api("/api/goal?user_id="+CUR.id);
     CUR.restrictions=(g&&g.restrictions)||{}; CUR.language=(g&&g.language)||null;
     const qs=new URLSearchParams(location.search);
     if(qs.get("open")==="profile"){ await loadReport(); openProfile(qs.get("section")||undefined); return; }
+    if(qs.get("open")==="link"&&ACCESS.role==="local"){ await loadReport(); openLink("show"); return; }     // kiosk: straight to this athlete's QR code
     if(qs.get("checkin")==="0") loadReport(); else gateCheckin(); }); return; }
-  show("search");$("#q").focus();
+  home();
 });
 
 // ---------- setup ----------
@@ -492,6 +562,9 @@ function openSettings(origin){
   $("#s_share").textContent=de?"Was der KI-Coach sehen darf":"What the AI coach may see";
   $("#s_share_sub").textContent=de?"Nie gesendet werden: Namen, Geburtsdatum, Größe, Gewicht, Notizen. Gesendet werden nur zusammengefasste Trainingszahlen - und das hier, wenn eingeschaltet.":"Never sent: names, date of birth, height, weight, notes. Only aggregated training numbers are sent - plus the following when switched on.";
   renderShare();
+  const keyField=$("#setKey").closest(".field"); keyField.style.display=ACCESS.role==="local"?"":"none";
+  let keyNote=$("#s_key_note"); if(!keyNote){ keyNote=document.createElement("div"); keyNote.id="s_key_note"; keyNote.className="foot"; keyField.after(keyNote); }
+  keyNote.textContent=ACCESS.role==="local"?"":(de?"Der API-Schlüssel wird nur direkt am ARX-PC eingegeben – er geht nie durchs WLAN.":"The API key is only ever entered at the ARX PC itself – it never travels through the Wi-Fi.");
   $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
   show("setup");
 }
@@ -513,7 +586,7 @@ $("#setupSave").addEventListener("click",async()=>{
   await post("/api/config",body);
   CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;
   if(SETTINGS_ORIGIN==="report" && CUR){ loadReport(); }
-  else { show("search");$("#q").focus(); }
+  else home();
 });
 
 // ---------- search ----------
@@ -771,7 +844,7 @@ $("#ckSave").addEventListener("click",async()=>{
 $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
 
 // ---------- report ----------
-$("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;show("search");$("#q").value="";$("#results").innerHTML="";$("#q").focus();});
+$("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;$("#q").value="";$("#results").innerHTML="";home();});
 $("#r_pdf").addEventListener("click",()=>window.print());
 $("#r_settings").addEventListener("click",()=>openSettings("report"));
 $("#r_name").addEventListener("click",()=>openProfile());
@@ -799,7 +872,8 @@ function updateBannerHtml(){
   if(!UPDATE||!UPDATE.update_available) return "";
   const de=CFG.language==="de";
   // one click where the app can update itself (Windows); elsewhere the download page
-  const btn=SELF_UPDATE?`<button class="btn" onclick="selfUpdate(this)">${de?'Jetzt aktualisieren':'Update now'}</button>`
+  const btn=ACCESS.role!=="local"?`<span class="foot">${de?'Aktualisiert wird direkt am ARX-PC.':'Updating is done at the ARX PC itself.'}</span>`
+           :SELF_UPDATE?`<button class="btn" onclick="selfUpdate(this)">${de?'Jetzt aktualisieren':'Update now'}</button>`
                        :`<button class="btn" onclick="window.open('${UPDATE.url}','_blank')">${de?'Herunterladen':'Download'}</button>`;
   return `<div class="banner updbanner"><b>${de?'Neue Version verfügbar':'New version available'}: v${esc(UPDATE.latest)}</b>
     <span class="foot">(${de?'installiert':'installed'}: v${esc(CURVER)})</span><span style="flex:1"></span>
@@ -837,7 +911,9 @@ function renderReport(){
   $("#r_settings").innerHTML="⚙ "+(de0?"Einstellungen":"Settings");
   $("#r_limits").innerHTML="⚠ "+(de0?"Grenzen":"Limits");
   $("#r_checkin").innerHTML="☀ Check-in";
-  $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit";
+  $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit"; $("#r_html").innerHTML="⬇ "+(de0?"Datei":"File");
+  $("#r_html").title=de0?"Report als eine Datei herunterladen (öffnet überall, auch ohne App)":"Download the report as one file (opens anywhere, no app needed)";
+  $("#r_link").innerHTML="📱 "+(de0?"Handy":"Phone"); $("#r_link").title=de0?"QR-Code für das Handy dieses Sportlers":"QR code for this athlete's phone";
   $("#r_meta").textContent=`${t.created} ${r.created||'—'} · ${r.training_days.length} ${de0?'Tage':'days'} · ${r.generated.replace('T',' ').slice(0,16)}`;
   const g=r.goal||{},pc=k=>Math.round((g[k]||0)*100);
   const goalLine=`<p class="lead" style="margin-top:14px">${de0?'Ziel':'Goal'}: <b>${de0?'Muskel':'Muscle'} ${pc('muscle')}%</b>, ${de0?'Kraft':'Strength'} ${pc('strength')}%, ${de0?'Kondition':'Conditioning'} ${pc('conditioning')}%.</p>`;
@@ -858,7 +934,7 @@ function renderReport(){
     <div><div class="label">${de0?'Nächstes Training':'Next training'}</div><div class="v" style="color:var(--accent)">${whenTxt}</div><div class="s">${ns?`${dShort(ns.date)} · ${ns.exercises.length} ${de0?'Übungen':'exercises'} · ≈ ${ns.est_minutes} min`:''}</div></div>
     <div><div class="label">${de0?'Belastung':'Load'}</div><div class="v" style="color:${flagT[1]}">${flagT[0]}</div><div class="s">${(r.load||{}).weekly_rate!=null?`${r.load.weekly_rate} ${de0?'Einheiten/Woche':'sessions/week'} · ${de0?'Ziel':'target'} ${r.sessions_per_week||2}`:''}</div></div></div>
     <div id="coach_focus"></div>`;
-  const nav=`<nav class="chapnav"><a href="#ch1"><b>1</b>${de0?'Letzte Einheit':'Last session'}</a><a href="#ch2"><b>2</b>${de0?'Nächstes Training':'Next training'}</a><a href="#ch3"><b>3</b>${de0?'Verlauf':'History'}</a><a href="#" id="navAsk"><b>💬</b>${de0?'Fragen':'Ask'}</a></nav>`;
+  const nav=`<nav class="chapnav"><a href="#ch1"><b>1</b><span class="wide">${de0?'Letzte Einheit':'Last session'}</span><span class="narrow">${de0?'Letzte':'Last'}</span></a><a href="#ch2"><b>2</b><span class="wide">${de0?'Nächstes Training':'Next training'}</span><span class="narrow">${de0?'Nächstes':'Next'}</span></a><a href="#ch3"><b>3</b>${de0?'Verlauf':'History'}</a><a href="#" id="navAsk"><b>💬</b>${de0?'Fragen':'Ask'}</a></nav>`;
   const chap=(id,no,title,body)=>`<div class="chapter" id="${id}"><div class="chaphead"><span class="no">${no}</span><h2>${title}</h2></div>${body}</div>`;
   const ch1=lastSessionHtml(r)+`<details class="more"><summary>${de0?'Maschineneinstellungen gegen Empfehlung':'Machine settings vs recommended'}</summary>${settingsHtml(r)}</details>`;
   const ch2=planHtml(r)+checkinHtml(r)+`<details class="more"><summary>${de0?'Bereitschaft je Muskel':'Readiness per muscle'}</summary>${readinessHtml(r.load)}</details>`;
@@ -878,7 +954,7 @@ function renderReport(){
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
   const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
 
-  $("#r_body").innerHTML = updateBannerHtml() + unmappedHtml(r) + `<div id="r_main">${main}</div>` + footer;
+  $("#r_body").innerHTML = updateBannerHtml() + unmappedHtml(r) + `<div id="r_main">${main}</div>` + linkFootHtml() + footer;
 
   drawSessionCharts();drawWB();renderProg();
   const ng=$("#ngSeg"); if(ng) ng.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b)return;
@@ -1227,6 +1303,7 @@ function interpHtml(it,cls){ if(!it||!it.text||!it.text.meaning) return "";
 const WD=()=>CFG.language==="de"?["Mo","Di","Mi","Do","Fr","Sa","So"]:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const WDL=()=>CFG.language==="de"?["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"]:["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const dShort=d=>CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.`:d.slice(5);
+const dFull=d=>CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}`:d.slice(0,10);
 function sessionRowsHtml(sess){ const de=CFG.language==="de";
   return `<ol class="plan">`+sess.exercises.map(x=>{
     const sub=x.effort_target.label==="submax";
@@ -1343,6 +1420,9 @@ const AI_ERR={
   daily_limit:["Das Tageslimit für neue Coach-Analysen ist erreicht. Morgen geht es weiter.","The daily limit for new coach analyses is reached. It continues tomorrow."],
   chat_limit:["Dieses Gespräch hat sein Fragenlimit erreicht - mit dem nächsten Report beginnt ein neues.","This conversation reached its question limit - a new one starts with the next report."],
   chat_daily_limit:["Das Tageslimit für Fragen ist erreicht.","The daily limit for questions is reached."],
+  link_limit:["Das Tageskontingent dieses Handy-Codes ist aufgebraucht. Morgen geht es weiter.","The daily allowance of this phone code is used up. It continues tomorrow."],
+  chat_off:["Der Chat ist für diesen Code ausgeschaltet – dein Trainer kann ihn am ARX-PC freigeben.","The chat is switched off for this code – your trainer can allow it at the ARX PC."],
+  no_board:["Erst kommt die Coach-Analyse – danach kannst du Fragen dazu stellen.","The coach analysis comes first – then you can ask questions about it."],
   sdk_missing:["Das Python-Paket „anthropic“ fehlt. Bitte „Install ARX Insight“ erneut ausführen.","The Python package 'anthropic' is missing. Please run 'Install ARX Insight' again."],
   app_offline:["Die App antwortet nicht. Läuft das ARX-Insight-Fenster noch?","The app does not answer. Is the ARX Insight window still running?"],
   unknown:["Die KI-Analyse ist fehlgeschlagen.","The AI analysis failed."]};
@@ -1365,7 +1445,7 @@ function renderCoach(){
   const put=(i,html)=>{ if(slots[i]) slots[i].innerHTML=html; };
   $("#chatFab").style.display="none";
   slots.forEach((s,i)=>put(i,""));
-  if(st.state==="no_key"){ put(0,`<div class="coach skel">${coachWho()}${de?'Der KI-Coach kommentiert jedes Kapitel, passt den Plan an und beantwortet Rückfragen - sobald unter ⚙ Einstellungen ein Anthropic-API-Schlüssel hinterlegt ist. Alle Zahlen, Auffälligkeiten und der Plan funktionieren auch ohne.':'The AI coach comments on every chapter, adjusts the plan and answers follow-up questions - once an Anthropic API key is stored under ⚙ Settings. All figures, findings and the plan work without it.'} <a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent)">${de?'Schlüssel holen ↗':'get a key ↗'}</a></div>`); return; }
+  if(st.state==="no_key"){ put(0,`<div class="coach skel">${coachWho()}${de?`Der KI-Coach kommentiert jedes Kapitel, passt den Plan an und beantwortet Rückfragen - sobald ${ACCESS.role==="local"?'unter ⚙ Einstellungen':'am ARX-PC'} ein Anthropic-API-Schlüssel hinterlegt ist. Alle Zahlen, Auffälligkeiten und der Plan funktionieren auch ohne.`:`The AI coach comments on every chapter, adjusts the plan and answers follow-up questions - once an Anthropic API key is stored ${ACCESS.role==="local"?'under ⚙ Settings':'at the ARX PC'}. All figures, findings and the plan work without it.`} ${ACCESS.role==="local"?`<a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent)">${de?'Schlüssel holen ↗':'get a key ↗'}</a>`:''}</div>`); return; }
   if(st.state==="none"){ put(0,`<div class="coach skel">${coachWho()}${de?'Noch keine Coach-Analyse für diesen Datenstand.':'No coach analysis for this data state yet.'} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Coach fragen':'Ask the coach'}</button></div>`); return; }
   if(st.state==="running"){ const sk=`<div class="coach skel">${coachWho(de?'denkt nach …':'thinking …')}<div class="bar" style="width:72%"></div><div class="bar" style="width:94%"></div><div class="bar" style="width:58%"></div></div>`; put(0,sk); put(1,sk); put(2,sk); return; }
   if(st.state==="error"||st.state==="limit"){ put(0,`<div class="coach" style="border-left-color:var(--warn)">${coachWho(de?'nicht verfügbar':'unavailable')}<p>${esc(aiErrText(st.error))}</p>${st.error&&st.error.message&&st.error.code!=="daily_limit"?`<p class="foot">${esc(st.error.message)}</p>`:''}${st.state==="error"?`<button class="btn" style="min-height:44px;font-size:16px" onclick="startCoach()">${de?'Erneut versuchen':'Try again'}</button>`:''}<p class="foot" style="margin-top:8px">${de?'Der Report darunter ist vollständig - er braucht die KI nicht.':'The report below is complete - it does not need the AI.'}</p></div>`); return; }
@@ -1425,6 +1505,8 @@ async function openChat(){
   if(!h.turns.length) chatBubble("a",de?"Ich kenne deinen Report, den Plan und was ich dir zuletzt empfohlen habe. Was möchtest du wissen?":"I know your report, the plan and what I recommended last time. What would you like to know?");
   h.turns.forEach(x=>{chatBubble("q",x.q);chatBubble("a",x.a);});
   $("#chatLeft").textContent=h.left!=null?`${h.left} ${de?'Fragen frei':'questions left'}`:"";
+  if(h.chat_off) chatBubble("err",aiErrText({code:"chat_off"}));          // a minor's code until the trainer allows the chat
+  $("#chatText").disabled=$("#chatSend").disabled=!!h.chat_off;
   $("#chatSug").innerHTML=(h.suggested||[]).map(q=>`<button type="button">${esc(q)}</button>`).join("");
   $("#chatText").focus();
 }
@@ -1455,6 +1537,136 @@ async function loadScience(){ const de=CFG.language==="de", box=$("#sciBody"); i
       <p style="margin:6px 0"><b style="color:var(--ink)">${esc(t.practical_rule)}</b></p><p style="margin:6px 0">${esc(t.applied_as)}</p>${t.arx_caveat?`<p style="margin:6px 0;color:var(--warn)">${esc(t.arx_caveat)}</p>`:''}
       <ul style="margin:6px 0;padding-left:18px">${t.references.map(x=>`<li>${esc(x.authors)} (${x.year}). ${esc(x.title)}. <i>${esc(x.journal)}</i>.${x.doi?` <a href="https://doi.org/${encodeURI(x.doi)}" target="_blank" rel="noopener" style="color:var(--accent)">doi</a>`:''}</li>`).join("")}</ul></details>`).join("");
 }
+
+// =====================================================================================================
+// v0.6.0 - phone access. Everything here runs on the ARX PC only (the server refuses these routes to
+// every phone): switch the second listener on / off, show the trainer code and one code per athlete.
+// =====================================================================================================
+let QR_LIB=null;
+function loadQr(){ return QR_LIB||(QR_LIB=new Promise((ok,no)=>{ const el=document.createElement("script"); el.src="/vendor/qrcode.js";
+  el.onload=()=>ok(window.qrcode); el.onerror=()=>{QR_LIB=null;no(new Error("qr"));}; document.head.appendChild(el); })); }
+// QR code as inline SVG (vendored MIT encoder, see web/vendor/qrcode.js): always dark on white with the 4-module quiet zone scanners need
+async function qrSvg(text){ const lib=await loadQr(), q=lib(0,"M"); q.addData(text,"Byte"); q.make();
+  const n=q.getModuleCount(), m=4, size=n+2*m; let d="";
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(q.isDark(r,c)) d+=`M${c+m},${r+m}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code" style="width:min(280px,64vw);height:auto;border-radius:8px"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`; }
+async function putQr(sel,url){ const box=$(sel); if(!box) return; if(!url){ box.innerHTML=""; return; }
+  try{ box.innerHTML=await qrSvg(url); }catch(e){ box.textContent=CFG.language==="de"?"QR-Code konnte nicht erzeugt werden.":"The QR code could not be drawn."; } }
+function closeModal(){ $("#modal").classList.remove("open"); clearTimeout(PHONE_T); PHONE_T=null; }
+$("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#modal").classList.contains("open")) closeModal(); });
+const agoTxt=s=>{ const de=CFG.language==="de"; return s<60?(de?`vor ${s} s`:`${s} s ago`):(de?`vor ${Math.round(s/60)} min`:`${Math.round(s/60)} min ago`); };
+
+function renderPhoneStart(){ const box=$("#phoneStart"); if(!box) return; if(ACCESS.role!=="local"){ box.innerHTML=ACCESS.role==="trainer"?linkFootHtml():""; return; }
+  const de=CFG.language==="de", on=PHONE&&PHONE.enabled;
+  box.innerHTML=`<div class="row" style="display:flex;justify-content:center;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn ghost" id="phoneBtn" style="font-size:18px;min-height:50px">📱 ${de?'Handy-Zugriff':'Phone access'}</button>
+    <span class="pill ${on?(PHONE.running?'on':'bad'):'off'}">${on?(PHONE.running?(de?'EIN':'ON'):(de?'EIN – gerade nicht erreichbar':'ON – not reachable right now')):(de?'aus':'off')}</span></div>`;
+  $("#phoneBtn").addEventListener("click",()=>openPhone(false)); }
+
+const LAN_ERR={no_private_address:["Dieser PC hat gerade keine Adresse in einem lokalen Netz (kein WLAN / LAN verbunden, oder er hängt direkt am Internet). Handy-Zugriff gibt es nur im eigenen Netz.","This PC has no address in a local network right now (no Wi-Fi / LAN, or it sits directly on the internet). Phone access only works inside your own network."],
+  no_free_port:["Kein freier Port gefunden. Bitte ARX Insight neu starten.","No free port found. Please restart ARX Insight."],
+  address_gone:["Die Netzwerkadresse ist verschwunden (WLAN getrennt?). Sobald sie zurück ist, geht es automatisch weiter.","The network address has gone (Wi-Fi disconnected?). It continues automatically when it is back."],
+  bad_address:["Diese Adresse gehört nicht zu diesem PC.","This address does not belong to this PC."],unavailable:["Nicht verfügbar.","Not available."]};
+
+// The Phone dialog. demo=true draws it with a made-up address and code (README screenshot) and talks to nobody.
+async function openPhone(demo){ const de=CFG.language==="de"; $("#modal").classList.add("open");
+  $("#sheet").innerHTML=`<h2><span>📱 ${de?'Handy-Zugriff':'Phone access'}</span><button class="btn ghost" id="mClose" style="min-height:44px;padding:0 14px">✕</button></h2><div id="phBody"><p>…</p></div>`;
+  $("#mClose").addEventListener("click",closeModal);
+  let st, link;
+  if(demo){ st={enabled:true,running:true,ip:"192.168.1.20",port:8765,url:"http://192.168.1.20:8765/",choice:"auto",windows:true,firewall_rule:true,network:"Private",
+                adapters:[{ip:"192.168.1.20",name:"WLAN",gateway:true,network:"Private"}],seen:[{ago_s:3,role:"trainer",user_id:null,device:"iPhone"},{ago_s:41,role:"athlete",user_id:1,device:"iPhone"}]};
+            link={url:"http://192.168.1.20:8765/#t=T-DEMO-CODE-NOT-VALID"}; }
+  else { st=await api("/api/lan/status?full=1"); link=st.running?await post("/api/access/link",{kind:"trainer",action:"show"}):{url:null}; }
+  renderPhone(st,link,demo); }
+
+function renderPhone(st,link,demo){ const de=CFG.language==="de", on=!!st.enabled;
+  PHONE={enabled:on,running:!!st.running}; renderPhoneStart();
+  const err=st.error?`<p class="interp warn">${(LAN_ERR[st.error]||LAN_ERR.unavailable)[de?0:1]}</p>`:'';
+  const ads=(st.adapters||[]).map(a=>`<option value="${esc(a.ip)}" ${st.choice===a.ip?'selected':''}>${esc(a.ip)}${a.name?' · '+esc(a.name):''}</option>`).join("");
+  const pub=st.network==="Public"?`<p class="interp warn">${de?'Windows stuft dieses Netzwerk als <b>Öffentlich</b> ein – dann blockiert die Firewall Handys. In den Windows-Einstellungen → Netzwerk → dein WLAN → Netzwerkprofil auf <b>Privat</b> stellen.':'Windows treats this network as <b>Public</b> – then the firewall blocks phones. In Windows Settings → Network → your Wi-Fi, set the network profile to <b>Private</b>.'}</p>`:'';
+  const fw=!st.windows?'':`<div class="row"><span class="pill ${st.firewall_rule?'on':'off'}">${de?'Firewall-Regel':'Firewall rule'}: ${st.firewall_rule?(de?'vorhanden':'present'):(de?'nicht gesetzt':'not set')}</span>
+      ${st.firewall_rule?'':`<button class="btn ghost" id="fwBtn">${de?'In der Windows-Firewall freigeben':'Allow in Windows Firewall'}</button>`}<span class="foot" id="fwMsg"></span></div>
+      <p class="foot">${de?'Beim ersten Einschalten fragt Windows meist von selbst („Zugriff zulassen“ – für <b>private</b> Netzwerke). Der Knopf setzt die Regel direkt: nur für die Ports dieser App und nur aus dem lokalen Netz; Windows fragt dafür nach Administratorrechten.':'The first time, Windows usually asks by itself (“Allow access” – for <b>private</b> networks). The button sets the rule directly: only for the ports of this app and only from the local network; Windows asks for administrator rights.'}</p>`;
+  const seen=(st.seen||[]).length?`<ul class="devs">${st.seen.map(x=>`<li>${esc(x.device)} · ${x.role==="trainer"?(de?'Trainer-Code':'trainer code'):(de?'Sportler-Code':'athlete code')+(x.user_id!=null&&CUR&&CUR.id===x.user_id?' ('+esc(CUR.name)+')':'')} · ${agoTxt(x.ago_s)}</li>`).join("")}</ul>`
+    :`<p class="foot">${de?'Noch kein Gerät verbunden.':'No device has connected yet.'}</p>`;
+  $("#phBody").innerHTML=`
+    <p>${de?'Report, Check-in und Coach-Chat auf dem Handy – im <b>selben WLAN</b> wie dieser PC. Standardmäßig aus. Eingeschaltet lauscht die App zusätzlich auf <b>einer</b> Adresse deines lokalen Netzes, und jedes Gerät braucht einen Code aus einem QR-Code.':'Report, check-in and coach chat on your phone – in the <b>same Wi-Fi</b> as this PC. Off by default. When on, the app also listens on <b>one</b> address of your local network, and every device needs a code from a QR code.'}</p>
+    <div class="row"><button class="btn${on?' ghost':''}" id="phToggle">${on?(de?'Ausschalten':'Switch off'):(de?'Einschalten':'Switch on')}</button>
+      <span class="pill ${on?(st.running?'on':'bad'):'off'}">${on?(st.running?(de?'EIN':'ON')+' · '+esc(st.url||''):(de?'EIN – nicht erreichbar':'ON – not reachable')):(de?'aus':'off')}</span></div>
+    ${err}${on?`${pub}
+    <div class="row"><label for="phAdapter" style="color:var(--ink2)">${de?'Netzwerk':'Network'}</label><select id="phAdapter"><option value="auto" ${st.choice==="auto"?'selected':''}>${de?'Automatisch (Standardverbindung)':'Automatic (default connection)'}</option>${ads}</select></div>
+    ${fw}
+    ${st.running?`<h3>${de?'Trainer-Code':'Trainer code'}</h3>
+    <div class="qrbox"><div class="qr" id="qrTrainer"></div><div class="qrtext"><p><b>${de?'Mit der Handy-Kamera scannen.':'Scan it with the phone camera.'}</b> ${de?'Öffnet alles, was auch am PC geht – außer API-Schlüssel, Update, Beenden und diesem Dialog. Wie einen Schlüssel behandeln.':'Opens everything the PC can do – except API key, update, exit and this dialog. Treat it like a key.'}</p>
+      <p class="foot">${de?'Tipp: auf dem Handy „Zum Home-Bildschirm“ hinzufügen. Den Code für einzelne Sportler gibt es im Report unter 📱.':'Tip: “Add to Home Screen” on the phone. The code for a single athlete is in the report under 📱.'}</p>
+      <div class="row"><button class="btn ghost" id="phRotate">${de?'Code ersetzen':'Replace the code'}</button></div><code>${esc((link&&link.url||'').replace(/#t=.*/,'#t=…'))}</code></div></div>
+    <h3>${de?'Verbundene Geräte':'Connected devices'}</h3><div id="phSeen">${seen}</div>`:''}`:''}
+    <details class="more" style="margin-top:18px"><summary>${de?'Das Handy findet die Seite nicht?':'The phone cannot open the page?'}</summary><div class="foot" style="margin-top:10px;line-height:1.6">
+      ${de?'• Handy im <b>selben WLAN</b> wie der PC (kein Gast-WLAN – Gastnetze trennen Geräte voneinander).<br>• Windows-Netzwerkprofil <b>Privat</b>, und beim Firewall-Hinweis „Zugriff zulassen“ (oder den Knopf oben).<br>• VPN auf Handy und PC ausschalten.<br>• Der PC muss an sein und darf nicht schlafen.<br>• Nach einem Router-Neustart kann sich die Adresse ändern: dann den QR-Code neu scannen (oder dem PC im Router eine feste Adresse geben).<br>• Die Verbindung ist einfaches HTTP im eigenen Netz: <b>niemals</b> im Router eine Portweiterleitung dafür einrichten.'
+          :'• Phone in the <b>same Wi-Fi</b> as the PC (no guest Wi-Fi – guest networks isolate devices).<br>• Windows network profile <b>Private</b>, and “Allow access” at the firewall prompt (or the button above).<br>• Switch off VPNs on phone and PC.<br>• The PC must be on and must not sleep.<br>• After a router restart the address may change: scan the QR code again (or give the PC a fixed address in the router).<br>• The connection is plain HTTP inside your own network: <b>never</b> set up a port forwarding for it in the router.'}</div></details>`;
+  if(on&&st.running) putQr("#qrTrainer",link&&link.url);
+  if(demo) return;
+  $("#phToggle").addEventListener("click",async()=>{ $("#phToggle").disabled=true; await post("/api/lan",{enabled:!on,ip:on?undefined:"auto"}); openPhone(false); });
+  const ad=$("#phAdapter"); if(ad) ad.addEventListener("change",async()=>{ await post("/api/lan",{enabled:true,ip:ad.value}); openPhone(false); });
+  const rot=$("#phRotate"); if(rot) rot.addEventListener("click",async()=>{ if(rot.dataset.sure!=="1"){ rot.dataset.sure="1"; rot.textContent=de?'Sicher? Alle Trainer-Handys müssen neu scannen':'Sure? Every trainer phone has to scan again'; return; }
+    await post("/api/access/link",{kind:"trainer",action:"rotate"}); openPhone(false); });
+  const fwb=$("#fwBtn"); if(fwb) fwb.addEventListener("click",async()=>{ const r=await post("/api/firewall",{}); $("#fwMsg").textContent=r.started?(de?'Windows fragt jetzt nach Administratorrechten …':'Windows is asking for administrator rights …'):(de?'Konnte nicht gestartet werden.':'Could not be started.'); setTimeout(()=>{ if($("#modal").classList.contains("open")) openPhone(false); },6000); });
+  clearTimeout(PHONE_T);                                    // who is connected: a light poll while the dialog is open
+  if(on&&st.running) PHONE_T=setTimeout(async function tick(){ if(!$("#modal").classList.contains("open")||!$("#phSeen")) return;
+    try{ const l=await api("/api/lan/status"); if($("#phSeen")) $("#phSeen").innerHTML=(l.seen||[]).length?`<ul class="devs">${l.seen.map(x=>`<li>${esc(x.device)} · ${x.role==="trainer"?(de?'Trainer-Code':'trainer code'):(de?'Sportler-Code':'athlete code')} · ${agoTxt(x.ago_s)}</li>`).join("")}</ul>`:`<p class="foot">${de?'Noch kein Gerät verbunden.':'No device has connected yet.'}</p>`; }catch(e){}
+    PHONE_T=setTimeout(tick,3000); },3000);
+}
+
+// The code of ONE athlete (from the report): own report, check-in, profile, coach + chat - nothing else.
+async function openLink(action,extra){ const de=CFG.language==="de"; if(!CUR) return; $("#modal").classList.add("open");
+  const anon=new URLSearchParams(location.search).get("anon")==="1", who=anon?(de?"diesen Sportler":"this athlete"):CUR.name, whoDat=anon?(de?"diesem Sportler":"this athlete"):CUR.name;
+  $("#sheet").innerHTML=`<h2><span>📱 ${de?'Code für':'Code for'} ${esc(who)}</span><button class="btn ghost" id="mClose" style="min-height:44px;padding:0 14px">✕</button></h2><div id="lkBody"><p>…</p></div>`;
+  $("#mClose").addEventListener("click",closeModal);
+  if(action==="revoke"){ await post("/api/access/link",{kind:"athlete",user_id:CUR.id,action:"revoke"}); closeModal(); return; }
+  const k=await post("/api/access/link",{kind:"athlete",user_id:CUR.id,action:action||"show",...(extra||{})});
+  if(!k.running){ $("#lkBody").innerHTML=`<p>${de?'Der Handy-Zugriff ist ausgeschaltet. Erst einschalten – dann gibt es hier den QR-Code.':'Phone access is switched off. Switch it on first – then the QR code appears here.'}</p><div class="row"><button class="btn" id="lkPhone">📱 ${de?'Handy-Zugriff öffnen':'Open phone access'}</button></div>`;
+    $("#lkPhone").addEventListener("click",()=>openPhone(false)); return; }
+  const used=k.usage||{boards:0,questions:0}, lim=k.limits||{boards:3,questions:20,days:90};
+  $("#lkBody").innerHTML=`
+    <p>${de?`Dieser Code zeigt <b>nur die Daten von ${esc(whoDat)}</b>: Report (auch als Datei), Check-in, eigenes Profil und Ziele, Coach-Analyse und Chat. Keine anderen Personen, keine Einstellungen.`:`This code shows <b>only the data of ${esc(who)}</b>: report (also as a file), check-in, own profile and goals, coach analysis and chat. No other people, no settings.`}</p>
+    ${k.expired?`<p class="interp warn">${de?'Der Code ist abgelaufen. „Verlängern“ macht denselben Code wieder gültig – das Handy muss nicht neu scannen.':'The code has expired. “Renew” makes the same code valid again – the phone does not have to scan again.'}</p>`
+      :`<div class="qrbox"><div class="qr" id="qrAthlete"></div><div class="qrtext"><p><b>${de?'Mit der Handy-Kamera scannen.':'Scan it with the phone camera.'}</b></p>
+        <p>${de?'Gültig bis':'Valid until'} <b>${esc(dFull(k.expires))}</b> (${lim.days} ${de?'Tage':'days'}).</p>
+        <p class="foot">${de?`KI pro Tag über diesen Code: ${lim.boards} Analysen, ${lim.questions} Fragen (heute genutzt: ${used.boards} / ${used.questions}) – dein API-Schlüssel zahlt.`:`AI per day through this code: ${lim.boards} analyses, ${lim.questions} questions (used today: ${used.boards} / ${used.questions}) – your API key pays.`}</p></div></div>`}
+    <div class="row"><button class="btn ghost" id="lkChat" aria-pressed="${!!k.chat}">${k.chat?'✓ ':''}${de?'Coach-Chat über diesen Code erlaubt':'Coach chat allowed through this code'}</button></div>
+    ${k.minor?`<p class="foot">${de?'Minderjährig: der Chat ist aus, bis du ihn hier einschaltest. Die Coach-Analyse ist in jedem Fall altersgerecht begrenzt.':'A minor: the chat stays off until you switch it on here. The coach analysis is limited for the age in any case.'}</p>`:''}
+    <div class="row"><button class="btn ghost" id="lkRenew">${de?`Verlängern (+${lim.days} Tage)`:`Renew (+${lim.days} days)`}</button>
+      <button class="btn ghost" id="lkRotate">${de?'Code ersetzen':'Replace the code'}</button><button class="btn ghost" id="lkRevoke">${de?'Widerrufen':'Revoke'}</button></div>
+    <p class="foot">${de?'Ersetzen / Widerrufen meldet das bisherige Handy sofort ab.':'Replace / revoke logs the current phone out at once.'}</p>`;
+  if(!k.expired) putQr("#qrAthlete",k.url);
+  $("#lkChat").addEventListener("click",()=>openLink("chat",{chat:!k.chat}));
+  $("#lkRenew").addEventListener("click",()=>openLink("renew"));
+  for(const [id,act,q] of [["#lkRotate","rotate",de?'Sicher? Das Handy muss neu scannen':'Sure? The phone has to scan again'],["#lkRevoke","revoke",de?'Sicher? Der Zugang endet sofort':'Sure? The access ends at once']])
+    $(id).addEventListener("click",e=>{ const b=e.currentTarget; if(b.dataset.sure!=="1"){ b.dataset.sure="1"; b.textContent=q; return; } openLink(act); });
+}
+$("#r_link").addEventListener("click",()=>openLink("show"));
+
+// what a phone sees at the bottom: which kind of code it carries, until when, and how to drop it
+function linkFootHtml(){ if(ACCESS.role==="local") return ""; const de=CFG.language==="de";
+  const what=ACCESS.role==="trainer"?(de?'Verbunden mit dem Trainer-Code.':'Connected with the trainer code.')
+    :(de?`Verbunden mit deinem persönlichen Code${ACCESS.expires?` – gültig bis ${dFull(ACCESS.expires)}`:''}.`:`Connected with your personal code${ACCESS.expires?` – valid until ${dFull(ACCESS.expires)}`:''}.`);
+  return `<div class="linkfoot phoneonly"><span>📱 ${what} ${de?'Die Verbindung bleibt in deinem WLAN.':'The connection stays inside your Wi-Fi.'}</span><span style="flex:1"></span><button class="btn ghost lfForget">${de?'Zugang auf diesem Gerät vergessen':'Forget the access on this device'}</button></div>`; }
+
+// ---- the report as ONE file: the server wraps this markup with the app's CSS and a no-script policy and hands
+// back a one-time download address (a script-made download does not reach the Files app on an iPhone reliably) ----
+$("#r_html").addEventListener("click",async()=>{ const de=CFG.language==="de", b=$("#r_html"), label=b.innerHTML; if(!CUR||!REPORT||b.disabled) return;
+  b.disabled=true; b.textContent="…";
+  try{ const copy=$("#r_body").cloneNode(true); copy.querySelectorAll(".linkfoot,.updbanner,#pinHint,script").forEach(x=>x.remove());
+    const res=await post("/api/export/snapshot",{user_id:CUR.id,html:copy.innerHTML,title:`${$("#r_name").textContent} · ${REPORT.today||""} · ARX Insight`,language:CFG.language});
+    if(res&&res.url){ location.href=res.url; b.innerHTML=label; } else b.textContent=de?"fehlgeschlagen":"failed"; }
+  catch(e){ b.textContent=de?"fehlgeschlagen":"failed"; }
+  setTimeout(()=>{ b.disabled=false; b.innerHTML=label; },2500); });
+
+// ---- phone keyboard: keep the chat's input line above it (the visual viewport shrinks, the layout viewport does not) ----
+if(window.visualViewport){ const fit=()=>{ const c=$("#chat"); if(!c.classList.contains("open")){ c.style.height=c.style.top=c.style.bottom=""; return; }
+    c.style.top=visualViewport.offsetTop+"px"; c.style.height=visualViewport.height+"px"; c.style.bottom="auto"; $("#chatLog").scrollTop=1e9; };
+  visualViewport.addEventListener("resize",fit); visualViewport.addEventListener("scroll",fit);
+  new MutationObserver(fit).observe($("#chat"),{attributes:true,attributeFilter:["class"]}); }
 </script>
 </body>
 </html>
