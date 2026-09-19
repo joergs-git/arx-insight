@@ -675,7 +675,7 @@ function renderInterview(){
   $("#gTBox").style.display=TKIND?"block":"none"; $("#gTExBox").style.display=TKIND==="force"?"block":"none";
   $("#g_tval_l").textContent=(de?"Zielwert":"Target")+" ("+(TKIND==="waist"?LCm():LKg())+")";
   // grip aids: only exercises that hang on the grip and offer an aid
-  const withAid=Object.entries(CATALOG).filter(([c,m])=>(m.aids||[]).length&&!m.library);
+  const withAid=Object.entries(CATALOG).filter(([c,m])=>(m.aids||[]).length&&!m.library&&!EXCL[c]);   // not: exercises switched off below
   $("#gAidsBox").style.display=withAid.length?"block":"none";
   $("#gAids").innerHTML=withAid.map(([c,m])=>{const cur=((AIDS[c]||{}).aids||[])[0]||"";
     const b=(v,l)=>`<button data-c="${c}" data-v="${v}" aria-pressed="${cur===v}" style="min-width:90px;min-height:50px">${l}</button>`;
@@ -699,7 +699,7 @@ $("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!
   if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
 $("#gExcl").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   const c=b.dataset.c, nxt=XCYCLE[(XCYCLE.indexOf(EXCL[c]||"")+1)%XCYCLE.length];
-  if(nxt) EXCL[c]=nxt; else delete EXCL[c]; renderInterview();});
+  if(nxt) EXCL[c]=nxt; else delete EXCL[c]; const cur=$("#gTEx").value; renderInterview(); fillTargetNames(cur);});
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Dein Ziel":"Your goal");
@@ -735,9 +735,12 @@ function setSlidersFromGoal(g){
   $("#gCond").value=Math.min(60,Math.round(condFrac*100));
   $("#gMain").value=Math.max(0,Math.min(100,main));
 }
+function fillTargetNames(sel){               // exercises a force target can be set for - not the ones switched off
+  const names=Object.entries(CATALOG).filter(([c,m])=>!m.library&&!EXCL[c]).map(([c,m])=>m.name).sort();
+  $("#gTEx").innerHTML=names.map(n=>`<option ${sel===n?'selected':''}>${esc(n)}</option>`).join("");
+}
 function fillTargetBox(t){
-  const names=Object.values(CATALOG).filter(m=>!m.library).map(m=>m.name).sort();
-  $("#gTEx").innerHTML=names.map(n=>`<option ${t&&t.exercise===n?'selected':''}>${esc(n)}</option>`).join("");
+  fillTargetNames(t&&t.exercise);
   $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
 }
 function openGoal(){                       // new user: the interview for the first time

@@ -3,7 +3,7 @@ restrictions and the planner stand on (v0.7.0). One wrong identifier and an exer
 drops out of a rule - so every entry is checked against the vocabularies the engine really uses,
 and the relationships that follow from the entries (means before the target, twins, fallback map)
 are checked for sense."""
-import itertools, json, os, unittest
+import itertools, json, os, re, unittest
 
 import tests                                   # noqa: F401  (points ARX_DATA_DIR at a temp folder first)
 import arx_app as app
@@ -97,6 +97,12 @@ class ShippedCatalog(unittest.TestCase):
         reached = {t for m in big for t in m["targets"]}
         for muscle in ("chest", "shoulders", "lats", "upper_back", "quads", "glutes", "hamstrings"):
             self.assertIn(muscle, reached)
+
+    def test_the_readme_lists_every_exercise_with_its_code(self):
+        with open(os.path.join(HERE, "README.md"), encoding="utf-8") as f:
+            rows = [re.match(r"^\| ([^|]+?) \|.*\| `(\d+)` \|$", line.rstrip()) for line in f.read().splitlines()]
+        listed = {m.group(1): m.group(2) for m in rows if m}                # the table rows end with the DB code
+        self.assertEqual(listed, {m["name"]: c for c, m in self.mapped.items()})
 
     def test_the_name_fallback_agrees_with_the_catalog(self):
         """BODYPART_EXERCISES only serves entries without 'joints' - it must never say something else."""

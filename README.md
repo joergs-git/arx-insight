@@ -1,6 +1,6 @@
 <!-- ARX Insight -->
 <p align="center">
-  <img src="docs/hero.svg" alt="ARX Insight" width="100%">
+  <img src="docs/hero.svg" alt="ARX Insight - your data-driven strength coach: measure, plan, track, AI coach" width="100%">
 </p>
 
    <img src="docs/spin-omni-3.webp" alt="ARX Insight" width="49%">    <img src="docs/spin-alpha-3.webp" alt="ARX Insight" width="49%">
@@ -8,9 +8,12 @@
 <h1 align="center">ARX Insight</h1>
 
 <p align="center">
-  <b>Local, private strength analytics for the ARX adaptive-resistance machine.</b><br>
-  Reads your training data straight off the machine, turns it into real sport-science metrics,<br>
-  and gives you AI-written feedback — all on your own PC, with your own API key.
+  <b>Local, private strength analytics <i>and</i> a digital coach for the ARX adaptive-resistance machine.</b><br>
+  Reads every rep straight off the machine and turns it into real sport-science metrics —<br>
+  then <b>builds your training plan from your own data</b>: the next day, the exercises, their order and the targets,<br>
+  re-planned after every session and every check-in, and <b>checked against what you actually did</b>.<br>
+  An optional AI coach (your own Claude API key) explains it, adapts it within the rules and answers your questions —<br>
+  all on your own PC.
 </p>
 
 <p align="center">
@@ -28,6 +31,17 @@ ARX gives you a brilliant machine, but its analysis lives only in the cloud, wit
 dig into your own numbers over time. Yet all of your data sits **locally** on the PC next to the
 machine. **ARX Insight** is the missing local companion: it opens a read-only copy of that data
 and shows you what actually happened — and what to do next.
+
+It is two things in one. An **analysis tool**: what happened inside every set (concentric and
+eccentric apart), what is really progress and what is only a different range, order or tempo. And a
+**digital coach**: a planner that knows how recovered every muscle is, what your weekly rhythm,
+your goal, your time budget and today's check-in ask for — and writes **one plan** from that: when
+to train next, which exercises, in which order, with which targets. The plan is dynamic (it changes
+with every set you record, every check-in, every setting), it explains each decision with its
+numbers, it remembers what it recommended and tells you next time what you did with it — targets
+met, exercises skipped, effort reached. It works without any AI; with your own Claude API key an
+AI coach reads the same data, may adjust the plan inside the engine's safety rules and answers
+follow-up questions in a chat.
 
 > Not affiliated with ARX. Independent, community-made, experimental. Not medical advice.
 
@@ -59,7 +73,7 @@ and shows you what actually happened — and what to do next.
 - 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
 - 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. 20 questions per report, 40 a day.
 - 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver. Since v0.7.0 the big slot of a movement group goes to the exercise that reaches the muscles which would otherwise wait too long — so with Overhead Press or High Pull in your repertoire the chest or the lats cannot lose their turn for two weeks — and the remaining slots reach such muscles first (calves once a week before a second arm exercise).
-- 🚫 **Exercises you do not do on the ARX** (v0.7.0) — in the profile every exercise of the machine is a tile: *in the plan → I train it elsewhere → not for me*. Switched-off exercises are never planned, never suggested and the AI coach cannot bring them back. *Elsewhere* (you squat in the gym, curl at home) means their target muscles count as trained there: no "new exercise" suggestion, no frequency warning, not "neglected" — and the plan says honestly that it cannot see that load, so soreness belongs into the check-in. *Not for me* leaves the muscles to your other exercises where they can reach them.
+- 🚫 **Exercises you do not do on the ARX** (v0.7.0) — in the profile every exercise of the machine is a tile: *in the plan → I train it elsewhere → not for me*. Switched-off exercises are never planned, never suggested and the AI coach cannot bring them back. *Elsewhere* (you squat in the gym, curl at home) means their target muscles count as trained there: no "new exercise" suggestion, no frequency warning, not "neglected" — and the plan says honestly that it cannot see that load, so soreness belongs into the check-in. *Not for me* leaves the muscles to your other exercises where they can reach them. Either way a switched-off exercise has **no say in anything that looks ahead** (v0.7.1): for an exercise you never did the report is the very same as if the machine did not offer it, and one with a history keeps its charts in chapter 3 but no longer appears in the readiness lists, the findings, the deload signal, the profile's target and grip-aid lists or in what the AI coach reads.
 - 📱 **On your phone, by QR code** (v0.6.0; on by default since v0.6.1, one click switches it off) — press **📱 Connect a phone** on the start screen and scan a code: the **trainer code** opens the whole app on a phone in the same Wi-Fi; an **athlete code** opens exactly one person's report, check-in, profile, coach analysis and **live chat with the coach** (ask about the plan you just got, standing at the machine) — and nothing else. Codes expire, can be renewed, replaced or revoked; API key, update, exit and the codes themselves stay PC-only; a minor's chat is off until the trainer allows it; the report can be downloaded as one file that opens anywhere.
 - ⏸️ **Breaks are understood** (v0.5.1) — more than two weeks away is named as what it is. Up to about three weeks nothing is lost: the plan simply continues and holds your numbers for one session. After a longer break your old values are only an orientation — what you reach is the new starting point, and it comes back much faster than it was built. The app never makes you "catch up" with extra sets or sessions (no evidence that this helps), and if your real attendance is too low for a split it plans fuller sessions until your rhythm is back.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
@@ -112,6 +126,43 @@ python arx_app.py --db "/path/to/Resources/DB.FDB4"
 ```
 
 Or generate just the report data (no UI): `python arx_report.py --db "..." --ai` — and `--ai-payload payload.json` writes exactly what the coach *would* receive, without sending anything (for your own privacy review).
+
+## The exercises it knows
+
+All **17 exercises of the ARX Omni** are mapped (since v0.6.2) — name, movement group, what the
+exercise is *for* and which helper muscles tend to give out first. Recovery, the order rules ("a
+helper before the exercise that targets it": rows before curls, presses before the pressdown),
+restrictions and the planner all build on this table; it lives in `exercises.json` and you can edit
+it (a test checks the shipped file for sense).
+
+| Exercise | Group | Kind | Trains (targets) | Helpers that can give out first | Grip aid | DB code |
+|---|---|---|---|---|---|---|
+| Decline Press | Push | compound | chest | triceps, shoulders | — | `26` |
+| Horizontal Press | Push | compound | chest | triceps, shoulders | — | `23` |
+| Incline Press | Push | compound | chest, shoulders | triceps | — | `25` |
+| Overhead Press | Push | compound | shoulders | triceps | — | `5` |
+| Pec Fly | Push | isolation | chest | — | — | `42` |
+| Triceps Pressdown | Push | isolation | triceps | — | — | `12` |
+| High Pull | Pull | compound | upper back, shoulders | grip | hooks / straps | `41` |
+| Pull Down | Pull | compound | lats, upper back | grip, elbow flexors (biceps) | hooks / straps | `4` |
+| Row | Pull | compound | upper back, lats | grip, elbow flexors (biceps) | hooks / straps | `3` |
+| Biceps Curl | Pull | isolation | elbow flexors (biceps) | grip | — | `11` |
+| Pull Over | Pull | isolation | lats | triceps | — | `31` |
+| Shrugs | Pull | isolation | upper back | grip | hooks / straps | `13` |
+| Belt Squat | Drive (legs / hips) | compound | quads, glutes | — | — | `19` |
+| Dead Lift | Drive (legs / hips) | compound | glutes, hamstrings, quads | grip, lower back | hooks / straps | `10` |
+| Romanian Dead Lift | Drive (legs / hips) | compound | hamstrings, glutes | grip, lower back | hooks / straps | `20` |
+| Calf Raise | Drive (legs / hips) | isolation | calves | — | — | `14` |
+| Hamstring Curl | Drive (legs / hips) | isolation | hamstrings | — | — | `43` |
+
+Calf Raise is entered for the belt; done with the bar in the hands it hangs on the grip like Shrugs
+(see `_variants` in `exercises.json`). Exercises you do not do on the ARX can be switched off per
+person in the profile — they then play no part in the plan at all.
+
+**ARX Alpha:** its exercises (Leg Press, Chest Press, Torso Flexion / Extension / Rotation …) are
+not mapped yet — there is no Alpha data to take the codes from. Sets of an unknown exercise are
+still analysed and show up as *Unknown exercise codes*; one short set per exercise plus the ARX
+app's CSV export is all it takes to map them (see the FAQ).
 
 ## How it works
 
@@ -325,10 +376,14 @@ two readings a few weeks apart you get a rough trend, read together with your st
 Scales and tape measures vary more than real change does, so only the trend counts.
 
 **The report shows "Unknown exercise codes" — what now?**
-Someone performed an exercise that `exercises.json` does not know yet. Add an entry with the code
-as the key (name, group, kind, `targets`, `limiters`, `joints`) — copy a similar exercise; if it is
-already listed under `_library`, move it up and give it the code. Until then it counts as
-"Exercise <code>" and cannot take part in recovery or planning properly.
+Someone performed an exercise that `exercises.json` does not know yet — all 17 ARX Omni exercises
+are mapped, so this will usually be an **ARX Alpha** exercise (Leg Press, Chest Press, Torso
+Flexion / Extension / Rotation …). Add an entry with the code as the key (name, group, kind,
+`targets`, `limiters`, `joints`) — copy a similar exercise. To find out which code is which: let a
+test person do one short set of each exercise, export that person's sets as CSV in the ARX app and
+match the rows to the codes by their time stamps. Until then the exercise counts as
+"Exercise <code>" and cannot take part in recovery or planning properly. Pull requests with Alpha
+codes are very welcome.
 
 **Where do the recommendations come from — sport science or the app's taste?**
 Both, and they are kept apart. `science.json` holds the evidence (verified references, evidence

@@ -110,6 +110,13 @@ class Payload(unittest.TestCase):
         schema = json.dumps(ai.board_schema(report))
         self.assertNotIn("Biceps Curl", schema.split('"next_training"')[1].split('"history"')[0])   # ... so the plan rows cannot name it
         self.assertEqual(ai.lint_payload(p), [])
+        # an exercise WITH a history goes quiet as well: no series, no effects, no kpi note about it (v0.7.1)
+        self.assertNotIn("Biceps Curl", [e["exercise"] for e in p["history"]["exercises"]])
+        self.assertIn("Row", [e["exercise"] for e in p["history"]["exercises"]])
+        self.assertFalse([x for x in p["history"]["own_evidence"]["order_effects"] if "Biceps Curl" in (x["first"], x["then"])])
+        kpi = ai.board_schema(report)["properties"]["history"]["properties"]["kpi_notes"]["items"]["properties"]["exercise"]["enum"]
+        self.assertNotIn("Biceps Curl", kpi)
+        self.assertNotIn("Dead Lift", kpi)
         self.assertEqual(ai.build_payload(*make())["profile"]["exercises_switched_off"], [])
         prompt = ai.system_prompt("board")[0]["text"]
         self.assertIn("exercises_switched_off is never recommended", prompt)

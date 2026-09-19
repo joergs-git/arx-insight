@@ -768,6 +768,8 @@ def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: dat
 
     ex_rows = []
     for e in exercises:
+        if e.get("excluded"):                  # switched off in the profile: no "ready" / "not yet" line for it
+            continue
         targets = list(e.get("targets") or []) or [e.get("group") or "?"]
         limiters = [l for l in e.get("limiters_eff", e.get("limiters") or []) if l not in targets]
         t_block = [m for m in targets if m in muscles and not muscles[m]["ready"]]
@@ -1818,8 +1820,10 @@ def build_report(con, cfg: dict) -> dict:
     """Assemble the full analysis payload for one athlete."""
     catalog = cfg.get("_catalog", {})
     # exercises the athlete does not do on the ARX (profile): what the "elsewhere" ones are FOR counts as
-    # trained outside - read by the findings (no "neglected") and by the planner (no gap, no warning)
-    cfg = dict(cfg, _external=planner.external_muscles(cfg, catalog))
+    # trained outside - read by the planner (no gap, no warning); muscles left without any exercise are
+    # nobody's business either - read by the findings (never "neglected")
+    switched_off = planner.excluded_of(cfg, catalog)          # {code: elsewhere | unwanted}
+    cfg = dict(cfg, _external=planner.external_muscles(cfg, catalog), _out_of_plan=planner.muscles_out_of_plan(cfg, catalog))
     # grip aids per exercise {code: {"aids": ["hooks"], "since": date}}: they take the grip out as a
     # limiter of that exercise - in loads, sequences, evidence and (later) the plan
     aids = cfg.get("aids") or {}
@@ -1856,9 +1860,15 @@ def build_report(con, cfg: dict) -> dict:
     exercises = _exercise_series(work, catalog, restrictions)
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"))
+        # switched off in the profile: its history stays (it is data), but it has no say in anything that looks
+        # ahead - readiness lists, whiteboard targets, deload signal, findings, the coach (v0.7.1)
+        e["excluded"] = switched_off.get(str(e["ex"]))
         e["limiters_eff"] = evidence.effective_limiters(catalog.get(str(e["ex"]), {}), e["ex"], _today(cfg).isoformat(), aids)
     # the athlete's own measured effects (needs the context and the comparable flags set above)
     ev = evidence.build_evidence(work, catalog, aids)
+    off_names = {e["name"] for e in exercises if e.get("excluded")}
+    if off_names:                             # "never measured fresh" is a promise of the plan's rotation - not for these
+        ev["never_fresh"] = [n for n in ev.get("never_fresh") or [] if n not in off_names]
     days = sorted({s["date"][:10] for s in work})
 
     # today's check-in scored; its resting-HR verdict feeds the load flag
@@ -1908,7 +1918,7 @@ def build_report(con, cfg: dict) -> dict:
         scored.append({"date": today.isoformat(), "score": readiness["score"], "rhr": readiness["rhr"]})
     hist_report = history.build_history(work, sets, exercises, sequences_all, catalog, today, cfg, ev, last_session, load,
                                         _target_effort(cfg.get("goal", {}) or {})["inroad_min"], scored)
-    coach = _coach_facts(exercises, load["recovery"], cfg.get("goal", {}) or {}, days,
+    coach = _coach_facts([e for e in exercises if not e.get("excluded")], load["recovery"], cfg.get("goal", {}) or {}, days,
                          cfg.get("sessions_per_week"), today, totals, cfg.get("units", "imperial"),
                          cfg.get("checkin_history"), readiness)
     # chapter 2: the ONE plan - when, what, order, targets (arx_plan). The old session_plan list and
@@ -1934,7 +1944,7 @@ def build_report(con, cfg: dict) -> dict:
         "training_days": days,
         "kpi": kpi,
         "exercises": exercises,
-        "rom_warnings": _rom_warnings(exercises),
+        "rom_warnings": _rom_warnings([e for e in exercises if not e.get("excluded")]),    # not: exercises switched off
         "whole_body": _whole_body(work, exercises),
         "load": load,
         "session_sequences": sequences,

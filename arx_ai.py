@@ -263,7 +263,10 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
     # ---- history: series on comparable days, weeks, factors, evidence, findings ---------------------------------------------
     pf = {p["name"]: p for p in (hist.get("progress_factors") or {}).get("exercises", [])}
     exercises = []
+    off = {e["name"] for e in report.get("exercises", []) if e.get("excluded")}    # switched off in the profile: no business of the coach
     for e in report.get("exercises", []):
+        if e["name"] in off:
+            continue
         p = pf.get(e["name"], {})
         pts = [o for o in e["occ"]][-SERIES_POINTS:]
         exercises.append({
@@ -289,9 +292,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
     evidence = {"fresh_sets": [ev.get("fresh_sets"), ev.get("total_sets")], "never_measured_fresh": ev.get("never_fresh"),
                 "order_effects": [{"id": x["id"], "first": x["before"], "then": x["then"], "n": x["n"], "observed_loss_pct": x["observed_loss_pct"],
                                    "general_estimate_pct": x["prior_loss_pct"], "blended_loss_pct": x["loss_pct"], "confidence": x["confidence"]}
-                                  for x in ev.get("pair_effects", [])],
+                                  for x in ev.get("pair_effects", []) if x["before"] not in off and x["then"] not in off],
                 "second_set_effects": [{"id": x["id"], "exercise": x["exercise"], "n": x["n"], "observed_loss_pct": x["observed_loss_pct"],
-                                        "confidence": x["confidence"]} for x in ev.get("repeat_effects", [])],
+                                        "confidence": x["confidence"]} for x in ev.get("repeat_effects", []) if x["exercise"] not in off],
                 "rest_effect": (ev.get("rest_effect") or {}).get("status"),
                 "position_effect_pct_per_position": (ev.get("position_effect") or {}).get("pct_per_position")}
     findings = [{"ref": f["id"], "type": f["type"], "severity": f["severity"], "exercise": f.get("exercise"), "n": f.get("n"),
@@ -431,7 +434,7 @@ def board_schema(report: dict) -> dict:
     dates = [d["date"] for d in space.get("dates", [])] or [report.get("today") or "1970-01-01"]
     cands = sorted({c["name"] for d in space.get("dates", []) for c in d["candidates"]}) or ["-"]
     done = [x["name"] for x in (report.get("last_session") or {}).get("exercises", [])] or ["-"]
-    known = sorted({e["name"] for e in report.get("exercises", [])}) or ["-"]
+    known = sorted({e["name"] for e in report.get("exercises", []) if not e.get("excluded")}) or ["-"]    # not: switched-off exercises
     refs = [f["id"] for f in ((report.get("history") or {}).get("findings") or {}).get("all", [])[:12]]
     S = {"type": "string"}
     obj = lambda props: {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
