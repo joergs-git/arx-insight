@@ -78,6 +78,27 @@ class Payload(unittest.TestCase):
         self.assertIn("at least about once a week", prompt)
         self.assertIn("never recommend alternating muscle groups at one session a week", prompt)
 
+    def test_the_coach_is_told_about_a_break_and_may_lower_the_targets(self):
+        report, cfg = make(today="2026-10-25")                              # 40 days after the last session
+        payload = ai.build_payload(report, cfg)
+        self.assertEqual(ai.lint_payload(payload), [])
+        brk = payload["planner"]["training_break"]
+        self.assertEqual((brk["tier"], brk["days_since_last_session"]), ("long", 40))
+        self.assertTrue(brk["engine_says"])
+        floors = payload["planner"]["decision_space"]["target_floor_pct"]
+        self.assertEqual(set(floors), {r["exercise"] for r in payload["planner"]["proposal"]["rows"]})
+        self.assertIsNone(ai.build_payload(*make())["planner"]["training_break"])     # no break, no word about one
+        board = good_board(report, cfg)                                     # the engine's own comeback plan passes ...
+        self.assertEqual(ai.validate_board(board, report, cfg)[0], [])
+        low = copy.deepcopy(board)                                          # ... and so does a target 12 % below the old reference
+        row = low["next_training"]["rows"][0]
+        row["target"] = round(row["target"] * 0.88, 1)
+        row["why"] = "After 40 days away the old reference is only an orientation, so the first set starts lower."
+        self.assertEqual(ai.validate_board(low, report, cfg)[0], [])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn('NEVER try to "catch up"', prompt)
+        self.assertIn("training_breaks", prompt)                            # the science line is in the prompt as well
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)

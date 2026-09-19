@@ -36,7 +36,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 2
+PROMPT_VERSION = 3
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -236,10 +236,16 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
             "decision_space": {"dates": [{"date": d["date"], "candidates": [{"exercise": c["name"], "status": c["status"], "new": c["new"],
                                                                              "restriction": c["restriction"], "group": c["group"]} for c in d["candidates"]]}
                                          for d in space.get("dates", [])],
-                               "bounds": space.get("bounds"), "effort_cap": space.get("effort_cap")},
+                               "bounds": space.get("bounds"), "effort_cap": space.get("effort_cap"),
+                               # after weeks away a target may go this many % BELOW the proposal (exercise -> %)
+                               "target_floor_pct": space.get("target_floor_pct") or {}},
             "week_outlook": [{"date": w["date"], "type": w["session_type"], "exercises": w["exercises"], "fresh_benchmark": w.get("benchmark")}
                              for w in plan.get("week_plan", [])],
             "cadence_note": _text(plan.get("cadence_note")),
+            # a gap of more than two weeks before the planned session: tier short / long / very_long with the engine's line
+            "training_break": ({"days_since_last_session": plan["training_break"]["days"], "tier": plan["training_break"]["tier"],
+                                "engine_says": _text(plan["training_break"].get("interp"))} if plan.get("training_break") else None),
+            "real_sessions_per_week": (plan.get("profile") or {}).get("real_sessions_per_week"),
             # no trained muscle may wait longer than about a week: what the engine flags, and what one weekly session buys
             "frequency_warnings": [_text(n) for n in plan.get("frequency_notes") or []],
             "dose_note": _text(plan.get("dose_note")), "structure_note": _text(plan.get("structure_note")),
@@ -369,8 +375,9 @@ HOW TO JUDGE - non-negotiable:
 4. Safety first: restrictions (careful / avoid), pain today, the minors guard and a poor check-in outrank progress. You are not a doctor: no diagnosis, no medical advice.
 5. Minimum effective dose: the athlete's time is part of the goal. Never add volume "to be safe"; respect the chosen time-vs-effort profile (you may recommend another one when intent and delivered effort diverge - with its price in time).
 6. Frequency is a floor: a muscle needs a training stimulus at least about once a week to grow. One session a week therefore means full body with the big push, pull and leg exercises; a split only makes sense from two, better three sessions a week. If planner.frequency_warnings names a muscle, or your own change would leave a trained muscle without a stimulus for more than about 8 days, say so and fix it - never recommend alternating muscle groups at one session a week.
-7. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
-8. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
+7. Breaks: planner.training_break tells you when the athlete has been away (short = up to about four weeks, long = more, very_long = more than half a year). Up to about three weeks nothing is lost: simply continue and hold the numbers. After a longer break expect lower values, treat what is reached as the new starting point and say that it comes back much faster than it was built. NEVER try to "catch up": no extra sets, no extra sessions, no harder session than the profile asks for - and no split just because of the break (the structure follows the sessions per week the athlete really trains, see planner.real_sessions_per_week). After everything is recovered the big push, pull and leg exercise come first: that is the best use of the athlete's time.
+8. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
+9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}
@@ -381,7 +388,7 @@ BOARD_RULES = """YOUR TASK: fill the board - one JSON object in the given schema
 last_session: headline (max 90 characters, the one thing that defines the session) - meaning (what it means for this athlete) - consequence (what follows concretely) - verdicts: one per exercise of last_session in the order performed; rating better / same / worse only when vs_previous.same_settings is true, else not_comparable (or first); note max 140 characters with the decisive number (prefer concentric / eccentric strength and the run of the reps over the raw peak) - bullets: 2 to 4 observations a human trainer would have missed (order effects, a phase that gives up early, pacing, rests, settings drift, plan vs actual), each with its number. If there is no last session write that there is no session yet and keep the lists empty.
 
 next_training: readiness (one sentence: check-in verdict or "no check-in", what is recovered) - date and why_date - rows - rest_note - grip_note (helper muscles / aids; empty string when nothing is worth saying) - week_outlook (one or two sentences) - changes_vs_previous (what differs from previous_recommendations and why; empty list when nothing).
-THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise; sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
+THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
 
 history: four_weeks (what the last weeks show: sessions against the target, hard sets, strength index, effort hit rate - with numbers) - longer_term (quarter / year; empty string while history.availability says these views are not available) - kpi_notes: for the 2 to 5 exercises where it matters, what the progress status means and what follows - anomalies: the findings that deserve attention, each with its ref from history.findings, the meaning and the action.
 

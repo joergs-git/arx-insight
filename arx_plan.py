@@ -32,6 +32,12 @@ ONE plan, derived from the athlete's own data instead of rules of thumb:
             athlete usually puts on it in a session, next to the loss measured so far; an aid
             (hooks / straps) is suggested where it frees the most.
   week      The same logic rolled forward HORIZON_DAYS, with the benchmark rotating on.
+  breaks    (v0.5.1) A gap of more than two weeks is named as what it is. Short break: continue, hold
+            the numbers. Four weeks and more without direct work for a muscle: the old reference is
+            an orientation, the value reached is the new starting point - never "catching up" with
+            extra sets or sessions (science.json: training_breaks). A split the athlete's REAL
+            attendance cannot carry (a muscle would wait > MAX_MUSCLE_GAP_DAYS) becomes fuller
+            sessions until the rhythm is back.
 
 Every decision carries a meaning / action item (meanings.json). check_plan() is the rule set the
 AI's plan will have to pass as well (v0.5.0). The plan ledger remembers what was recommended, so
@@ -91,6 +97,16 @@ CONTEXT_LOSS_MIN_PCT = 3.0     # smaller expected losses do not change a target
 LIGHT_DAY_SHARE = 0.70         # force on a light day
 RETURN_DAYS = 180              # an exercise not done for this long restarts gently: the protection against
                                # eccentric muscle damage (repeated-bout effect) fades within 6-12 months
+# Training breaks (science.json: training_breaks). Up to about three weeks off cost no long-term
+# progress; after longer breaks strength and size are measurably down and come back much faster
+# than they were built. So a break never calls for "catching up" (extra sets, sessions or harder
+# sessions): the first session back holds the numbers (short) or sets a new starting point (long),
+# then the normal progression continues. Judged per exercise on its MUSCLES (days without direct
+# work), so a muscle that was simply neglected for a month is treated the same way.
+BREAK_SHORT_DAYS = 14          # longer without training = a break: no progression step in the first session back
+BREAK_LONG_DAYS = 28           # from here a loss is to be expected: the old reference is only an orientation
+BREAK_TARGET_FLOOR_PCT = 15.0  # ... and the coach may set such a target this far BELOW the engine's
+REAL_FREQ_DAYS = 28            # the rhythm really lived: training days in the four weeks up to the last session
 BUDGET_TOLERANCE = 1.15        # planned limiter load above this share of the usual one = high
 BUDGET_MIN_SESSIONS = 3
 AID_MIN_EXERCISES = 3          # this many exercises on one limiter also trigger an aid hint
@@ -134,6 +150,8 @@ SCIENCE = {
     "STRUCTURES": "split_vs_full_body", "split_factor": "split_vs_full_body", "theme_groups": "split_vs_full_body",
     "MAX_MUSCLE_GAP_DAYS": "frequency", "SPLIT_MIN_SESSIONS": "frequency", "COVER_FIRST": "minimum_dose",
     "RETURN_DAYS": "eccentric", "NEW_WEIGHT": "eccentric",
+    "BREAK_SHORT_DAYS": "training_breaks", "BREAK_LONG_DAYS": "training_breaks", "BREAK_TARGET_FLOOR_PCT": "training_breaks",
+    "training_break": "training_breaks", "REAL_FREQ_DAYS": "frequency", "real_frequency": "frequency",
 }
 
 
@@ -163,16 +181,46 @@ def goal_effort(goal: dict) -> str:
 STRUCTURES = ("auto", "full_body", "split")    # how sessions are built (profile); science.json: split_vs_full_body
 
 
-def split_factor(spw: int, structure: str = "auto") -> int:
+def split_factor(spw: int, structure: str = "auto", real_spw: float | None = None) -> int:
     """1 = full body; 2 / 3 = a session covers a half / a third of the movement groups.
     auto: full body up to 2 sessions a week, a split from 3, thirds from 5. At equal weekly volume
     split and full body give the same results (science.json) - so the athlete may choose: a split
     trains different muscles on consecutive days (more, shorter sessions, more sets per muscle per
-    session), full body reaches everything with fewer sessions."""
+    session), full body reaches everything with fewer sessions.
+    real_spw (see real_frequency): in auto mode the rhythm the athlete really lives decides, not the
+    wish - with a k-way split a muscle waits 7 * k / real days, and more than MAX_MUSCLE_GAP_DAYS
+    means no weekly stimulus, so the sessions get fuller until the rhythm is back."""
     if structure == "full_body" or spw < SPLIT_MIN_SESSIONS:
         return 1                                   # one session a week is ALWAYS full body (see MAX_MUSCLE_GAP_DAYS)
     auto = 1 if spw <= 2 else (2 if spw <= 4 else 3)
-    return max(2, auto) if structure == "split" else auto
+    if structure == "split":
+        return max(2, auto)                        # an explicit wish is kept (and commented, see structure_note)
+    while real_spw is not None and auto > 1 and 7.0 * auto / max(real_spw, 0.1) > MAX_MUSCLE_GAP_DAYS:
+        auto -= 1
+    return auto
+
+
+def real_frequency(days: list[str]) -> float | None:
+    """Sessions per week the athlete really trained in the REAL_FREQ_DAYS up to the LAST session - a
+    break after it is a break, not a rhythm. None while the history is shorter than that window."""
+    if not days:
+        return None
+    first, last = date.fromisoformat(days[0]), date.fromisoformat(days[-1])
+    if (last - first).days < REAL_FREQ_DAYS - 1:
+        return None
+    start = last - timedelta(days=REAL_FREQ_DAYS - 1)
+    return round(sum(1 for d in days if date.fromisoformat(d) >= start) * 7.0 / REAL_FREQ_DAYS, 2)
+
+
+def training_break(last_day: date | None, day: date) -> dict | None:
+    """The gap between the last session and the planned one as a break tier: short (nothing lost -
+    continue, hold the numbers), long (expect less, new starting point), very_long (restart gently,
+    see RETURN_DAYS). None = no break worth a word."""
+    if last_day is None or (day - last_day).days <= BREAK_SHORT_DAYS:
+        return None
+    n = (day - last_day).days
+    tier = "short" if n < BREAK_LONG_DAYS else ("long" if n <= RETURN_DAYS else "very_long")
+    return {"days": n, "weeks": round(n / 7), "tier": tier, "last_date": last_day.isoformat()}
 
 
 def recommend_commitment(cfg: dict, minutes: float, spw: int) -> str:
@@ -312,15 +360,15 @@ def build_pool(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     return pool
 
 
-def due_interval(spw: int, structure: str = "auto") -> float:
+def due_interval(spw: int, structure: str = "auto", real_spw: float | None = None) -> float:
     lo, hi = DUE_INTERVAL_RANGE
-    return min(hi, max(lo, 7.0 * split_factor(spw, structure) / max(1, spw)))
+    return min(hi, max(lo, 7.0 * split_factor(spw, structure, real_spw) / max(1, spw)))
 
 
 def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw: int, cfg: dict,
                      today: date | None = None) -> list[dict]:
     """Score every exercise that may be trained on that day, with the reasons as items."""
-    interval = due_interval(spw, structure_of(cfg))
+    interval = due_interval(spw, structure_of(cfg), cfg.get("_real_spw"))
     never_fresh = sorted((c for c in pool if not c["new"] and not c["last_fresh"]), key=lambda c: (-c["n_days"], c["name"]))
     measured = sorted((c for c in pool if not c["new"] and c["last_fresh"]), key=lambda c: (c["last_fresh"], c["name"]))
     bench_rank = {c["name"]: i for i, c in enumerate(never_fresh + measured)}
@@ -339,6 +387,7 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
                  for m in targets}
         never = all(v is None for v in since.values())
         days_due = max((v for v in since.values() if v is not None), default=None)
+        days_away = min((v for v in since.values() if v is not None), default=None)   # the most recently trained target
         worst = next((m for m in targets if since[m] == days_due), targets[0] if targets else None)
         due = 2.0 if never else min((days_due or 0) / interval, 2.0)
         cover = 1.0 if (never or (days_due or 0) > COVER_DAYS) else 0.0
@@ -368,19 +417,20 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         if ps == "progressing":
             why.append(item("sel_progress", {"change_spct": (c["progress"] or {}).get("change_pct")}, cfg))
         out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind,
-                        why_selected=why, days_since_target=days_due, due_muscle=worst,
+                        why_selected=why, days_since_target=days_due, days_away=days_away, due_muscle=worst,
                         bench_rank=bench_rank.get(c["name"]) if can_bench else None))
     out.sort(key=lambda c: (-c["score"], c["name"]))
     return out
 
 
-def theme_groups(cands: list[dict], pool: list[dict], spw: int, structure: str = "auto") -> list[str] | None:
+def theme_groups(cands: list[dict], pool: list[dict], spw: int, structure: str = "auto",
+                 real_spw: float | None = None) -> list[str] | None:
     """With 3+ sessions a week a session covers only the most due movement groups (Push / Pull /
     Drive of the catalog), so the others are ready the day after. Groups, not body regions: a
     group keeps a muscle together with the exercises it helps in (biceps with the rows, triceps
     with the presses) - split the other way round, yesterday's curl would limit today's row.
     None = full body."""
-    k_split = split_factor(spw, structure)
+    k_split = split_factor(spw, structure, real_spw)
     known = sum(1 for c in pool if not c["new"] and c["restriction"] != "avoid")
     while k_split > 1 and known < MIN_READY_EXERCISES * k_split:          # too few exercises to split them up
         k_split -= 1
@@ -572,8 +622,9 @@ def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) ->
 
 
 def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: str | None, is_bench: bool,
-               row: dict, cfg: dict, returning: bool = False) -> dict:
-    """Force target, sets and the rule behind them (see the module docstring)."""
+               row: dict, cfg: dict, returning: bool = False, away_days: int | None = None) -> dict:
+    """Force target, sets and the rule behind them (see the module docstring). away_days = days the
+    exercise's muscles have been without direct work on the planned day (see BREAK_SHORT_DAYS)."""
     e = c["series"]
     out = {"target_peak_kg": None, "target_con_mean_kg": None, "target_rule": None, "step_pct": 0.0, "base_kg": None,
            "base_date": None, "base_context": None, "settings": None, "sets": 1, "context_note": None}
@@ -604,11 +655,19 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         out["target_rule"] = "return_after_break"
         out["interp"] = item("plan_return_after_break", {"last_date": occ[-1]["date"], "base_kg": base["kg"]}, cfg)
         return out
+    if away_days is not None and away_days >= BREAK_LONG_DAYS:
+        # weeks away: some strength is gone and comes back fast - the old number is an orientation, what is
+        # reached today is the new starting point (no step, no extra set: nothing is "caught up")
+        out["target_rule"], out["target_peak_kg"] = "rebase_after_break", base["kg"]
+        out["interp"] = item("plan_rebase_after_break", {"base_kg": base["kg"], "base_date": base["date"], "weeks": round(away_days / 7),
+                                                         "effort_pct": effort["inroad_min"]}, cfg)
+        return out
+    after_break = away_days is not None and away_days > BREAK_SHORT_DAYS      # a short break: continue, but hold the numbers
     profile = COMMITMENT[commitment]
     last_inroad = occ[-1].get("inroad")
     # the last set stopped short of the effort the goal asks for (a borderline value counts as reached)
     room = last_inroad is not None and last_inroad < effort["inroad_min"] - BORDERLINE
-    may_step = profile["step"] and band in (None, "go_hard") and age not in MINOR_BANDS
+    may_step = profile["step"] and band in (None, "go_hard") and age not in MINOR_BANDS and not after_break
     hit = prog.get("effort_hit_rate")
     step = 0.0
     if prog.get("status") == "progressing" and may_step and not room:
@@ -619,6 +678,8 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
     elif room:
         rule, code = "hold_reach_effort", "plan_hold_effort"          # the set stopped short: effort before force
+    elif after_break:
+        rule, code = "hold", "plan_hold_after_break"
     elif prog.get("status") == "plateau" and (hit is None or hit >= HIT_RATE_OK):
         if profile["plateau_set"] and age not in MINOR_BANDS:
             rule, code, out["sets"] = "plateau_add_set", "plan_plateau_add_set", 2
@@ -644,7 +705,7 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         out["target_con_mean_kg"] = round(base["con_top3_kg"] * factor, 1)
     out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
                                 "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
-                                "span_days": prog.get("span_days"), "n": prog.get("n")}, cfg)
+                                "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days}, cfg)
     return out
 
 
@@ -679,13 +740,14 @@ def manual_groups(cfg: dict, work: list[dict]) -> list[str] | None:
 
 
 def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: dict, spw: int, size: int,
-                   today: date, only_groups: list[str] | None = None) -> dict | None:
+                   today: date, only_groups: list[str] | None = None, comeback: bool = False) -> dict | None:
     """What could be trained on that day (no order yet) + how complete that session would be.
-    only_groups = the athlete's one-time choice for this session (beats the automatic theme)."""
+    only_groups = the athlete's one-time choice for this session (beats the automatic theme);
+    comeback = first session after weeks away: back to the known exercises first, nothing new."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
-    theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg))
+    theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg), cfg.get("_real_spw"))
     starter = sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX       # no history yet: a first session
-    chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else 1)
+    chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1))
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
     if len(ready) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
@@ -712,7 +774,7 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
         if returning and EFFORT_RANK[eff["label"]] > EFFORT_RANK["moderate"]:
             eff = dict(EFFORT_TARGETS["moderate"])
         is_bench = c["name"] == meta["benchmark"]
-        tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg, returning=returning)
+        tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg, returning=returning, away_days=c.get("days_away"))
         if COMMITMENT[commitment]["extra_sets"] and pos <= 2 and not sub_max and band in (None, "go_hard"):
             tgt["sets"] = max(tgt["sets"], 1 + COMMITMENT[commitment]["extra_sets"])
         prev = seq[pos - 2] if pos > 1 else None
@@ -734,6 +796,7 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
             "planned_context": "preloaded" if row["evidence"] else "fresh",   # fresh = a clean measurement this time
             "second_set_loss_pct": repeat_loss.get(c["name"]) if tgt["sets"] > 1 else None,
             "why_selected": why, "order_rules": rules, "score": c["base_score"], "days_since_target": c["days_since_target"],
+            "days_away": c.get("days_away"),
             "progress_status": (c["progress"] or {}).get("status"), **tgt,
         })
     regions = sorted({r for it in items for r in it["regions"]})
@@ -849,6 +912,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     commitment = chosen_profile or recommended
     focus = focus_regions(cfg)
     structure = structure_of(cfg)
+    real_spw = real_frequency(sorted({s["date"][:10] for s in work}))
+    cfg = dict(cfg, _real_spw=real_spw)            # read by split_factor via score_candidates / select_session
     chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
     state = muscle_state(load, work, catalog, aids, age)
@@ -878,7 +943,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         for k in range(DATE_SEARCH_DAYS + 1):
             d = start + timedelta(days=k)
             b = band if (with_band and d == today) else None
-            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today, chosen_groups if with_band else None)
+            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today, chosen_groups if with_band else None,
+                                 comeback=bool(prev) and (d - prev).days >= BREAK_LONG_DAYS)
             if not sel:
                 continue
             gap = (d - prev).days if prev else None
@@ -896,7 +962,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     opts = options(earliest, last_day, state, week_counts, pool, True)
     profile_out = {"commitment": commitment, "commitment_chosen": bool(chosen_profile), "recommended_commitment": recommended,
                    "sessions_per_week": spw, "session_minutes": round(minutes), "session_minutes_auto": minutes_auto,
-                   "focus_regions": focus, "structure": structure, "split_factor": split_factor(spw, structure),
+                   "focus_regions": focus, "structure": structure, "split_factor": split_factor(spw, structure, real_spw),
+                   "real_sessions_per_week": real_spw,
                    "next_groups": chosen_groups, "groups": sorted({c["group"] for c in pool if not c["new"] and c["group"] != "?"}), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
                    "supervision": age in MINOR_BANDS, "transition_min": transition, "transition_measured": transition_measured,
                    "exercises_per_session": size_for(None),
@@ -906,7 +973,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                                                      "interp": item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)},
                 "profile": profile_out, "next_session": None, "today_session": None, "week_plan": [], "week_strip": [],
                 "cadence_note": None, "frequency_notes": [], "dose_note": None, "structure_note": None, "date_options": [],
-                "decision_space": None}
+                "training_break": None, "decision_space": None}
     best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
     session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
     d1 = best["date"]
@@ -927,12 +994,18 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                       and v["ready_on"] <= d1.isoformat()), reverse=True)
     if waiting and d1 > earliest:
         why.append(item("date_waited_for", {"muscle": waiting[0][1], "ready_date": waiting[0][0]}, cfg))
+    brk = training_break(last_day, d1)
+    if brk:
+        brk["interp"] = item(f"break_{brk['tier']}", {"days": brk["days"], "weeks": brk["weeks"], "last_date": brk["last_date"],
+                                                      "spw": spw}, cfg)
+        why.append(item("date_after_break", {"days": brk["days"], "last_date": brk["last_date"]}, cfg))
     overdue = max(session["exercises"], key=lambda it: it.get("days_since_target") or 0)
-    if (overdue.get("days_since_target") or 0) > 2 * due_interval(spw, structure):
+    if not brk and (overdue.get("days_since_target") or 0) > 2 * due_interval(spw, structure, real_spw):
         why.append(item("date_overdue", {"muscle": next(c["due_muscle"] for c in best["chosen"] if c["name"] == overdue["name"]),
                                          "days": overdue["days_since_target"]}, cfg))
-    why.append(item("date_cadence", {"spw": spw, "ideal": round(ideal_gap, 1), "gap": best["gap_days"]}, cfg)
-               if best["gap_days"] is not None else item("date_first", {"spw": spw}, cfg))
+    if not brk:                                    # after a break the weekly rhythm is no argument for the date
+        why.append(item("date_cadence", {"spw": spw, "ideal": round(ideal_gap, 1), "gap": best["gap_days"]}, cfg)
+                   if best["gap_days"] is not None else item("date_first", {"spw": spw}, cfg))
     wk_done = week_counts.get(d1.isocalendar()[:2], 0)
     why.append(item("date_week", {"done": wk_done, "spw": spw, "nth": wk_done + 1,
                                   "week_date": (d1 - timedelta(days=d1.weekday())).isoformat()}, cfg))
@@ -987,6 +1060,14 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     dose_note = item("dose_one_session_growth", {"spw": spw}, cfg) if (spw == 1 and goal_effort(cfg.get("goal") or {}) == "deep") else None
     structure_note = (item("structure_split_too_rare", {"spw": spw, "limit": MAX_MUSCLE_GAP_DAYS}, cfg)
                       if (structure == "split" and spw < SPLIT_MIN_SESSIONS) else None)
+    if structure_note is None and real_spw is not None:
+        k_wish = split_factor(spw, structure)
+        wait = round(7.0 * k_wish / max(real_spw, 0.1))
+        if structure == "auto" and split_factor(spw, structure, real_spw) < k_wish:
+            # planned as a split, lived as far fewer sessions: fuller sessions until the rhythm is back
+            structure_note = item("structure_adapted_real", {"spw": spw, "real": real_spw, "days": wait, "limit": MAX_MUSCLE_GAP_DAYS}, cfg)
+        elif structure == "split" and k_wish > 1 and wait > MAX_MUSCLE_GAP_DAYS:
+            structure_note = item("structure_split_real_too_rare", {"real": real_spw, "days": wait, "limit": MAX_MUSCLE_GAP_DAYS}, cfg)
     # honest about the cadence: what the recovery rules allow may be less than what was asked for
     first = date.fromisoformat(sessions[0]["date"])
     in_7_days = sum(1 for x in sessions if (date.fromisoformat(x["date"]) - first).days < 7)
@@ -1025,6 +1106,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                                  {"next_date": d1.isoformat(), "days": (d1 - today).days, "weekday": d1.weekday()}, cfg)},
         "profile": profile_out, "next_session": session, "week_plan": [compact(s) for s in sessions], "week_strip": strip,
         "cadence_note": cadence_note, "frequency_notes": freq_notes, "dose_note": dose_note, "structure_note": structure_note,
+        "training_break": brk,
         "date_options": [{"date": o["date"].isoformat(), "weekday": o["date"].weekday(), "score": o["score"], "fill": o["fill_effective"],
                           "gap_days": o["gap_days"], "exercises": [c["name"] for c in o["chosen"]],
                           "limited": [c["name"] for c in o["chosen"] if c["status"] == "limited"]} for o in opts],
@@ -1034,6 +1116,9 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             "dates": [{"date": o["date"].isoformat(), "candidates": o["candidates"]} for o in opts[:DECISION_DATES]],
             "muscles": {c["name"]: c["muscles"] for c in pool},
             "targets_kg": {it["name"]: it["target_peak_kg"] for it in session["exercises"]},
+            # after weeks away the old reference is an orientation: the coach may go further down (never further up)
+            "target_floor_pct": {it["name"]: BREAK_TARGET_FLOOR_PCT for it in session["exercises"]
+                                 if it["target_rule"] == "rebase_after_break"},
             "bounds": {"target_pct": TARGET_LEEWAY_PCT, "sets_max": 1 if age in MINOR_BANDS else 2, "rest_max_min": REST_MAX_MIN,
                        "rows_min": min(2, len(session["exercises"])), "rows_max": min(SESSION_MAX_EX, len(session["exercises"]) + 1)},
             "effort_cap": effort_for(cfg, commitment, best["band"], age)[0]["label"],
@@ -1177,8 +1262,10 @@ def check_rows(day: str, rows: list[dict], space: dict) -> list[dict]:
             problems.append({"code": "effort_above_cap", "exercise": c["name"], "detail": space.get("effort_cap")})
         base = (space.get("targets_kg") or {}).get(c["name"])
         if target and not gentle:
-            if base and abs(target / base - 1) * 100 > bounds["target_pct"] + 0.05:
-                problems.append({"code": "target_out_of_bounds", "exercise": c["name"], "detail": f"{base} +-{bounds['target_pct']} %"})
+            floor = (space.get("target_floor_pct") or {}).get(c["name"], bounds["target_pct"])
+            if base and not (-floor - 0.05 <= (target / base - 1) * 100 <= bounds["target_pct"] + 0.05):
+                problems.append({"code": "target_out_of_bounds", "exercise": c["name"],
+                                 "detail": f"{base} -{floor} / +{bounds['target_pct']} %"})
             if not base:
                 problems.append({"code": "target_without_reference", "exercise": c["name"]})
         if not (1 <= int(r.get("sets") or 0) <= bounds["sets_max"]):
@@ -1197,7 +1284,8 @@ def check_rows(day: str, rows: list[dict], space: dict) -> list[dict]:
 # =============================================================================
 LEGACY_RULE = {"step": "trend_up_room", "hold_reach_effort": "hold_reach_inroad", "hold": "hold_reach_inroad",
                "retest_fresh": "hold_reach_inroad", "plateau_add_set": "hold_reach_inroad", "plateau_hold": "hold_reach_inroad",
-               "light_day": "sub_max_careful", "new_exercise": "sub_max_careful", "return_after_break": "sub_max_careful"}
+               "light_day": "sub_max_careful", "new_exercise": "sub_max_careful", "return_after_break": "sub_max_careful",
+               "rebase_after_break": "hold_reach_inroad"}
 
 
 def legacy_session_plan(plan: dict, exercises: list[dict], recovery: dict) -> list[dict]:

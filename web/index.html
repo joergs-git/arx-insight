@@ -1131,7 +1131,7 @@ function loadHtml(l,target){
   if(!l) return "";
   const de=CFG.language==="de";
   const map={overload_risk:[de?"Zu wenig Erholung":"Insufficient recovery","var(--accent)"],
-             detraining_risk:[de?"Zu lange Pausen":"Detraining risk","var(--warn)"],
+             detraining_risk:[de?"Trainingspause":"Training break","var(--warn)"],
              underload:[de?"Reiz zu gering":"Under-stimulated","var(--warn)"],
              ok:[de?"Belastung ausgewogen":"Load balanced","var(--good)"]};
   const [label,col]=map[l.flag]||map.ok;
@@ -1144,7 +1144,9 @@ function loadHtml(l,target){
   if(l.flag==="overload_risk") expl=de?`${l.insufficient_recovery_after_hard}× derselbe Muskel hart belastet, bevor seine Ruhezeit um war (letzte ${w.days} Tage)${l.conflicts_recent&&l.conflicts_recent.length?': '+l.conflicts_recent.map(c=>`${mname(c.muscle)} ${c.date.slice(5)}`).join(', '):''}. Nach echter Ausbelastung braucht ein Muskel 48–72 h.`
                                        :`${l.insufficient_recovery_after_hard}× the same muscle loaded hard before its rest was over (last ${w.days} days)${l.conflicts_recent&&l.conflicts_recent.length?': '+l.conflicts_recent.map(c=>`${mname(c.muscle)} ${c.date.slice(5)}`).join(', '):''}. After true fatigue a muscle needs 48–72 h.`;
   else if(l.flag==="underload") expl=de?`${w.sessions} Einheiten in den letzten ${w.days} Tagen, keine davon moderat oder tief. Kürzere Pausen sind hier ok – wichtiger ist mehr Intensität bis zum Inroad.`:`${w.sessions} sessions in the last ${w.days} days, none moderate or deep. Short rests are fine here — push to real inroad instead.`;
-  else if(l.flag==="detraining_risk") expl=de?`${l.days_since_last} Tage seit der letzten Einheit – Kraft kann abfallen.`:`${l.days_since_last} days since the last session — strength may decline.`;
+  else if(l.flag==="detraining_risk") expl=l.loss_expected   // up to ~3 weeks nothing is lost (science: training_breaks) - say so instead of scaring
+      ?(de?`${l.days_since_last} Tage seit der letzten Einheit – ab etwa drei Wochen gehen Kraft und Muskulatur messbar zurück. Sie kommen schnell wieder: einfach wieder einsteigen, nichts „aufholen“.`:`${l.days_since_last} days since the last session — from about three weeks on strength and muscle decline measurably. They come back quickly: simply restart, do not try to catch up.`)
+      :(de?`${l.days_since_last} Tage seit der letzten Einheit – verloren ist noch nichts (Pausen bis etwa drei Wochen kosten keinen Fortschritt), aber ohne wöchentlichen Reiz wächst auch nichts.`:`${l.days_since_last} days since the last session — nothing is lost yet (breaks of up to about three weeks cost no progress), but without a weekly stimulus nothing grows either.`);
   else expl=de?`Ausbelastung und Erholung passen zusammen (letzte ${w.days} Tage: ${w.sessions} Einheiten, kein Muskel zu früh wieder hart belastet).`:`Effort and recovery are aligned (last ${w.days} days: ${w.sessions} sessions, no muscle loaded hard again too early).`;
   const sub=de?`Ziel ${target||2}/Woche · Abstände ${l.gaps_days.join(', ')} Tage · Einheiten mit echter Belastung: ${l.hard_sessions} von ${l.training_days}`
               :`Target ${target||2}/week · gaps ${l.gaps_days.join(', ')} days · sessions with real effort: ${l.hard_sessions} of ${l.training_days}`;
@@ -1234,7 +1236,7 @@ function sessionRowsHtml(sess){ const de=CFG.language==="de";
       x.aid?`<span class="chip">🪝 ${x.aid==="hooks"?(de?'Haken':'hooks'):(de?'Schlaufen':'straps')}</span>`:'',
       x.aid_hint?`<span class="chip flat">🪝 ${de?'Griffhilfe empfohlen':'grip aid suggested'}</span>`:''].filter(Boolean).join(' ');
     const c=x.coach||null, pen=k=>c&&c.pen&&c.pen[k]?'<span class="pen" title="Coach">✎</span> ':'';
-    const tgt=x.target_peak_kg!=null?`<span>${pen('target')}${de?'Ziel':'Target'} <b>${uKg(x.target_peak_kg)}</b> ${LKg()}${x.step_pct?` <small style="color:var(--good)">+${x.step_pct} %</small>`:''}</span>`
+    const tgt=x.target_peak_kg!=null?`<span>${pen('target')}${x.target_rule==="rebase_after_break"&&!(c&&c.pen&&c.pen.target)?(de?'Orientierung':'Orientation'):(de?'Ziel':'Target')} <b>${uKg(x.target_peak_kg)}</b> ${LKg()}${x.step_pct?` <small style="color:var(--good)">+${x.step_pct} %</small>`:''}</span>`
       :`<span><b>${sub?(de?'submaximal':'sub-max'):(de?'nach Gefühl':'by feel')}</b></span>`;
     const eff=sub?`<span>${pen('effort')}${de?'ohne Ausbelastung':'no all-out set'}</span>`:`<span>${pen('effort')}${de?'Kraftabfall':'force drop'} <b>≥ ${x.effort_target.inroad_min} %</b></span>`;
     const st=x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>`:(c&&c.tempo?`<span>${esc(c.tempo)}</span>`:'');
@@ -1284,7 +1286,7 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
   const ts=plan.today_session;
   const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${sessionRowsHtml(ts)}</details>`:'';
   return `<section id="plan4" style="padding-top:8px">
-    ${hero}<div id="coach_next"></div>${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
+    ${hero}<div id="coach_next"></div>${plan.training_break?interpHtml(plan.training_break.interp,'warn'):''}${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
     <div id="planRows">${sessionRowsHtml(ns)}</div>
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}

@@ -1179,5 +1179,85 @@
    "en": "That is too rare to grow (about {limit} days is the limit), so every session is planned as full body. A split makes sense from two, better three sessions a week.",
    "de": "Das ist zu selten für Wachstum (etwa {limit} Tage sind die Grenze), deshalb wird jede Einheit als Ganzkörper geplant. Ein Split lohnt sich ab zwei, besser drei Einheiten pro Woche."
   }
+ },
+ "break_short": {
+  "meaning": {
+   "en": "{days} days since your last session ({last_date}). Nothing is lost: breaks of up to about three weeks cost no long-term progress - but nothing was gained either.",
+   "de": "{days} Tage seit deiner letzten Einheit ({last_date}). Verloren ist nichts: Pausen bis etwa drei Wochen kosten langfristig keinen Fortschritt - gewonnen wurde aber auch nichts."
+  },
+  "action": {
+   "en": "Simply continue the plan. This first session holds your numbers (no step up); from the next one on progression is back.",
+   "de": "Den Plan einfach fortsetzen. Diese erste Einheit hält deine Werte (kein Schritt nach oben); ab der nächsten läuft die Steigerung wieder."
+  }
+ },
+ "break_long": {
+  "meaning": {
+   "en": "About {weeks} weeks since your last session ({last_date}). After such a break strength and muscle are measurably down - and they come back much faster than they were built.",
+   "de": "Etwa {weeks} Wochen seit deiner letzten Einheit ({last_date}). Nach so einer Pause sind Kraft und Muskulatur messbar zurückgegangen - und sie kommen deutlich schneller wieder, als sie aufgebaut wurden."
+  },
+  "action": {
+   "en": "Everything is recovered, so the big exercises come first. Your old numbers are only an orientation: what you reach now is the new starting point. Do not try to catch up with extra sets, extra sessions or a harder session - normal training brings it back fastest.",
+   "de": "Alles ist erholt, deshalb kommen die großen Übungen zuerst. Deine alten Werte sind nur Orientierung: was du jetzt erreichst, ist der neue Ausgangspunkt. Nicht mit Extra-Sätzen, Extra-Einheiten oder einer härteren Einheit aufholen wollen - normales Training bringt es am schnellsten zurück."
+  }
+ },
+ "break_very_long": {
+  "meaning": {
+   "en": "About {weeks} weeks since your last session ({last_date}). After more than half a year the protection your muscles had built against the machine's eccentric overload has faded.",
+   "de": "Etwa {weeks} Wochen seit deiner letzten Einheit ({last_date}). Nach mehr als einem halben Jahr ist der Schutz verblasst, den deine Muskeln gegen die exzentrische Überlast der Maschine aufgebaut hatten."
+  },
+  "action": {
+   "en": "Restart gently: this session is controlled and clearly below your old numbers - it protects you from the soreness of the next hard one. From the second session on the normal targets apply again.",
+   "de": "Sanft wieder einsteigen: diese Einheit ist kontrolliert und klar unter deinen alten Werten - sie schützt vor dem Muskelkater der nächsten harten. Ab der zweiten Einheit gelten wieder die normalen Ziele."
+  }
+ },
+ "date_after_break": {
+  "meaning": {
+   "en": "Your last session was {days} days ago ({last_date}).",
+   "de": "Deine letzte Einheit liegt {days} Tage zurück ({last_date})."
+  },
+  "action": {
+   "en": "Restart on the first good day instead of waiting for the perfect week - the sooner the rhythm is back, the sooner the progress is.",
+   "de": "Am ersten guten Tag wieder einsteigen statt auf die perfekte Woche zu warten - je früher der Rhythmus zurück ist, desto früher der Fortschritt."
+  }
+ },
+ "plan_hold_after_break": {
+  "meaning": {
+   "en": "These muscles had no direct work for {days} days. A break of this length costs nothing, but it is no basis for a step up either (reference: {base_kg} from {base_date}).",
+   "de": "Diese Muskeln hatten {days} Tage kein direktes Training. Eine Pause dieser Länge kostet nichts, ist aber auch keine Grundlage für einen Schritt nach oben (Referenz: {base_kg} vom {base_date})."
+  },
+  "action": {
+   "en": "Reach {target_kg} with the same settings and take the set to a force drop of at least {effort_pct}; the next session steps up again.",
+   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Kraftabfall führen; die nächste Einheit steigert wieder."
+  }
+ },
+ "plan_rebase_after_break": {
+  "meaning": {
+   "en": "These muscles had no direct work for about {weeks} weeks. Expect to land below your {base_kg} from {base_date} - that is normal and comes back quickly.",
+   "de": "Diese Muskeln hatten etwa {weeks} Wochen kein direktes Training. Rechne damit, unter deinen {base_kg} vom {base_date} zu landen - das ist normal und kommt schnell zurück."
+  },
+  "action": {
+   "en": "Same settings, full but controlled effort; {base_kg} is an orientation, not a must. What you reach today is your new starting point - one set, nothing extra to catch up.",
+   "de": "Gleiche Einstellungen, voller, aber kontrollierter Einsatz; {base_kg} sind Orientierung, kein Muss. Was du heute erreichst, ist dein neuer Ausgangspunkt - ein Satz, nichts extra zum Aufholen."
+  }
+ },
+ "structure_adapted_real": {
+  "meaning": {
+   "en": "You planned {spw} sessions a week, but in your last four training weeks it was about {real} a week. With a split each muscle would then wait about {days} days.",
+   "de": "Geplant sind {spw} Einheiten pro Woche, in deinen letzten vier Trainingswochen waren es aber etwa {real} pro Woche. Mit einem Split würde jeder Muskel dann etwa {days} Tage warten."
+  },
+  "action": {
+   "en": "That is too rare to grow (about {limit} days is the limit), so the sessions are planned fuller for now - every visit reaches more of the body. The split returns by itself when your rhythm does.",
+   "de": "Das ist zu selten für Wachstum (etwa {limit} Tage sind die Grenze), deshalb werden die Einheiten vorerst voller geplant - jeder Besuch erreicht mehr vom Körper. Der Split kommt von selbst zurück, sobald dein Rhythmus wieder stimmt."
+  }
+ },
+ "structure_split_real_too_rare": {
+  "meaning": {
+   "en": "You chose a split, but with your real rhythm of about {real} sessions a week each muscle waits about {days} days.",
+   "de": "Du hast einen Split gewählt, aber bei deinem echten Rhythmus von etwa {real} Einheiten pro Woche wartet jeder Muskel etwa {days} Tage."
+  },
+  "action": {
+   "en": "More than about {limit} days is too rare to grow: come more often, or switch the structure to automatic / full body in your profile.",
+   "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum: öfter kommen oder die Struktur im Profil auf Automatisch / Ganzkörper stellen."
+  }
  }
 }

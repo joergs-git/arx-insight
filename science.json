@@ -1,6 +1,6 @@
 {
  "_comment": "ARX Insight science base: the evidence behind the planner's defaults. Curated and versioned with the code - the app never searches the web. Every entry: what the evidence says (statement), a cautious rule of thumb (practical_rule), how THIS app applies it (applied_as), what does not transfer to a motor-driven machine (arx_caveat), the constants it backs (parameters), the evidence level and the references. The athlete's own measured data always outranks a default from this file.",
- "version": 1,
+ "version": 2,
  "reviewed": "2026-09-18",
  "review_policy": "Re-check at every release against new meta-analyses and position stands; a default that the evidence no longer supports is changed in the code, not only here.",
  "method": "References were retrieved live from the official PubMed record (NCBI E-utilities) and cross-checked against the Crossref record of their DOI (title, first author, year); bibliographic fields were written by script, not retyped. Key findings are taken from the abstracts - no full texts were read. A sample was re-checked independently before this file was written.",
@@ -1376,6 +1376,106 @@
      "pmid": "32168178",
      "type": "RCT",
      "key_finding": "21 trained men, 10 weeks: both routines improved all strength and muscle thickness measures; slow isokinetic bench press improved more with total body (p = 0.015), vastus lateralis thickness more with the split routine (p = 0.037)."
+    }
+   ]
+  },
+  "training_breaks": {
+   "title": "Training breaks: what is lost, what comes back, how to restart",
+   "statement": "Stopping resistance training reduces every component of muscular performance, and the loss grows with the length of the break (meta-analysis of 103 studies: maximal force SMD -0.46; larger in people over 65 and in previously inactive people). Short breaks are harmless: in a 24-week RCT young men who trained in 6-week blocks separated by 3-week breaks ended with the same muscle size and strength as the group that trained without a break, because the retraining blocks produced faster gains. After a 10-week break strength and muscle size had decreased significantly, but they were regained within the first 5 weeks of retraining, and periodic and continuous training ended equal (RCT, 42 completers). After 20 weeks without training muscle size was back at baseline while strength stayed elevated. In older adults muscle size was not significantly reduced after 12-24 weeks without training, but clearly after 31-52 weeks. The protection against eccentric muscle damage (repeated-bout effect) lasts at least 6 months and is lost between 9 and 12 months; a light eccentric session a few days before a demanding one reduces its damage markedly (nine muscle groups: peak soreness 36-54 % lower). No trial shows that extra volume or extra sessions after a break bring the lost level back faster than normal training does.",
+   "practical_rule": "A break of up to about three weeks needs no special treatment: continue the plan. After a longer break expect lower numbers in the first session, take them as the new starting point and progress from there - what was lost returns much faster than it was built. Do not try to catch up with extra sets, extra sessions or harder sessions. After six months or more, restart the eccentric side like a beginner: a controlled, sub-maximal first session protects against the damage of the next hard one.",
+   "applied_as": "More than 14 days without training: the plan names the break, the first session back gets no progression step (numbers are held) and the date is no longer justified with the weekly rhythm. 28 days or more without direct work for an exercise's muscles: the old reference is only an orientation, the value reached becomes the new baseline, and the AI coach may set the target up to 15 % lower. An exercise not done for 180 days or more restarts at moderate effort without a target. The session after a break is built like any other - everything is recovered, so the big push, pull and leg exercise come first; full body or split still follows the sessions per week the athlete wants, not the break. When the athlete's real attendance in the four weeks up to the last session is too low for a split (a muscle would wait longer than about 8 days), the plan falls back to fuller sessions and says why. The load chapter no longer warns of strength loss after 10 days: up to about three weeks it says that nothing is lost but also nothing gained.",
+   "arx_caveat": "All trials used conventional weights and mostly young or untrained subjects; none tested a motor-driven machine with eccentric overload. The 14- and 28-day thresholds are planner defaults inside what the trials show (3 weeks harmless, 10 weeks a clear but quickly reversible loss), not measured cut-offs.",
+   "parameters": [
+    "arx_plan.BREAK_SHORT_DAYS",
+    "arx_plan.BREAK_LONG_DAYS",
+    "arx_plan.BREAK_TARGET_FLOOR_PCT",
+    "arx_plan.RETURN_DAYS",
+    "arx_plan.REAL_FREQ_DAYS",
+    "arx_report.DETRAINING_GAP_DAYS",
+    "arx_report.DETRAINING_LOSS_DAYS"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-19",
+   "references": [
+    {
+     "authors": "Bosquet L, Berryman N, Dupuy O, et al.",
+     "year": 2013,
+     "title": "Effect of training cessation on muscular performance: a meta-analysis",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.12047",
+     "pmid": "23347054",
+     "type": "meta-analysis",
+     "key_finding": "103 studies. Stopping resistance training reduced submaximal strength (SMD -0.62), maximal force (SMD -0.46) and maximal power (SMD -0.20). The loss grew with the duration of the break (dose-response), was larger in people over 65 and, for maximal force and power, larger in inactive people than in recreational athletes."
+    },
+    {
+     "authors": "Ogasawara R, Yasuda T, Ishii N, Abe T",
+     "year": 2013,
+     "title": "Comparison of muscle hypertrophy following 6-month of continuous and periodic strength training",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-012-2511-9",
+     "pmid": "23053130",
+     "type": "RCT",
+     "key_finding": "14 young men, bench press 3 days/week for 24 weeks: continuous training vs three 6-week blocks separated by 3-week breaks. Overall gains in muscle cross-sectional area and 1RM were similar; in the second break / retraining cycle the periodic group gained significantly more than the continuous group in the same period."
+    },
+    {
+     "authors": "Halonen EJ, Gabriel I, Kelahaara MM, et al.",
+     "year": 2024,
+     "title": "Does Taking a Break Matter-Adaptations in Muscle Strength and Size Between Continuous and Periodic Resistance Training",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.14739",
+     "pmid": "39364857",
+     "type": "RCT",
+     "key_finding": "55 untrained adults randomised (42 completers, 45 % women), whole-body training twice a week: 10 weeks training, 10 weeks break, 10 weeks retraining vs 20 weeks continuous. 1RM, muscle cross-sectional area and jump height decreased during the break (p<0.05); in the first 5 weeks of retraining leg-press 1RM and muscle size rose faster than in the continuous group (p<0.01); both groups ended with similar adaptations."
+    },
+    {
+     "authors": "Grgic J",
+     "year": 2022,
+     "title": "Use It or Lose It? A Meta-Analysis on the Effects of Resistance Training Cessation (Detraining) on Muscle Size in Older Adults",
+     "journal": "Int J Environ Res Public Health",
+     "doi": "10.3390/ijerph192114048",
+     "pmid": "36360927",
+     "type": "meta-analysis",
+     "key_finding": "6 studies in older adults, training 9-24 weeks, detraining 12-52 weeks. Muscle size decreased after training cessation (d -0.83); the decrease was not significant after 12-24 weeks (d -0.60, CI -1.21 to 0.01) and significant after 31-52 weeks (d -1.11)."
+    },
+    {
+     "authors": "Psilander N, Eftestøl E, Cumming KT, et al.",
+     "year": 2019,
+     "title": "Effects of training, detraining, and retraining on strength, hypertrophy, and myonuclear number in human skeletal muscle",
+     "journal": "J Appl Physiol (1985)",
+     "doi": "10.1152/japplphysiol.00917.2018",
+     "pmid": "30991013",
+     "type": "cohort",
+     "key_finding": "19 adults: 10 weeks of unilateral strength training, 20 weeks of detraining, 5 weeks of bilateral retraining. Muscle thickness and fibre cross-sectional area returned to baseline during detraining while strength remained elevated (a long-lasting motor learning effect). The previously trained leg did not respond better to retraining; myonuclear number had not increased with training, so the study was no rigorous test of the muscle-memory hypothesis."
+    },
+    {
+     "authors": "Nosaka K, Sakamoto K, Newton M, Sacco P",
+     "year": 2001,
+     "title": "How long does the protective effect on eccentric exercise-induced muscle damage last?",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1097/00005768-200109000-00011",
+     "pmid": "11528337",
+     "type": "cohort",
+     "key_finding": "35 men, two bouts of maximal eccentric elbow-flexor exercise 6, 9 or 12 months apart: the repeated-bout effect (faster strength recovery, less soreness, smaller CK and swelling) lasted at least 6 months for most markers and was lost between 9 and 12 months."
+    },
+    {
+     "authors": "Huang MJ, Nosaka K, Wang HS, et al.",
+     "year": 2019,
+     "title": "Damage protective effects conferred by low-intensity eccentric contractions on arm, leg and trunk muscles",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-019-04095-9",
+     "pmid": "30778759",
+     "type": "cohort",
+     "key_finding": "24 untrained young men, nine muscle groups: 50 eccentric contractions at 10 % of maximal isometric strength two days before 50 contractions at 80 %. With the light session first, strength recovered faster (6-31 % greater at day 5), peak soreness was 36-54 % lower and the rises in CK and myoglobin were far smaller."
+    },
+    {
+     "authors": "Chen TC, Tseng WC, Huang GL, et al.",
+     "year": 2013,
+     "title": "Low-intensity eccentric contractions attenuate muscle damage induced by subsequent maximal eccentric exercise of the knee extensors in the elderly",
+     "journal": "Eur J Appl Physiol",
+     "doi": "10.1007/s00421-012-2517-3",
+     "pmid": "23064871",
+     "type": "cohort",
+     "key_finding": "26 healthy men aged about 66: low-intensity eccentric knee-extensor contractions (10 % of isometric strength) caused no measurable change and, performed 7 days before maximal eccentric exercise, led to smaller strength loss, faster recovery and less soreness than without them."
     }
    ]
   }
