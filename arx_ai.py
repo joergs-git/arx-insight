@@ -22,6 +22,10 @@ Engine computes, model judges. The engine's report (arx_report) holds every numb
   chat      a live conversation about this report: the payload and the delivered board are the
             cached prefix, answers stream into a buffer the phone can poll (survives a screen lock).
 
+v0.7.0: the payload names the exercises the athlete switched off for this machine (profile:
+exercises_switched_off with the reason trained_elsewhere | not_wanted, muscles_trained_elsewhere) -
+they are not in the decision space, and rule 10 of the prompt keeps them out of the text as well.
+
 Privacy: never a name, date of birth, height, weight or free-text note. Age band + sex and
 relative body changes only behind their switches. ARX_AI_FAKE=<scenario> replaces the API with a
 deterministic fake (tests, screenshots, demos - no key, no cost).
