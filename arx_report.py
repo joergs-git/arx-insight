@@ -1158,15 +1158,18 @@ def _order_by_limiters(plan: list[dict]) -> list[dict]:
     return items
 
 
-# Which exercises load which body part (for injury-aware planning).
+# Which exercises load which body part (for injury-aware planning). Only a fallback for a catalog
+# entry without its own 'joints' list - it mirrors the shipped exercises.json (v0.7.0: all 17
+# exercises; tests/test_catalog.py fails when the two drift apart).
 BODYPART_EXERCISES = {
     "shoulder":   ["Incline Press", "Horizontal Press", "Decline Press", "Overhead Press",
-                   "Pec Fly", "High Pull", "Shrugs"],
+                   "Pec Fly", "High Pull", "Shrugs", "Row", "Pull Down", "Pull Over"],
     "elbow":      ["Biceps Curl", "Triceps Pressdown", "Incline Press", "Horizontal Press",
-                   "Decline Press", "Overhead Press", "Pull Down", "Row"],
+                   "Decline Press", "Overhead Press", "Pull Down", "Row", "Pull Over", "High Pull", "Pec Fly"],
     "wrist":      ["Biceps Curl", "Triceps Pressdown", "Incline Press", "Horizontal Press",
-                   "Decline Press", "Overhead Press", "Pull Down", "Row", "High Pull"],
-    "knee":       ["Belt Squat", "Calf Raise"],
+                   "Decline Press", "Overhead Press", "Pull Down", "Row", "High Pull",
+                   "Dead Lift", "Romanian Dead Lift"],
+    "knee":       ["Belt Squat", "Calf Raise", "Dead Lift", "Hamstring Curl"],
     "hip":        ["Belt Squat", "Dead Lift", "Romanian Dead Lift"],
     "lower_back": ["Dead Lift", "Romanian Dead Lift", "Belt Squat", "Row", "High Pull", "Shrugs"],
     "neck":       ["Shrugs", "High Pull", "Overhead Press"],
@@ -1814,6 +1817,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
 def build_report(con, cfg: dict) -> dict:
     """Assemble the full analysis payload for one athlete."""
     catalog = cfg.get("_catalog", {})
+    # exercises the athlete does not do on the ARX (profile): what the "elsewhere" ones are FOR counts as
+    # trained outside - read by the findings (no "neglected") and by the planner (no gap, no warning)
+    cfg = dict(cfg, _external=planner.external_muscles(cfg, catalog))
     # grip aids per exercise {code: {"aids": ["hooks"], "since": date}}: they take the grip out as a
     # limiter of that exercise - in loads, sequences, evidence and (later) the plan
     aids = cfg.get("aids") or {}

@@ -362,6 +362,9 @@
     <details class="more" id="gAidsBox"><summary id="g_aids_l">Grip aids (hooks / straps)</summary>
       <div class="foot" id="g_aids_sub" style="margin:12px 0"></div>
       <div id="gAids" style="display:grid;gap:10px"></div></details>
+    <details class="more" id="gExclBox"><summary id="g_excl_l">Exercises I do not do on the ARX (optional)</summary>
+      <div class="foot" id="g_excl_sub" style="margin:12px 0"></div>
+      <div id="gExcl" style="display:grid;gap:14px"></div></details>
     <details class="more" id="gBodyBox"><summary id="g_body_l">Body values (optional)</summary>
       <div class="foot" id="g_body_sub" style="margin:12px 0"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px" id="gBody"></div>
@@ -461,6 +464,9 @@ let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="ne
 let PHONE=null, PHONE_T=null;                   // phone access: state from bootstrap, poll timer of the open dialog
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
+let EXCL={};                                   // v0.7.0: exercises the athlete does not do on the ARX {code: "elsewhere" | "unwanted"}
+const XCYCLE=["","elsewhere","unwanted"];      // a tap cycles: in the plan -> I train it elsewhere -> not for me
+function xlabel(s){const de=CFG.language==="de";return {"":de?"im Plan":"in the plan",elsewhere:de?"trainiere ich woanders":"I train it elsewhere",unwanted:de?"nichts für mich":"not for me"}[s||""];}
 const KEY_URL="https://console.anthropic.com/settings/keys";
 const REPO="https://github.com/joergs-git/arx-insight";
 const REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["shoulders","Schultern","Shoulders"],["arms","Arme","Arms"],["grip","Griff","Grip"]];
@@ -675,6 +681,14 @@ function renderInterview(){
     const b=(v,l)=>`<button data-c="${c}" data-v="${v}" aria-pressed="${cur===v}" style="min-width:90px;min-height:50px">${l}</button>`;
     return `<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center"><div>${esc(m.name)}${cur&&AIDS[c].since?` <small class="foot">${de?'seit':'since'} ${AIDS[c].since}</small>`:''}</div>
       <div class="segbig" style="gap:6px">${b("",de?"ohne":"none")}${(m.aids||[]).map(a=>b(a,a==="hooks"?(de?"Haken":"hooks"):(de?"Schlaufen":"straps"))).join("")}</div></div>`;}).join("");
+  // exercises the athlete does not do on the ARX: every catalog exercise as a tile, grouped Push / Pull / Drive
+  const XG={Push:de?"Drücken":"Push",Pull:de?"Ziehen":"Pull",Drive:de?"Beine":"Legs"};
+  $("#gExcl").innerHTML=Object.keys(XG).map(grp=>{
+    const rows=Object.entries(CATALOG).filter(([c,m])=>m.group===grp&&!m.library).sort((a,b)=>a[1].name.localeCompare(b[1].name));
+    if(!rows.length) return "";
+    return `<div><div class="foot" style="margin-bottom:6px">${XG[grp]}</div><div class="segbig">${rows.map(([c,m])=>{
+      const st=EXCL[c]||"", col=st==="unwanted"?"var(--accent)":"var(--warn)";
+      return `<button data-c="${esc(c)}" aria-pressed="${!!st}" style="min-width:150px;padding:0 6px;${st?`border-color:${col};color:${col};background:var(--panel)`:''}">${esc(m.name)}<br><small style="font-weight:400">${xlabel(st)}</small></button>`;}).join("")}</div></div>`;}).join("");
   $("#gBody").innerHTML=BODYF.map(f=>`<div><div class="foot" style="margin-bottom:6px">${de?f[1]:f[2]} (${bUnit(f[3])})</div>
     <input type="number" step="0.1" min="0" data-k="${f[0]}" data-u="${f[3]}" placeholder="${BODY_LAST&&BODY_LAST[f[0]]!=null?toUser(BODY_LAST[f[0]],f[3]):'–'}"></div>`).join("");
 }
@@ -683,6 +697,9 @@ seg("#gOutcome",v=>{OUTCOME=v;const o=OUTCOMES.find(x=>x[0]===v);$("#gMain").val
 seg("#gStruct",v=>{STRUCT=v;}); seg("#gCommit",v=>{COMMIT=v;}); seg("#gMinutes",v=>{MINUTES=v;}); seg("#gExp",v=>{EXPERIENCE=v;}); seg("#gTKind",v=>{TKIND=v;});
 $("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c,v=b.dataset.v;
   if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
+$("#gExcl").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  const c=b.dataset.c, nxt=XCYCLE[(XCYCLE.indexOf(EXCL[c]||"")+1)%XCYCLE.length];
+  if(nxt) EXCL[c]=nxt; else delete EXCL[c]; renderInterview();});
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Dein Ziel":"Your goal");
@@ -703,6 +720,8 @@ function goalLabels(edit){
   $("#g_tdate_l").textContent=de?"Bis wann (freiwillig)":"Until (optional)";
   $("#g_aids_l").textContent=de?"Griffhilfen (Zughaken / Schlaufen)":"Grip aids (hooks / straps)";
   $("#g_aids_sub").textContent=de?"Mit einer Griffhilfe begrenzt der Griff die Übung nicht mehr. Hier eintragen, was du wirklich benutzt - Tage mit und ohne Hilfe werden nie miteinander verglichen.":"With a grip aid the hands no longer limit the exercise. Enter what you really use - days with and without an aid are never compared with each other.";
+  $("#g_excl_l").textContent=de?"Übungen, die ich nicht an der ARX mache (freiwillig)":"Exercises I do not do on the ARX (optional)";
+  $("#g_excl_sub").textContent=de?"Antippen: im Plan → trainiere ich woanders → nichts für mich. Abgeschaltete Übungen werden nie geplant oder vorgeschlagen. Bei „woanders“ gelten ihre Zielmuskeln als dort trainiert: keine Lücken-Vorschläge und keine Warnungen dafür - diese Belastung sieht die App aber nicht, Muskelkater gehört deshalb in den Check-in. Bei „nichts für mich“ übernehmen deine anderen Übungen die Muskeln, wo es geht.":"Tap: in the plan → I train it elsewhere → not for me. Exercises that are switched off are never planned or suggested. With “elsewhere” their target muscles count as trained there: no gap suggestions and no warnings for them - but the app cannot see that load, so soreness belongs into the check-in. With “not for me” your other exercises take over the muscles where they can.";
   $("#g_body_l").textContent=de?"Körperwerte (völlig freiwillig)":"Body values (entirely optional)";
   $("#g_body_sub").textContent=de?"Nur ein grober Trend: gleiche Tageszeit, gleiche Bedingungen, alle paar Wochen reicht. Leere Felder bleiben leer.":"A rough trend only: same time of day, same conditions, every few weeks is enough. Empty fields stay empty.";
   $("#g_lang_l").textContent=de?"Sprache dieses Profils":"Language for this profile";
@@ -722,7 +741,7 @@ function fillTargetBox(t){
   $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
 }
 function openGoal(){                       // new user: the interview for the first time
-  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; BODY_LAST=null; STRUCT=""; PLANG=""; goalLabels(false);
+  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; EXCL={}; BODY_LAST=null; STRUCT=""; PLANG=""; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(null); setLangSeg(); show("goal");
@@ -737,14 +756,14 @@ async function openProfile(section){       // edit an existing person's profile/
   FOCUS_R={...(g.focus_regions||{})};
   if(!g.focus_regions&&g.focus) Object.entries(g.focus).forEach(([grp,l])=>{if(l&&l!=="normal")(LEGACY_FOCUS[grp]||[]).forEach(r=>{if(!FOCUS_R[r])FOCUS_R[r]=l;});});
   STRUCT=g.structure||""; OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
-  TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); PLANG=g.language||"";
+  TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); EXCL={...(g.excluded_exercises||{})}; PLANG=g.language||"";
   BODY_LAST=(g.body_log||[]).slice(-1)[0]||null;
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(g.target||null); setLangSeg(); show("goal");
   if(section){const el=$("#"+section); if(el){el.open=true; el.scrollIntoView({block:"center"});}}
 }
 $("#goalSave").addEventListener("click",async()=>{
   const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:{},approach:"auto",language:PLANG,
-    structure:STRUCT,focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,target:null};
+    structure:STRUCT,focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,excluded_exercises:EXCL,target:null};
   if(TKIND&&$("#gTVal").value) body.target={kind:TKIND,exercise:TKIND==="force"?$("#gTEx").value:null,
     value:toMetric(+$("#gTVal").value,TKIND==="waist"?"cm":"kg"),date:$("#gTDate").value||null};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
@@ -1350,7 +1369,9 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
   const notes=(ns.order_notes||[]).map(n=>interpHtml(n)).join("");
   const alts=(ns.alternatives||[]).filter(a=>a.reason==="same_muscles"||a.reason==="closes_a_gap").map(a=>a.reason==="same_muscles"
       ?`<div class="foot">↔ ${esc(a.name)} ${de?'statt':'instead of'} ${esc(a.with)} (${de?'gleiche Muskeln':'same muscles'})</div>`
-      :`<div class="foot">＋ ${esc(a.name)} <span class="chip flat">${de?'neu':'new'}</span> — ${mname(a.muscle)}: ${de?'noch nie direkt trainiert':'never trained directly'}</div>`).join("");
+      :`<div class="foot">＋ ${esc(a.name)} <span class="chip flat">${de?'neu':'new'}</span> — ${mname(a.muscle)}: ${de?'noch nie direkt trainiert':'never trained directly'} · <a href="#" onclick="openProfile('gExclBox');return false" style="color:var(--ink3)">${de?'mache ich nicht an der ARX':'I do not do this on the ARX'}</a></div>`).join("");
+  // exercises the athlete switched off in the profile: said openly, with what follows from it
+  const excl=((plan.excluded||{}).notes||[]).map(n=>interpHtml(n)).join("");
   const strip=`<div class="strip">${(plan.week_strip||[]).map(d=>`<div class="day ${d.session?'sess':''}" title="${d.session?esc(d.session.exercises.join(' · ')):''}">
       ${WD()[d.weekday]}<b>${d.date.slice(8,10)}</b>${d.session?`<div style="color:var(--accent);font-weight:600">${d.session.exercises.length} ${de?'Üb.':'ex.'}</div>`:'<div>&nbsp;</div>'}
       <div class="dots">${REGIONS.map(([k])=>`<i class="${d.readiness_by_region[k]}" title="${rname(k)}"></i>`).join("")}</div></div>`).join("")}</div>
@@ -1369,6 +1390,7 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}
     ${alts?`<details class="more"><summary>${de?'Alternativen & Lücken':'Alternatives & gaps'}</summary><div style="margin-top:10px;display:grid;gap:6px">${alts}</div></details>`:''}
+    ${excl?`<details class="more"><summary>${de?'Abgeschaltete Übungen':'Exercises switched off'}</summary><div style="margin-top:10px">${excl}<button class="btn ghost" style="min-height:44px;font-size:16px;padding:0 16px;margin-top:10px" onclick="openProfile('gExclBox')">${de?'Im Profil ändern':'Change in the profile'}</button></div></details>`:''}
     <details class="more" open><summary>${de?'Die nächsten 10 Tage':'The next 10 days'}</summary><div style="margin-top:12px">${strip}${week}${plan.cadence_note?interpHtml(plan.cadence_note,'warn'):''}</div></details>
     ${todayAlt}</section>`;
 }

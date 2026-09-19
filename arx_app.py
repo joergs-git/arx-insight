@@ -33,6 +33,8 @@ v0.5.0: the AI coach runs as a background job (/api/coach/*), remembers its boar
 follow-up questions in a chat (/api/chat/*); /api/report never calls the API.
 v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
 check repeats every few hours, so an app that runs for days still learns about a new release.
+v0.7.0: profile field excluded_exercises - exercises the athlete does not do on the ARX, each with a
+reason from a fixed vocabulary (clean_profile); the planner, the findings and the coach read it.
 v0.6.1: phone access is ON by default (owner's decision; one click switches it off and that is
 kept), starts in the background, and no click waits for Windows any more (arx_lan.system_info).
 v0.6.0: phone access - a second listener in the local network (arx_lan) that always wants
@@ -229,7 +231,7 @@ BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200)
                "thigh_cm": (20, 120), "fat_pct": (2, 70)}
 BODY_KEEP = 400                 # entries kept per person
 PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids", "structure",
-                "next_groups")
+                "next_groups", "excluded_exercises")
 
 
 def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
@@ -282,6 +284,11 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
             if kinds:
                 aids[str(code)] = {"aids": kinds[:1], "since": _iso_day((a or {}).get("since"), latest=today) or today.isoformat()}
         out["aids"] = aids or None
+    if "excluded_exercises" in data:               # exercises the athlete does not do on the ARX (v0.7.0): {code: elsewhere | unwanted}
+        raw = data.get("excluded_exercises") if isinstance(data.get("excluded_exercises"), dict) else {}
+        off = {str(code): reason for code, reason in raw.items()
+               if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXCLUDE_REASONS}
+        out["excluded_exercises"] = off or None
     return out
 
 

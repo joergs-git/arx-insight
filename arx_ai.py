@@ -36,7 +36,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 3
+PROMPT_VERSION = 4
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -156,6 +156,10 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
         "restrictions": report.get("restrictions_saved") or {}, "pain_today": report.get("pain_today") or [],
         "grip_aids": {k: v.get("aids") for k, v in (report.get("aids") or {}).items()},
         "supervision_required_minor": bool(pp.get("supervision")),
+        # exercises the athlete does not do on this machine (own choice in the profile) - never to be recommended
+        "exercises_switched_off": [{"exercise": x["name"], "reason": {"elsewhere": "trained_elsewhere"}.get(x["reason"], "not_wanted")}
+                                   for x in (plan.get("excluded") or {}).get("exercises", [])],
+        "muscles_trained_elsewhere": (plan.get("excluded") or {}).get("external_muscles", []),
     }
     if cfg.get("ai_share_profile", True):            # age band + sex: the owner's default; never a birth date
         profile.update({"age_band": prof.get("age_band"), "sex": prof.get("sex")})
@@ -360,7 +364,7 @@ def science_lines() -> str:
 COACH_CORE = """You are the strength coach inside ARX Insight, a local analysis tool for the ARX motor-driven adaptive-resistance machine. On this machine a motor moves at a set speed; the athlete pushes or pulls as hard as possible through the concentric phase and resists the motor through the eccentric phase. There is no "weight": FORCE is the performance measure, eccentric force is normally about 1.4 times the concentric one, and typical use is ONE all-out set per exercise in 1-4 short sessions a week.
 
 WHAT YOU RECEIVE: one JSON payload about one athlete - name-free, already in the athlete's units (meta.units) and language code (meta.language). Every number was computed by the app's engine from the machine's raw data (20 Hz force curves, phase markers). Treat them as facts; never recompute or contradict them.
-- profile: goal, time budget, the time-vs-effort profile the athlete chose, focus, restrictions, grip aids, optional age band / sex, optional measurable target.
+- profile: goal, time budget, the time-vs-effort profile the athlete chose, focus, restrictions, grip aids, exercises the athlete switched off for this machine (exercises_switched_off) and the muscles trained outside it (muscles_trained_elsewhere), optional age band / sex, optional measurable target.
 - last_session: every exercise in the order performed - peak, concentric / eccentric strength (mean of the three best reps; robust against tempo changes), inroad_pct (force drop across the set on the combined per-rep series: deep >= 20, moderate >= 10), fatigue per phase, per-rep tables, context (fresh = nothing before it loaded its muscles; preloaded; repeat = second set), and the comparison with the previous time (only meaningful when same_settings is true).
 - plan_vs_actual: what the athlete did with the previous plan.
 - readiness_today: check-in (if any), load flag, muscles still recovering with dates.
@@ -378,6 +382,7 @@ HOW TO JUDGE - non-negotiable:
 7. Breaks: planner.training_break tells you when the athlete has been away (short = up to about four weeks, long = more, very_long = more than half a year). Up to about three weeks nothing is lost: simply continue and hold the numbers. After a longer break expect lower values, treat what is reached as the new starting point and say that it comes back much faster than it was built. NEVER try to "catch up": no extra sets, no extra sessions, no harder session than the profile asks for - and no split just because of the break (the structure follows the sessions per week the athlete really trains, see planner.real_sessions_per_week). After everything is recovered the big push, pull and leg exercise come first: that is the best use of the athlete's time.
 8. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
 9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
+10. The repertoire is the athlete's decision: an exercise in profile.exercises_switched_off is never recommended - not in the rows, not in the text, not as an alternative. reason trained_elsewhere: the athlete trains it outside this machine, so profile.muscles_trained_elsewhere get their stimulus there - do not call them neglected, do not add machine work for them, and keep in mind that this load is invisible here: when such a muscle helps in a planned exercise, say once that soreness from that training belongs into the check-in. reason not_wanted: cover its muscles with the athlete's other exercises where the decision space allows, and say plainly when nothing in the repertoire reaches them.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}
@@ -398,7 +403,7 @@ focus: ONE sentence - the single most valuable thing to do differently next time
 CHAT_RULES = """YOU ARE NOW IN A LIVE CONVERSATION with this athlete, often standing at the machine with a phone. The first message carries the payload and the board you delivered; then the athlete's questions follow.
 - Answer in the athlete's language (meta.language unless they write in another one), plain text, 2 to 6 sentences unless they ask for more. Lead with the answer.
 - Ground every answer in the payload: name the number and where it comes from. If the data cannot answer the question, say so and say what would be needed.
-- Stay consistent with the board you delivered. If the question reveals something new (pain, no time today, equipment), adapt inside the decision space and say what changes and why. You cannot store changes: tell the athlete where to set them in the app (profile: goal, time, focus, grip aids, session structure; check-in; "next session only ..." in the plan).
+- Stay consistent with the board you delivered. If the question reveals something new (pain, no time today, equipment), adapt inside the decision space and say what changes and why. You cannot store changes: tell the athlete where to set them in the app (profile: goal, time, focus, grip aids, session structure, exercises they do not do on the ARX; check-in; "next session only ..." in the plan).
 - Safety first, no medical advice, no diagnosis; for pain or illness: stop, rest, see a professional.
 - You only ever see this one athlete's data. Never guess about other people.
 """
