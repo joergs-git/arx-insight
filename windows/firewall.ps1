@@ -4,7 +4,7 @@ ARX Insight - Windows Firewall helper for the phone access (v0.6.0).
 Adds ONE inbound rule (or removes it with -Remove): TCP, the app's port and the five after it, only
 from the LOCAL SUBNET, only for private / domain networks. Needs administrator rights: the app starts
 this script with a UAC prompt when the owner clicks "Allow in Windows Firewall" - the installer itself
-never elevates, and phone access stays off until the owner switches it on.
+never elevates.
 
 If the Windows prompt "Allow Python to communicate on these networks?" was once answered with
 "Cancel", Windows created BLOCK rules for that python.exe, and a block rule beats every allow rule.
@@ -37,7 +37,7 @@ if ($Remove) {
 
 $last = $Port + 5
 New-NetFirewallRule -DisplayName $name `
-    -Description "ARX Insight: lets phones in the same local network open the app (opt-in phone access). Local subnet only." `
+    -Description "ARX Insight: lets phones in the same local network open the app (phone access). Local subnet only." `
     -Direction Inbound -Action Allow -Protocol TCP -LocalPort "$Port-$last" `
     -RemoteAddress LocalSubnet -Profile Private, Domain | Out-Null
 Write-Host "Added the rule '$name' (TCP $Port-$last, local subnet, private / domain networks)."

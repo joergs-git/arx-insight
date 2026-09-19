@@ -33,7 +33,9 @@ v0.5.0: the AI coach runs as a background job (/api/coach/*), remembers its boar
 follow-up questions in a chat (/api/chat/*); /api/report never calls the API.
 v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
 check repeats every few hours, so an app that runs for days still learns about a new release.
-v0.6.0: phone access - an OPT-IN second listener in the local network (arx_lan) that always wants
+v0.6.1: phone access is ON by default (owner's decision; one click switches it off and that is
+kept), starts in the background, and no click waits for Windows any more (arx_lan.system_info).
+v0.6.0: phone access - a second listener in the local network (arx_lan) that always wants
 a token from a QR code (arx_access: trainer link, one athlete link per person). Every route sits in
 ONE table with the least role that may call it; API key, update, shutdown and the links themselves
 stay PC-only. Security headers on every answer; the rendered report can be downloaded as one
@@ -51,7 +53,7 @@ import arx_report as core   # reuse the read-only engine
 import arx_update as updater  # one-click update: download, verify, unpack, run the installer (v0.4.1)
 import arx_ai as ai           # the AI coach: structured board, memory, background jobs, chat (v0.5.0)
 import arx_access as access   # who may do what: trainer / athlete links, limits, download tickets (v0.6.0)
-import arx_lan as lan         # the opt-in phone listener in the local network (v0.6.0)
+import arx_lan as lan         # the phone listener in the local network (v0.6.0; on by default since v0.6.1)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(core.data_dir(), "config.json")   # stable, survives re-download
@@ -725,7 +727,8 @@ def r_bootstrap(h, q, who, uid):
             "self_update": os.name == "nt" or bool(os.environ.get("ARX_UPDATE_ANYWHERE")),   # one-click update possible here
             "taskbar_pinned": cfg.get("taskbar_pinned"),    # set by the Windows installer; False -> one-time hint
             "pid": os.getpid(),                             # lets a newer instance verify whom it replaces
-            "phone": {"enabled": bool(ACCESS.lan().get("enabled")), "running": bool(LAN and LAN.status()["running"])},
+            "phone": {"enabled": bool(ACCESS.lan().get("enabled")) and not os.environ.get("ARX_NO_PHONE"),
+                      "running": bool(LAN and LAN.status()["running"])},
         })
     elif who.role == "athlete":
         out["access"].update({"user_id": who.user_id, "name": first_name(user_info(who.user_id).get("name")), "expires": who.expires,
@@ -997,14 +1000,14 @@ def p_shutdown(h, data, who, uid):                      # a newer instance asks 
 
 @route("GET", "/api/lan/status", "local")
 def r_lan_status(h, q, who, uid):
-    """State of the phone listener for the Phone dialog. full=1 also asks Windows for the adapters
-    and the firewall rule (about a second) - the dialog does that when it opens, then polls light."""
+    """State of the phone listener for the Phone dialog - answered at once. full=1 also asks Windows
+    for the adapters, the network category and the firewall rule: ONE PowerShell call that can take
+    many seconds on a slow PC, so the dialog sends it in the background AFTER it is usable."""
+    info = lan.system_info(fresh=True) if q1(q, "full") else lan.system_info(wait=False)
     out = dict(LAN.status() if LAN else {"running": False, "error": "unavailable"}, enabled=bool(ACCESS.lan().get("enabled")),
-               seen=SEEN.list(), windows=os.name == "nt")
-    if q1(q, "full"):
-        rows = lan.adapters(fresh=True)
-        out.update(adapters=rows, firewall_rule=lan.firewall_rule(),
-                   network=next((a.get("network") for a in rows if a["ip"] == out.get("ip")), None))
+               seen=SEEN.list(), windows=lan.IS_WINDOWS, adapters=info["adapters"], firewall_rule=info["firewall_rule"],
+               details=bool(q1(q, "full")) or info["known"] or not lan.IS_WINDOWS)
+    out["network"] = next((a.get("network") for a in info["adapters"] if a["ip"] == out.get("ip")), None)
     h._send(out)
 
 
@@ -1060,7 +1063,7 @@ def p_link(h, data, who, uid):
 @route("POST", "/api/firewall", "local")
 def p_firewall(h, data, who, uid):                      # Windows: add (or remove) our inbound rule - UAC prompt on the PC's screen
     port = STATE.get("port") or 8765                    # the rule covers this port and the next ones the listener may take
-    h._send({"started": lan.firewall_helper(port, remove=bool(data.get("remove"))), "windows": os.name == "nt"})
+    h._send({"started": lan.firewall_helper(port, remove=bool(data.get("remove"))), "windows": lan.IS_WINDOWS})
 
 
 class Server(ThreadingHTTPServer):
@@ -1256,10 +1259,19 @@ def main():
     write_instance(port)
     global LAN
     LAN = lan.LanManager(make_lan_server, port)
-    saved = ACCESS.lan()
-    if saved.get("enabled"):                           # the owner switched phone access on earlier: it survives a restart
-        st = LAN.start(saved.get("ip") or "auto")
-        print(f"Phone access is ON: {st['url']}" if st["running"] else f"Phone access is on, but not reachable right now ({st['error']}).")
+
+    def start_phone():                                 # in the background: nothing here may delay the app itself
+        saved = ACCESS.lan()                           # ON unless the owner switched it off (v0.6.1)
+        if not saved.get("enabled") or os.environ.get("ARX_NO_PHONE"):
+            return
+        try:
+            ACCESS.trainer_token()                     # the code behind the trainer QR exists from the first start
+            st = LAN.start(saved.get("ip") or "auto")
+            print(f"Phone access is ON: {st['url']}  (start screen -> Phone: QR code, or switch it off)" if st["running"]
+                  else f"Phone access is on, but there is no local network address yet ({st['error']}) - it starts by itself when there is one.")
+        except Exception as e:
+            print(f"phone access not started: {type(e).__name__}: {e}", file=sys.stderr)
+    threading.Thread(target=start_phone, daemon=True).start()
 
     removed = core.sweep_stale_copies()                # DB copies of crashed runs hold private data
     if removed:

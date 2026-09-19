@@ -387,5 +387,84 @@ class Page(unittest.TestCase):
         self.assertNotIn("?t=", page)                                        # never as a query parameter (that would reach logs)
 
 
+class DefaultOn(unittest.TestCase):
+    """v0.6.1 (owner): phone access is ON until somebody switches it off - and no click waits for Windows."""
+    def test_on_until_switched_off_and_only_the_switch_counts(self):
+        store = access.AccessStore(os.path.join(tempfile.mkdtemp(), "access.json"))
+        self.assertEqual(store.lan(), {"enabled": True, "ip": "auto", "chosen": False})
+        store.athlete(1, create=True)                                       # the file is written for another reason ...
+        self.assertTrue(store.lan()["enabled"])                             # ... and that does not freeze anything
+        self.assertEqual(store.set_lan(False), {"enabled": False, "ip": "auto", "chosen": True})
+        self.assertFalse(access.AccessStore(store.path).lan()["enabled"])   # a choice survives the restart
+        self.assertTrue(store.set_lan(True, "192.168.1.20")["enabled"])
+        app.write_json(store.path, {"lan": {"enabled": False, "ip": "auto"}, "athletes": {}})    # a v0.6.0 file: nobody ever chose
+        self.assertTrue(store.lan()["enabled"])
+
+    def test_nothing_waits_for_windows_but_who_asks_gets_the_answer(self):
+        calls = []
+
+        def slow(script):
+            calls.append(time.time())
+            time.sleep(0.6)
+            return ('{"adapters":[{"ip":"192.168.1.20","name":"WLAN","description":"Wi-Fi","gateway":true,"network":"Public"},'
+                    '{"ip":"10.8.0.2","name":"Work","description":"WireGuard Tunnel","gateway":true,"network":"Public"}],"rule":false}')
+        saved = (lan.IS_WINDOWS, lan._powershell, dict(lan._STATE))
+        self.addCleanup(lambda: (setattr(lan, "IS_WINDOWS", saved[0]), setattr(lan, "_powershell", saved[1]), lan._STATE.update(saved[2]), lan._STATE_DONE.set()))
+        lan.IS_WINDOWS, lan._powershell = True, slow
+        lan._STATE.update(at=0.0, adapters=[], firewall_rule=None, known=False, busy=False)
+        t = time.time()
+        first = lan.system_info(wait=False)                                 # the fast path: what is known now, the question goes out in the background
+        lan.pick_ip("auto")
+        self.assertLess(time.time() - t, 0.3)
+        self.assertFalse(first["known"])
+        full = lan.system_info(fresh=True)                                  # the dialog's background request JOINS that question instead of asking twice
+        self.assertEqual(len(calls), 1)
+        self.assertEqual((full["known"], full["firewall_rule"], [a["name"] for a in full["adapters"]]), (True, False, ["WLAN"]))
+        self.assertEqual(full["adapters"][0]["network"], "Public")           # the dialog warns: Windows blocks phones on a public network
+        self.assertEqual(lan.pick_ip("auto"), "192.168.1.20")               # never the VPN adapter, even when the default route is there
+
+    def test_the_listener_comes_up_by_itself_when_the_network_does(self):
+        saved = (lan.pick_ip, lan.WATCH_S)
+        self.addCleanup(lambda: (setattr(lan, "pick_ip", saved[0]), setattr(lan, "WATCH_S", saved[1])))
+        there = {"ip": None}
+        lan.pick_ip, lan.WATCH_S = (lambda choice: there["ip"]), 0.05
+
+        def make(ip, port):
+            srv = app.Server((ip, port), app.Handler)
+            srv.kind, srv.allowed_hosts = "lan", (ip,)
+            return srv
+        free = app.Server(("127.0.0.1", 0), app.Handler)
+        port = free.server_address[1]
+        free.server_close()
+        mgr = lan.LanManager(make, port)
+        self.addCleanup(mgr.stop)
+        st = mgr.start("auto")                                              # the PC booted faster than its Wi-Fi
+        self.assertEqual((st["running"], st["wanted"], st["error"]), (False, True, "no_private_address"))
+        there["ip"] = "127.0.0.1"
+        for _ in range(100):
+            if mgr.status()["running"]:
+                break
+            time.sleep(0.05)
+        self.assertTrue(mgr.status()["running"])
+        self.assertFalse(mgr.stop()["wanted"])
+
+    def test_the_status_answers_at_once_and_bootstrap_says_on(self):
+        saved = (app.ACCESS, app.LAN)
+        self.addCleanup(lambda: (setattr(app, "ACCESS", saved[0]), setattr(app, "LAN", saved[1])))
+        app.ACCESS, app.LAN = access.AccessStore(os.path.join(tempfile.mkdtemp(), "access.json")), None
+        app.STATE.update(version="0.6.1", secret="s3cret", catalog={})
+        app.UPDATE_CHECKED.set()
+        srv = app.Server(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
+        port = srv.server_address[1]
+        self.assertTrue(call(port, "/api/bootstrap")[1]["phone"]["enabled"])
+        t = time.time()
+        status, st = call(port, "/api/lan/status", headers=LOCAL)
+        self.assertLess(time.time() - t, 1.0)
+        self.assertEqual((status, st["enabled"], st["running"]), (200, True, False))
+        self.assertIn("details", st)
+
+
 if __name__ == "__main__":
     unittest.main()
