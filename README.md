@@ -55,13 +55,15 @@ and shows you what actually happened — and what to do next.
 - 📚 **Science base** — `science.json`: 19 topics, 101 references (meta-analyses, position stands, RCTs), each retrieved from PubMed and cross-checked via Crossref, with the rule of thumb, how *this app* applies it and what does **not** transfer to a motor-driven machine. Every planner default cites its entry (a test enforces it); where the evidence contradicted a planned default it was changed — e.g. **no extra rest days by age alone**, and "maintain" cuts volume but keeps the effort. Your own measured data always outranks a textbook default.
 - ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid* (which exercises a joint touches is editable per exercise in `exercises.json`), and the plan won't push it. A "limits respected?" box lists sets of the last 14 days that went hard on a careful exercise, jumped in the eccentric, or trained an avoided one — a mirror, not a diagnosis.
 - ⏱️ **Training time & work** — motivational totals (sessions = real visits), per week / month / year.
-- 🤖 **AI coach** using **your own** Claude API key (only aggregated, name-free numbers are sent; since v0.4.0 it presents the engine's plan of record instead of inventing its own, and may see an age band + sex — switchable in ⚙ Settings) — a whiteboard, not a wall of text: **1)** last session vs the previous time, **2)** today (check-in verdict, what is recovered and from when), **3)** the plan as a table with a concrete force target per exercise, effort, tempo / pauses, rest and a cue, **4)** progress & milestones (PBs, adherence to your weekly target, the next round marks, work total, deload signal), **5)** one focus point. It also receives the ordered session sequences and may point out patterns the rules don't cover; the computed facts stay the ground truth. Answers are cached per day, so a reload does not bill again. Cost is tunable via `ai_effort` (low … max, default medium).
+- 📖 **One page, three chapters** (v0.5.0) — a status strip (last session · today's check-in · next training · load) and then one reading direction: **1 Last session → 2 Next training → 3 History, trends & what stands out**. No side column, no second plan; on a phone the chapters sit in a bottom bar.
+- 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
+- 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. 20 questions per report, 40 a day.
+- 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
 <p align="center"><i>Example report (anonymized):</i></p>
 <p align="center">
   <img src="docs/last-session.png" alt="Last session: each exercise vs the previous time, with the previous curve as a ghost" width="80%">
-  <img src="docs/coach-board.png" alt="The coach's whiteboard: last session, today, plan table, milestones, focus" width="80%">
   <img src="docs/readiness.png" alt="Check-in score and muscle-level readiness" width="80%">
   <img src="docs/checkin.png" alt="The 20-second daily check-in" width="60%">
   <img src="docs/progress.png" alt="Progress per exercise with ROM validity, and the whole-body factor" width="80%">
@@ -100,7 +102,7 @@ pip install -r requirements.txt
 python arx_app.py --db "/path/to/Resources/DB.FDB4"
 ```
 
-Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`.
+Or generate just the report data (no UI): `python arx_report.py --db "..." --ai` — and `--ai-payload payload.json` writes exactly what the coach *would* receive, without sending anything (for your own privacy review).
 
 ## How it works
 
@@ -112,12 +114,13 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 | `arx_evidence.py` | Context of every set (fresh / pre-loaded / repeat), your measured order / repeat / limiter / rest effects with n |
 | `arx_history.py` | Weekly / monthly windows, progress factors, findings, optional body trends and target progress |
 | `arx_plan.py` | The ONE plan: date, selection, clean measurement, order, targets, helper budget, week plan, plan ledger |
+| `arx_ai.py` | The AI coach: name-free payload, structured board (JSON schema), rule validation + repair + engine fallback, memory of delivered boards, background jobs, chat; `ARX_AI_FAKE=ok` runs everything without a key |
 | `arx_app.py` | Tiny local web server + the touch UI in `web/` |
 | `arx_update.py` | One-click update: downloads the release ZIP from this GitHub page, checks it (newer version, expected files, no path outside the target), unpacks it next to your settings and runs its installer — only after a click on the PC itself |
 | `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids, plus a small library of exercises nobody has mapped yet |
 | `meanings.json` | The "what it means → what to do" sentences for every code (English / German) |
 | `science.json` | The evidence behind the planner's defaults, with verified references |
-| `config.json`, `goals.json`, `plans.json` | Your settings, per-person profiles / check-ins / optional body log, and the plan ledger (kept **out** of git) |
+| `config.json`, `goals.json`, `plans.json`, `ai/` | Your settings, per-person profiles / check-ins / optional body log, the plan ledger, and the coach's delivered boards + chat transcripts (kept **out** of git, in your data folder) |
 | `tests/` | `python -m unittest discover -s tests -t .` — synthetic data only |
 
 The ARX database is never modified — the tool always works on a temporary copy.
@@ -158,10 +161,31 @@ then starts, so the old black console window disappears by itself. (Before v0.3.
 let the old and the new version run side by side until you closed the old window by hand.) The
 black window titled *“ARX Insight – close this window to stop”* **is** the app: closing it stops it.
 
-**The coach panel says “AI coach unavailable” — what now?**
-The report itself never depends on the AI. The panel names the reason (rejected or missing key, no
-credit, rate limit, no internet, service overloaded, …) and offers **Try again**; only successful
-answers are cached, so a failed attempt is never billed twice.
+**The coach says “unavailable” — what now?**
+The report never depends on the AI. The coach's box names the reason (rejected or missing key, no
+credit, rate limit, no internet, service overloaded, a model your account cannot use — Claude Fable
+needs 30-day data retention enabled in the Anthropic account, …) and offers **Try again**. Only
+successful analyses are stored, so a failed attempt is never billed twice.
+
+**What does the AI coach cost, and when is it called?**
+One call per new *data state*: new sets, a new check-in, a changed profile or a new day. The same
+data never bills twice — the board is stored and shown again. With the default (Claude Opus 5,
+high effort) expect roughly half a US dollar per board, a first chat question about a third of
+that, follow-up questions a few cents (the report is cached on Anthropic's side for an hour). In
+⚙ Settings you can lower the thinking effort, switch the model, or turn *automatic* off — then the
+coach only runs when you tap *Ask the coach*. Limits: 8 new boards and 40 questions per person and day.
+
+**Does the coach remember what it told me last time?**
+Yes, since v0.5.0. Every delivered board is kept locally (`ai/boards.json` in your data folder);
+the next request carries the last three — date, focus, key recommendations, the planned rows — next
+to *plan vs what you did*. The coach is instructed to keep its line unless the data changed, and
+to list what it changes and why. The engine has its own memory too: the plan ledger.
+
+**Can the AI invent exercises or numbers?**
+Exercise names and dates are fixed lists in the answer format, so it cannot name anything that is
+not trainable on that day. Its plan rows are checked by the server against the engine's rules;
+what fails is replaced by the engine's plan (and the board says so). Force values it writes in
+free text are compared with your data — a number that is not in it is listed under the text.
 
 **Where do I get a Claude API key?**
 Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys) → *API Keys*.
@@ -169,10 +193,10 @@ Paste it into ⚙ *Settings* in the app. It stays on your machine, and the app s
 aggregated, name-free numbers — never a person's name.
 
 **Do I need the key at all?**
-No. Everything except the coach's text works without it: last session comparison, force curves,
+No. Everything except the coach's texts and the chat works without it: last session comparison, force curves,
 progress factors and findings with their explanations, muscle-level readiness, check-in, load &
-recovery, the full plan (date, order, targets, week outlook). The key only powers the AI coach
-board on the right (and in the PDF).
+recovery, the full plan (date, order, targets, week outlook). The key only powers the coach's
+comments inside the three chapters, its plan adjustments and the chat.
 
 **What methodology does it use?**
 Force (kg/lb) is the progress measure on an adaptive-resistance machine, not "weight". Effort is
@@ -195,11 +219,10 @@ minute, repeats of the same exercise or of the same limiting muscle (grip, elbow
 lower back …) within a few minutes. The plan (v0.4.0) rolls that recovery model forward to find
 the date, orders the session by what each exercise is expected to lose to the ones before it (your
 measured effects first, general estimates otherwise; an exercise that merely *uses* a limiter always
-before one that *targets* it) and cites `science.json` for every default. The AI coach adds the
-individualized whiteboard on top:
-concrete targets from progressive overload (only where the last set showed room), effort by goal,
-adherence, milestones and a deload signal (weeks of consistent training that meet falling numbers
-or poor readiness).
+before one that *targets* it) and cites `science.json` for every default. The engine also knows
+adherence, milestones and a reactive deload signal (weeks of consistent training that meet falling
+numbers or poor readiness). The AI coach judges on top of all that - inside the three chapters,
+within the engine's rules (see *Can the AI invent exercises or numbers?*).
 
 **Why does it ask how I feel before the report?**
 Because a coach would. Sleep, energy, soreness per region, resting heart rate and pain take 20
