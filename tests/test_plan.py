@@ -601,6 +601,69 @@ class WeeklyStimulus(unittest.TestCase):
         self.assertEqual((soon[0]["urgent"], late[0]["urgent"]), ([], ["chest"]))         # 3 + 3.5 days is fine, 6 + 3.5 is not
 
 
+class SessionSize(unittest.TestCase):
+    """v0.8.0 (owner): how many exercises a session holds is the athlete's TIME decision - not a magic number,
+    not a rule of the coach. Alternating unrelated muscles costs no result (science.json: paired_sets)."""
+    EIGHT = [ROW, PRESS, SQUAT, OHP, HIGHPULL, CURL, PRESSDOWN, CALF, DEADLIFT]
+
+    def rows(self, gap_min=6):
+        out = []
+        for n, d in enumerate((1, 4, 8, 11, 15)):
+            out += session(datetime(2026, 9, d, 10), self.EIGHT, first_id=100 * (n + 1), gap_min=gap_min)
+        return out
+
+    def test_more_time_buys_more_exercises_up_to_the_cap(self):
+        rows = self.rows()
+        small = report(rows, "2026-09-19", _catalog=BIG, session_minutes=30)["plan"]
+        big = report(rows, "2026-09-19", _catalog=BIG, session_minutes=90)["plan"]
+        self.assertEqual(planner.SESSION_MAX_EX, 8)
+        self.assertEqual(big["profile"]["exercises_per_session"], 8)
+        self.assertGreater(len(big["next_session"]["exercises"]), len(small["next_session"]["exercises"]))
+        self.assertGreaterEqual(len(big["next_session"]["exercises"]), 7)
+        by = big["profile"]["size_by_minutes"]
+        self.assertEqual(list(by), [str(m) for m in planner.MINUTES_OPTIONS])             # what every budget buys, for the profile
+        sizes = list(by.values())
+        self.assertEqual(sizes, sorted(sizes))
+        self.assertEqual((by["90"], small["profile"]["size_by_minutes"]["30"]), (8, small["profile"]["exercises_per_session"]))
+        auto = report(rows, "2026-09-19", _catalog=BIG)["plan"]["profile"]
+        self.assertEqual((auto["auto_size"], auto["session_minutes"]), (auto["exercises_per_session"], auto["auto_minutes"]))
+        # a big session may go one deeper per body region (like a split day), a normal one may not
+        legs = lambda plan: [it["name"] for it in plan["next_session"]["exercises"] if "legs" in it["regions"]]
+        self.assertLessEqual(len(legs(small)), planner.MAX_PER_REGION)
+        self.assertEqual(len(legs(big)), planner.MAX_PER_REGION + 1)
+
+    def test_the_coach_gets_the_price_of_one_more_exercise_not_a_wall(self):
+        plan = report(self.rows(), "2026-09-19", _catalog=BIG, session_minutes=30)["plan"]
+        space, sess = plan["decision_space"], plan["next_session"]
+        self.assertEqual(space["bounds"]["rows_max"], planner.SESSION_MAX_EX)
+        self.assertEqual(space["rows_in_time_budget"], len(sess["exercises"]))
+        self.assertGreater(space["minutes_per_extra_exercise"], 1)
+        # the proposal plus TWO more trainable exercises is a valid plan (it used to be "proposal + 1")
+        day = next(d for d in space["dates"] if d["date"] == sess["date"])
+        extra = [c["name"] for c in day["candidates"] if c["name"] not in names(sess) and c["status"] == "ready" and not c["new"]
+                 and c["restriction"] == "ok"][:2]
+        self.assertEqual(len(extra), 2)
+        rows = [{"exercise": it["name"], "sets": it["sets"], "target_kg": it["target_peak_kg"], "effort": it["effort_target"]["label"],
+                 "rest_before_min": it["rest_before_min"]} for it in sess["exercises"]]
+        rows += [{"exercise": n, "sets": 1, "target_kg": 0, "effort": "submax", "rest_before_min": 3} for n in extra]
+        self.assertNotIn("row_count", [p["code"] for p in planner.check_rows(sess["date"], rows, space)])
+        young = report(self.rows(), "2026-09-19", {1: ("Male", datetime(2011, 5, 1))}, _catalog=BIG, session_minutes=60)["plan"]
+        self.assertEqual(young["decision_space"]["bounds"]["rows_max"], planner.MINOR_MAX_EXERCISES)   # the youth guard stays a wall
+
+    def test_training_in_turns_is_not_wasted_set_up_time(self):
+        rows = self.rows(gap_min=10)                                       # about eight minutes between two exercises
+        alone = report(rows, "2026-09-19", _catalog=BIG, session_minutes=45)["plan"]
+        self.assertEqual(alone["next_session"]["time_note"]["code"], "time_transitions")   # alone: set up faster, save time
+        for lang in ("en", "de"):
+            turns = report(rows, "2026-09-19", _catalog=BIG, session_minutes=45, partner=True, language=lang)["plan"]
+            note = turns["next_session"]["time_note"]
+            self.assertEqual(note["code"], "time_partner")
+            self.assertLess(note["params"]["alone"], note["params"]["total"])
+            self.assertNotIn("{", note["text"]["meaning"] + note["text"]["action"])
+            self.assertTrue(turns["profile"]["partner"])
+            self.assertEqual(names(turns["next_session"]), names(alone["next_session"]))   # the plan itself does not change
+
+
 class Excluded(unittest.TestCase):
     """Exercises the athlete does not do on the ARX (profile: excluded_exercises)."""
     def test_a_switched_off_exercise_does_not_exist_for_the_planner(self):

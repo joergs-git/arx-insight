@@ -1299,5 +1299,15 @@
    "en": "That is why this exercise goes before others whose muscles can wait - a muscle needs a stimulus about once a week to grow.",
    "de": "Deshalb kommt diese Übung vor anderen, deren Muskeln warten können - ein Muskel braucht etwa einmal pro Woche einen Reiz, um zu wachsen."
   }
+ },
+ "time_partner": {
+  "meaning": {
+   "en": "Between two exercises {minutes} minutes pass (your median) - you train in turns with a partner, so that is their set and not set-up time.",
+   "de": "Zwischen zwei Übungen vergehen bei dir {minutes} Minuten (dein Median) - ihr trainiert abwechselnd zu zweit, das ist also der Satz deines Partners und keine Umbauzeit."
+  },
+  "action": {
+   "en": "Nothing to shorten: the longer rest costs no result. The {total} minutes are the estimate for training in turns; alone the same session takes about {alone} minutes.",
+   "de": "Nichts zu kürzen: Die längere Pause kostet kein Ergebnis. Die {total} Minuten sind die Schätzung für das Training zu zweit; allein dauert dieselbe Einheit etwa {alone} Minuten."
+  }
  }
 }

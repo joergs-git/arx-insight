@@ -33,6 +33,8 @@ v0.5.0: the AI coach runs as a background job (/api/coach/*), remembers its boar
 follow-up questions in a chat (/api/chat/*); /api/report never calls the API.
 v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
 check repeats every few hours, so an app that runs for days still learns about a new release.
+v0.8.0: profile field partner (training in turns: the long change-over is no set-up time); the profile shows what
+every time budget buys in exercises (plan.profile.size_by_minutes).
 v0.7.0: profile field excluded_exercises - exercises the athlete does not do on the ARX, each with a
 reason from a fixed vocabulary (clean_profile); the planner, the findings and the coach read it.
 v0.6.1: phone access is ON by default (owner's decision; one click switches it off and that is
@@ -231,7 +233,7 @@ BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200)
                "thigh_cm": (20, 120), "fat_pct": (2, 70)}
 BODY_KEEP = 400                 # entries kept per person
 PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids", "structure",
-                "next_groups", "excluded_exercises")
+                "next_groups", "excluded_exercises", "partner")
 
 
 def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
@@ -289,6 +291,8 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
         off = {str(code): reason for code, reason in raw.items()
                if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXCLUDE_REASONS}
         out["excluded_exercises"] = off or None
+    if "partner" in data:                          # trains in turns with a partner (v0.8.0): the change-over time in the
+        out["partner"] = True if data.get("partner") is True else None     # data is the partner's set, not set-up time
     return out
 
 

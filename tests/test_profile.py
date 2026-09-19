@@ -48,6 +48,14 @@ class CleanProfile(unittest.TestCase):
         self.assertIsNone(app.clean_profile({"excluded_exercises": "all of them"}, CATALOG, TODAY)["excluded_exercises"])
         self.assertNotIn("excluded_exercises", app.clean_profile({"commitment": "balanced"}, CATALOG, TODAY))   # absent = untouched
 
+    def test_training_with_a_partner_is_a_plain_switch(self):
+        self.assertIs(app.clean_profile({"partner": True}, CATALOG, TODAY)["partner"], True)
+        for junk in (False, "yes", 1, None, {"a": 1}):
+            self.assertIsNone(app.clean_profile({"partner": junk}, CATALOG, TODAY)["partner"], junk)   # off = not stored
+        self.assertNotIn("partner", app.clean_profile({}, CATALOG, TODAY))
+        self.assertIn("partner", app.PROFILE_KEYS)
+        self.assertEqual(app.clean_profile({"session_minutes": 90}, CATALOG, TODAY)["session_minutes"], 90)
+
     def test_body_entry_keeps_only_sane_numbers(self):
         day, values = app.clean_body_entry({"date": "2026-09-17", "weight_kg": "82,4", "waist_cm": 91, "fat_pct": 140,
                                             "arm_cm": "big", "mood": "fine"}, TODAY)

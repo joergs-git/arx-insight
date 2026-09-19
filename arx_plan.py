@@ -44,6 +44,11 @@ ONE plan, derived from the athlete's own data instead of rules of thumb:
             repertoire "a compound of the group" no longer means "the group's main muscles": once a
             week chest and lats would otherwise alternate with them and wait two weeks. Nothing
             urgent -> the choice is what it always was.
+  size      (v0.8.0) How many exercises a session holds follows from the athlete's time budget at his
+            own pace (set + change-over) - up to SESSION_MAX_EX; the profile shows what every budget
+            buys (size_by_minutes) and the coach gets the price of one more exercise in minutes. An
+            athlete who trains in turns with a partner says so (profile: partner): the long
+            change-over is then the partner's set, not something to be shortened.
   excluded  (v0.7.0) Exercises the athlete does not do on the ARX (profile: excluded_exercises =
             {code: elsewhere | unwanted}) do not exist for the planner - never planned, never
             suggested, not in the coach's decision space. "elsewhere" = trained outside the ARX:
@@ -98,7 +103,12 @@ EXCLUDE_REASONS = ("elsewhere", "unwanted")
 MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
 TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
 TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
-SESSION_MIN_EX, SESSION_MAX_EX = 3, 6
+# How many exercises a session holds is the athlete's TIME decision, not a training rule: alternating unrelated
+# muscle groups costs no result and more weekly sets per muscle is the best-supported lever for size (science.json:
+# paired_sets, weekly_volume). The cap only keeps a session plannable (order search, one page) - v0.8.0: 6 -> 8.
+SESSION_MIN_EX, SESSION_MAX_EX = 3, 8
+BIG_SESSION_EX = 7             # from here a full-body session may go one deeper per body region, like a split day
+MINUTES_OPTIONS = (15, 20, 30, 45, 60, 75, 90)      # the time budgets offered in the profile (size_by_minutes)
 SESSION_MINUTES_RANGE = (15, 45)
 DEFAULT_SESSION_MINUTES = 25
 DEFAULT_SET_SECONDS = 105.0
@@ -604,8 +614,10 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
                 per_region[r] = per_region.get(r, 0) + 1
         keep = []
         for c in left:
-            # a split day concentrates on fewer regions, so it may go one deeper - like a focus region
-            full = [r for r in c["regions"] if per_region.get(r, 0) >= MAX_PER_REGION + (1 if (theme is not None or focus.get(r) == "more") else 0)]
+            # a split day concentrates on fewer regions, so it may go one deeper - like a focus region, and like
+            # a full-body session with the time for seven or eight exercises (else that time could not be used)
+            full = [r for r in c["regions"]
+                    if per_region.get(r, 0) >= MAX_PER_REGION + (1 if (theme is not None or focus.get(r) == "more" or size >= BIG_SESSION_EX) else 0)]
             if full and len(full) == len(c["regions"]):
                 dropped.append({"name": c["name"], "reason": "region_full", "with": full[0], "score": c["score"], "new": c["new"]})
                 continue
@@ -673,8 +685,10 @@ def best_order(chosen: list[dict], ev: dict) -> tuple[list[dict], list[dict], di
     items = sorted(chosen, key=lambda c: c["name"])
     loss = {(a["name"], b["name"]): pair_loss(a, b, ev) for a in items for b in items if a is not b}
     pos_loss, rest = position_loss(ev), _rest_model(ev)
+    # "a's target is b's helper -> a after b": computed once per pair (eight exercises = 40 320 orders to look at)
+    forbidden = {(a["name"], b["name"]) for a in items for b in items if a is not b and means_before_target(a, b)}
     perms = [p for p in itertools.permutations(items)
-             if not any(means_before_target(a, b) for i, a in enumerate(p) for b in p[i + 1:])]
+             if not forbidden or not any((a["name"], b["name"]) in forbidden for i, a in enumerate(p) for b in p[i + 1:])]
     relaxed = not perms
     if relaxed:                                    # cannot happen with a sane catalog (a cycle of means)
         perms = list(itertools.permutations(items))
@@ -1031,8 +1045,10 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     walls = [d["wall_minutes"] / max(1, d.get("visits") or 1) for d in (sequences or []) if d.get("wall_minutes")]
     minutes = cfg.get("session_minutes")
     minutes_auto = not minutes
+    # "Auto" = what the athlete usually takes (median of the last six sessions, within SESSION_MINUTES_RANGE)
+    auto_minutes = min(SESSION_MINUTES_RANGE[1], max(SESSION_MINUTES_RANGE[0], st.median(walls[-6:]))) if walls else DEFAULT_SESSION_MINUTES
     if not minutes:
-        minutes = min(SESSION_MINUTES_RANGE[1], max(SESSION_MINUTES_RANGE[0], st.median(walls[-6:]))) if walls else DEFAULT_SESSION_MINUTES
+        minutes = auto_minutes
     minutes = float(minutes)
     chosen_profile = cfg.get("commitment") if cfg.get("commitment") in COMMITMENT else None
     recommended = recommend_commitment(cfg, minutes, spw)
@@ -1098,6 +1114,12 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                    "next_groups": chosen_groups, "groups": sorted({c["group"] for c in pool if not c["new"] and c["group"] != "?"}), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
                    "supervision": age in MINOR_BANDS, "transition_min": transition, "transition_measured": transition_measured,
                    "exercises_per_session": size_for(None),
+                   # what the time budget buys at the athlete's own pace: minutes -> exercises (the profile shows it)
+                   "per_exercise_min": round(per_exercise, 1), "partner": bool(cfg.get("partner")),
+                   "auto_minutes": round(auto_minutes),
+                   "auto_size": session_size(auto_minutes, per_exercise, n_regions, commitment, None, age, "more" in focus.values()),
+                   "size_by_minutes": {str(m): session_size(m, per_exercise, n_regions, commitment, None, age, "more" in focus.values())
+                                       for m in MINUTES_OPTIONS},
                    "commitment_options": commitment_options(cfg, minutes, spw, set_min, transition, per_exercise, n_regions, age)}
     if not opts:
         # nothing can be planned: usually nothing is ready - or the athlete switched off everything he does
@@ -1160,8 +1182,12 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     session["order_notes"] = order_notes(session, cfg)
     if transition_measured and transition > TRANSITION_NOTE_MIN and len(session["exercises"]) > 1:
         saving = round((transition - TRANSITION_TARGET_MIN) * (len(session["exercises"]) - 1))
-        session["time_note"] = item("time_transitions", {"minutes": transition, "enough": TRANSITION_TARGET_MIN, "saving": saving,
-                                                         "total": session["est_minutes"]}, cfg)
+        if cfg.get("partner"):                     # training in turns: the change-over is the partner's set - nothing to shorten
+            alone = estimate_session_minutes(session["exercises"], TRANSITION_TARGET_MIN)
+            session["time_note"] = item("time_partner", {"minutes": transition, "total": session["est_minutes"], "alone": alone}, cfg)
+        else:
+            session["time_note"] = item("time_transitions", {"minutes": transition, "enough": TRANSITION_TARGET_MIN, "saving": saving,
+                                                             "total": session["est_minutes"]}, cfg)
     if age in MINOR_BANDS:
         session["guard"] = item("guard_youth", {"k": MINOR_MAX_EXERCISES}, cfg)
     elif age in OLDER_BANDS and spw < 2:           # holding muscle size needs about two exposures a week at 60+
@@ -1253,8 +1279,12 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             # after weeks away the old reference is an orientation: the coach may go further down (never further up)
             "target_floor_pct": {it["name"]: BREAK_TARGET_FLOOR_PCT for it in session["exercises"]
                                  if it["target_rule"] == "rebase_after_break"},
+            # rows_max is what a session can hold at all; how many exercises the athlete's TIME holds is a preference,
+            # not a rule: rows_in_time_budget + the price of one more (the coach names it instead of refusing)
             "bounds": {"target_pct": TARGET_LEEWAY_PCT, "sets_max": 1 if age in MINOR_BANDS else 2, "rest_max_min": REST_MAX_MIN,
-                       "rows_min": min(2, len(session["exercises"])), "rows_max": min(SESSION_MAX_EX, len(session["exercises"]) + 1)},
+                       "rows_min": min(2, len(session["exercises"])),
+                       "rows_max": max(len(session["exercises"]), MINOR_MAX_EXERCISES if age in MINOR_BANDS else SESSION_MAX_EX)},
+            "rows_in_time_budget": len(session["exercises"]), "minutes_per_extra_exercise": round(per_exercise, 1),
             "effort_cap": effort_for(cfg, commitment, best["band"], age)[0]["label"],
         },
     }
