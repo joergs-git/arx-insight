@@ -417,9 +417,24 @@ over HTTPS, checks it (a newer version, the files a release must have, nothing t
 outside its folder), unpacks it into `%LOCALAPPDATA%\ARXInsight\app\` and runs its installer, which
 refreshes the packages, re-points the shortcuts and starts the new version; the running one closes
 by itself. Your settings, goals and environment are kept, the previous version stays as a fallback.
-It never updates silently, and the button only works on the PC itself — never from a phone (the phone shows that a new version exists, nothing more). The
-manual way (download the ZIP, run the installer) keeps working. Versions before 0.4.1 need the
-manual way once.
+It never updates silently, and the button only works on the PC itself — never from a phone (the phone shows that a new version exists, nothing more).
+**Do not want to wait for the banner?** ⚙ Settings → *Version & update* → **Check for updates now**
+(v0.8.3) asks GitHub at once and brings up the same update button — or tells you that you have the
+latest version, or that GitHub could not be reached. The manual way (download the ZIP, run the
+installer) keeps working. Versions before 0.4.1 need the manual way once.
+
+**Windows says the download contains a virus — what now?** *(v0.8.3)*
+That is the virus scanner's verdict on the ZIP (in the browser: "virus detected"; in the app: *Windows
+security blocked the update package*), not something the app can or should work around. ARX Insight
+is plain, readable source code — Python, one HTML page and four small Windows scripts (the installer
+downloads Python packages and the Firebird client and creates shortcuts; the optional firewall helper
+adds one rule for the phone access and only runs after your click and a Windows admin prompt).
+Heuristic scanners sometimes misjudge exactly such installer scripts, and the verdict can change with
+every new ZIP. What helps: open **Windows Security → Protection history** — it names the file and the
+"threat" — and tell us in a GitHub issue, so the cause can be fixed instead of guessed; you can also
+report the false positive to Microsoft (*Submit a file for malware analysis*) or check the ZIP on
+virustotal.com. Read the scripts before you allow anything — they are short. Nothing is installed
+when the package was blocked; the running version simply stays.
 
 **How do I get the report onto my phone?** *(v0.6.0)*
 At the PC: start screen → **📱 Connect a phone · show the QR code** (phone access is on by default; if

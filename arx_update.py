@@ -33,6 +33,22 @@ KEEP_VERSIONS = 2                          # the new one + the one before it
 TIMEOUT_S = 30
 
 
+# Windows security (Defender or another scanner) judged the download: ERROR_VIRUS_INFECTED / ERROR_VIRUS_DELETED -
+# or the file we had just written is gone. Heuristic scanners sometimes misjudge archives with installer scripts;
+# the app cannot and does not work around that - it says what happened and where the details are (v0.8.3).
+AV_WINERRORS = (225, 226)
+BLOCKED_DETAIL = ("Windows security blocked the update package - nothing was installed. "
+                  "Windows Security > Protection history names the file and the reason.")
+
+
+def blocked_by_security(err: BaseException, path: str | None = None) -> bool:
+    """True when an error looks like the virus scanner's doing: its own error codes, or a file that
+    was written a moment ago and no longer exists."""
+    if getattr(err, "winerror", None) in AV_WINERRORS:
+        return True
+    return isinstance(err, (FileNotFoundError, PermissionError)) and bool(path) and not os.path.exists(path)
+
+
 class UpdateError(Exception):
     """A failed update with a short machine-readable code for the UI."""
     def __init__(self, code: str, detail: str = ""):
@@ -67,6 +83,8 @@ def download(url: str, dest: str, progress=None) -> int:
     except UpdateError:
         raise
     except Exception as e:
+        if blocked_by_security(e, dest):
+            raise UpdateError("blocked_by_security", BLOCKED_DETAIL)
         raise UpdateError("download_failed", f"{type(e).__name__}: {e}")
     return total
 
@@ -76,6 +94,8 @@ def inspect(zip_path: str, current_version: str) -> tuple[str, str]:
     try:
         zf = zipfile.ZipFile(zip_path)
     except Exception as e:
+        if blocked_by_security(e, zip_path):
+            raise UpdateError("blocked_by_security", BLOCKED_DETAIL)
         raise UpdateError("bad_archive", f"not a ZIP file: {e}")
     with zf:
         infos = zf.infolist()
@@ -166,6 +186,10 @@ def stage(data_dir: str, current_version: str, running_folder: str | None = None
         if progress:
             progress("unpacking", 0)
         unpack(zip_path, top, target)
+    except OSError as e:                          # reading the archive or writing a file of it was stopped by the scanner
+        if blocked_by_security(e, zip_path):
+            raise UpdateError("blocked_by_security", BLOCKED_DETAIL)
+        raise
     finally:
         try:
             os.remove(zip_path)

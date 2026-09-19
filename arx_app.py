@@ -33,6 +33,8 @@ v0.5.0: the AI coach runs as a background job (/api/coach/*), remembers its boar
 follow-up questions in a chat (/api/chat/*); /api/report never calls the API.
 v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
 check repeats every few hours, so an app that runs for days still learns about a new release.
+v0.8.3: POST /api/update/check (this machine only) looks for a new version at once; an update package that Windows
+security blocked is reported as what it is (arx_update.blocked_by_security).
 v0.8.0: profile field partner (training in turns: the long change-over is no set-up time); the profile shows what
 every time budget buys in exercises (plan.profile.size_by_minutes).
 v0.7.0: profile field excluded_exercises - exercises the athlete does not do on the ARX, each with a
@@ -134,9 +136,9 @@ def check_update(current: str) -> dict:
         with urllib.request.urlopen(RAW_VERSION_URL, timeout=3) as r:
             latest = r.read().decode("utf-8").strip()
         newer = vparts(latest) > vparts(current)
-        return {"latest": latest, "update_available": newer, "url": REPO_URL}
-    except Exception:
-        return {"latest": current, "update_available": False, "url": REPO_URL}
+        return {"latest": latest, "update_available": newer, "url": REPO_URL, "reachable": True}
+    except Exception:                              # offline, GitHub down, a proxy: "no news" - but say that nobody answered
+        return {"latest": current, "update_available": False, "url": REPO_URL, "reachable": False}
 
 STATE = {"db": None, "catalog": {}, "version": "0.0.0", "update": {}, "server": None, "secret": "", "update_checked": 0.0, "port": None}
 LAN = None                      # arx_lan.LanManager - the phone listener, created in main()
@@ -991,6 +993,14 @@ def p_config(h, data, who, uid):                        # global setup screen
 @route("GET", "/api/update/status", "local")
 def r_update_status(h, q, who, uid):                    # progress of a one-click update
     h._send(UPDATE_JOB.status())
+
+
+@route("POST", "/api/update/check", "local")
+def p_update_check(h, data, who, uid):                  # "look for a new version NOW" (settings): the same 3 s check the app runs
+    STATE["update_checked"] = time.time()               # by itself every few hours - a click does not have to wait for it
+    STATE["update"] = check_update(STATE["version"])
+    h._send(dict(STATE["update"], version=STATE["version"],
+                 self_update=os.name == "nt" or bool(os.environ.get("ARX_UPDATE_ANYWHERE"))))
 
 
 @route("POST", "/api/update", "local")
