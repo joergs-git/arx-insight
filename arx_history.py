@@ -108,6 +108,8 @@ def _fmt(key: str, val, imperial: bool, lang: str):
     if key == "muscle":
         names = MUSCLE_NAMES.get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
+    if key == "muscles" and isinstance(val, (list, tuple)):         # several muscles, spelled out (never a raw identifier)
+        return ", ".join(_fmt("muscle", m, imperial, lang) for m in val)
     if key in ("region", "aid", "metric"):
         names = {"region": REGION_NAMES, "aid": AID_NAMES, "metric": BODY_NAMES}[key].get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
@@ -540,9 +542,10 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
         for m, role in _muscle_roles(s, catalog).items():
             if role == "target":
                 last_target[m] = max(last_target.get(m, ""), s["date"][:10])
+    external = set((cfg or {}).get("_external") or [])    # trained outside the ARX (profile: exercises switched off as "elsewhere")
     for m, d in sorted(last_target.items()):
         gap = (today - date.fromisoformat(d)).days
-        if gap > NEGLECTED_DAYS:
+        if gap > NEGLECTED_DAYS and m not in external:
             add("neglected_muscle", "info", {"muscle": m, "days": gap, "last_date": d}, muscle=m, day=d, n=gap)
 
     def score(f):

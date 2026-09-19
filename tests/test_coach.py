@@ -99,6 +99,24 @@ class Payload(unittest.TestCase):
         self.assertIn('NEVER try to "catch up"', prompt)
         self.assertIn("training_breaks", prompt)                            # the science line is in the prompt as well
 
+    def test_the_coach_knows_what_the_athlete_does_not_do_on_the_machine(self):
+        report, cfg = make(excluded_exercises={"11": "elsewhere", "10": "unwanted"})
+        p = ai.build_payload(report, cfg)
+        self.assertEqual(p["profile"]["exercises_switched_off"], [{"exercise": "Biceps Curl", "reason": "trained_elsewhere"},
+                                                                  {"exercise": "Dead Lift", "reason": "not_wanted"}])
+        self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
+        offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}
+        self.assertFalse(offered & {"Biceps Curl", "Dead Lift"})                       # not in the decision space ...
+        schema = json.dumps(ai.board_schema(report))
+        self.assertNotIn("Biceps Curl", schema.split('"next_training"')[1].split('"history"')[0])   # ... so the plan rows cannot name it
+        self.assertEqual(ai.lint_payload(p), [])
+        self.assertEqual(ai.build_payload(*make())["profile"]["exercises_switched_off"], [])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn("exercises_switched_off is never recommended", prompt)
+        self.assertIn("trained_elsewhere", prompt)
+        self.assertIn("exercises they do not do on the ARX", ai.system_prompt("chat")[0]["text"])
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 4)                                  # a changed prompt is a new cache key
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)

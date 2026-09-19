@@ -38,6 +38,18 @@ ONE plan, derived from the athlete's own data instead of rules of thumb:
             extra sets or sessions (science.json: training_breaks). A split the athlete's REAL
             attendance cannot carry (a muscle would wait > MAX_MUSCLE_GAP_DAYS) becomes fuller
             sessions until the rhythm is back.
+  stimulus  (v0.7.0) The big slot of a movement group goes to the exercise that reaches the most
+            URGENT muscles - trained muscles that would wait longer than MAX_MUSCLE_GAP_DAYS for
+            their next stimulus if they were skipped today. With Overhead Press or High Pull in the
+            repertoire "a compound of the group" no longer means "the group's main muscles": once a
+            week chest and lats would otherwise alternate with them and wait two weeks. Nothing
+            urgent -> the choice is what it always was.
+  excluded  (v0.7.0) Exercises the athlete does not do on the ARX (profile: excluded_exercises =
+            {code: elsewhere | unwanted}) do not exist for the planner - never planned, never
+            suggested, not in the coach's decision space. "elsewhere" = trained outside the ARX:
+            the muscles it is FOR count as covered there (no gap suggestion, no frequency warning,
+            not "neglected") and the plan says that it cannot see that load. "unwanted" = the
+            other exercises cover its muscles where they can. Said openly in plan["excluded"].
 
 Every decision carries a meaning / action item (meanings.json). check_plan() is the rule set the
 AI's plan will have to pass as well (v0.5.0). The plan ledger remembers what was recommended, so
@@ -56,7 +68,7 @@ from arx_detail import INROAD_DEEP, INROAD_MODERATE, BORDERLINE
 import arx_evidence as evidence
 from arx_history import REGIONS, REGION_OF, item
 
-PLAN_ALGO_VERSION = 1
+PLAN_ALGO_VERSION = 2          # 2 = v0.7.0: urgent muscles decide the big slot, excluded exercises
 
 HORIZON_DAYS = 10              # how far the week plan looks
 DATE_SEARCH_DAYS = 10          # the next session is searched within this many days
@@ -79,6 +91,10 @@ MAX_MUSCLE_GAP_DAYS = 8        # a trained muscle without any stimulus for longe
 SPLIT_MIN_SESSIONS = 2         # below this a split would stretch every muscle's gap to 2-3 weeks -> always full body
 COVER_FIRST = (10.0, 5.0)      # full body: the best big exercise of each movement group is picked first (ready / limited)
 NEW_WEIGHT = 0.5               # a known exercise wins a tie against a never-performed one
+URGENT_WEIGHT = {"target": 1.0, "limiter": 0.5}   # how much an exercise does for an urgent muscle (as in arx_evidence.ROLE_WEIGHT)
+# Exercises the athlete does not do on the ARX (profile): "elsewhere" = trained outside the machine (its
+# target muscles count as covered there), "unwanted" = not wanted at all (the plan covers the muscles otherwise).
+EXCLUDE_REASONS = ("elsewhere", "unwanted")
 MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
 TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
 TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
@@ -152,6 +168,7 @@ SCIENCE = {
     "RETURN_DAYS": "eccentric", "NEW_WEIGHT": "eccentric",
     "BREAK_SHORT_DAYS": "training_breaks", "BREAK_LONG_DAYS": "training_breaks", "BREAK_TARGET_FLOOR_PCT": "training_breaks",
     "training_break": "training_breaks", "REAL_FREQ_DAYS": "frequency", "real_frequency": "frequency",
+    "URGENT_WEIGHT": "frequency",
 }
 
 
@@ -167,6 +184,41 @@ def focus_regions(cfg: dict) -> dict:
                 for r in LEGACY_FOCUS.get(group, []):
                     fr.setdefault(r, level)
     return {r: (fr.get(r) if fr.get(r) in FOCUS_WEIGHT else "normal") for r in REGIONS if r != "grip"}
+
+
+def excluded_of(cfg: dict, catalog: dict) -> dict:
+    """{exercise code: reason} - the exercises the athlete does not do on the ARX (profile), reduced to
+    catalog codes and known reasons. The app validates the profile on the way in; this is the
+    engine's own guard (CLI, tests, a hand-edited goals.json)."""
+    return {str(c): r for c, r in ((cfg or {}).get("excluded_exercises") or {}).items()
+            if str(c) in (catalog or {}) and r in EXCLUDE_REASONS}
+
+
+def external_muscles(cfg: dict, catalog: dict) -> list[str]:
+    """Muscles the athlete trains OUTSIDE the ARX: what the exercises switched off with the reason
+    "elsewhere" are FOR. They count as covered there - nothing new is suggested for them, their
+    frequency is not the plan's business and they are never called neglected."""
+    return sorted({m for c, r in excluded_of(cfg, catalog).items() if r == "elsewhere"
+                   for m in (catalog[c].get("targets") or [])})
+
+
+def excluded_block(cfg: dict, catalog: dict) -> dict | None:
+    """What was left out on the athlete's own wish, said openly (a plan never omits silently):
+    {exercises: [{code, name, reason}], external_muscles, notes: [items]}. None = nothing excluded."""
+    excluded = excluded_of(cfg, catalog)
+    if not excluded:
+        return None
+    rows = sorted(({"code": c, "name": catalog[c].get("name") or f"Exercise {c}", "reason": r} for c, r in excluded.items()),
+                  key=lambda x: x["name"])
+    away = [x["name"] for x in rows if x["reason"] == "elsewhere"]
+    off = [x["name"] for x in rows if x["reason"] == "unwanted"]
+    external = external_muscles(cfg, catalog)
+    notes = []
+    if away:
+        notes.append(item("excluded_elsewhere", {"exercises": away, "muscles": external, "k": len(away)}, cfg))
+    if off:
+        notes.append(item("excluded_unwanted", {"exercises": off, "k": len(off)}, cfg))
+    return {"exercises": rows, "external_muscles": external, "notes": notes}
 
 
 def goal_effort(goal: dict) -> str:
@@ -278,8 +330,10 @@ def rest_days(rank: int, age: str | None = None) -> int:
 
 
 def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: str | None = None) -> dict:
-    """{muscle: {ready_on, last_target, sore}} from today's recovery model + the date of the last
-    direct (target) work of each muscle."""
+    """{muscle: {ready_on, last_target, last_stim, sore}} from today's recovery model + the date of
+    the last direct (target) work of each muscle. last_stim = the last training stimulus in ANY role:
+    it starts as last_target (the basis frequency_notes uses for the history) and apply_session()
+    moves it on for every muscle of a planned session, target or helper."""
     out = {}
     for m, v in ((load.get("recovery") or {}).get("muscles") or {}).items():
         out[m] = {"ready_on": v["ready_on"], "last_target": None, "sore": v.get("sore")}
@@ -288,6 +342,8 @@ def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: s
             if role == "target":
                 cell = out.setdefault(m, {"ready_on": None, "last_target": None, "sore": None})
                 cell["last_target"] = max(cell["last_target"] or "", s["date"][:10])
+    for cell in out.values():
+        cell["last_stim"] = cell["last_target"]
     return out
 
 
@@ -300,8 +356,9 @@ def apply_session(state: dict, day: date, items: list[dict], age: str | None) ->
         for m, role in it["muscles"].items():
             r = rank if role == "target" else max(rank - 1, 1)
             ready = (day + timedelta(days=rest_days(r, age))).isoformat()
-            cell = new.setdefault(m, {"ready_on": None, "last_target": None, "sore": None})
+            cell = new.setdefault(m, {"ready_on": None, "last_target": None, "last_stim": None, "sore": None})
             cell["ready_on"] = max(cell["ready_on"] or "", ready)
+            cell["last_stim"] = day.isoformat()    # a helper gets a training stimulus as well (see frequency_notes)
             if role == "target":
                 cell["last_target"] = day.isoformat()
     return new
@@ -327,8 +384,10 @@ def exercise_status(c: dict, state: dict, day: date, today: date | None = None) 
 def build_pool(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict, today: date, progress: dict,
                restriction_of=None) -> list[dict]:
     """Everything that could be planned: the exercises the athlete does + catalog / library
-    exercises never performed (flagged new - only used to close a coverage gap)."""
+    exercises never performed (flagged new - only used to close a coverage gap). Exercises the
+    athlete switched off in the profile (excluded_of) are left out - performed or not."""
     aids = cfg.get("aids") or {}
+    excluded = excluded_of(cfg, catalog)
     restriction_of = restriction_of or (lambda name, joints: "ok")
     by_ex: dict = {}
     for s in work:
@@ -351,13 +410,23 @@ def build_pool(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                 "last_fresh": max(fresh_days) if fresh_days else None, "n_days": len((e or {}).get("occ", []))}
 
     for e in exercises:                            # what the athlete does (also codes the catalog does not know)
+        if str(e["ex"]) in excluded:
+            continue
         pool.append(entry(e["ex"], catalog.get(str(e["ex"]), {}), e))
         seen.add(pool[-1]["name"])
     for code, meta in catalog.items():             # never performed: catalog + library entries
-        if meta.get("name") and meta["name"] not in seen:
+        if meta.get("name") and meta["name"] not in seen and str(code) not in excluded:
             pool.append(entry(code, meta, None))
             seen.add(meta["name"])
     return pool
+
+
+def _trained_muscles(pool: list[dict], focus: dict, external=()) -> set:
+    """The muscles the weekly-stimulus rule is about: what the athlete trains on the ARX as a TARGET
+    (known exercises, not avoided), in regions that are not switched to less / off - minus what is
+    trained outside the ARX (see external_muscles)."""
+    return {m for c in pool if not c["new"] and c["restriction"] != "avoid" for m in _targets(c)
+            if REGION_OF.get(m) and focus.get(REGION_OF[m], "normal") not in ("off", "less") and m not in external}
 
 
 def due_interval(spw: int, structure: str = "auto", real_spw: float | None = None) -> float:
@@ -367,8 +436,20 @@ def due_interval(spw: int, structure: str = "auto", real_spw: float | None = Non
 
 def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw: int, cfg: dict,
                      today: date | None = None) -> list[dict]:
-    """Score every exercise that may be trained on that day, with the reasons as items."""
+    """Score every exercise that may be trained on that day, with the reasons as items.
+    Every candidate also says which URGENT muscles it reaches: trained muscles that would wait longer
+    than MAX_MUSCLE_GAP_DAYS for their next stimulus if this session skipped them (days since the
+    last stimulus + the days until their next chance). select() gives the big slot to that exercise."""
     interval = due_interval(spw, structure_of(cfg), cfg.get("_real_spw"))
+    external = set(cfg.get("_external") or [])      # trained outside the ARX (exercises switched off as "elsewhere")
+    next_gap = 7.0 * split_factor(spw, structure_of(cfg), cfg.get("_real_spw")) / max(1, spw)
+
+    def waited(m):
+        cell = state.get(m) or {}
+        last = cell.get("last_stim") or cell.get("last_target")
+        return (day - date.fromisoformat(last)).days if last else None
+    urgent_now = {m for m in _trained_muscles(pool, focus, external)
+                  if waited(m) is not None and waited(m) + next_gap > MAX_MUSCLE_GAP_DAYS}
     never_fresh = sorted((c for c in pool if not c["new"] and not c["last_fresh"]), key=lambda c: (-c["n_days"], c["name"]))
     measured = sorted((c for c in pool if not c["new"] and c["last_fresh"]), key=lambda c: (c["last_fresh"], c["name"]))
     bench_rank = {c["name"]: i for i, c in enumerate(never_fresh + measured)}
@@ -385,10 +466,15 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         targets = sorted(_targets(c))
         since = {m: ((day - date.fromisoformat(state[m]["last_target"])).days if (state.get(m) or {}).get("last_target") else None)
                  for m in targets}
-        never = all(v is None for v in since.values())
-        days_due = max((v for v in since.values() if v is not None), default=None)
-        days_away = min((v for v in since.values() if v is not None), default=None)   # the most recently trained target
-        worst = next((m for m in targets if since[m] == days_due), targets[0] if targets else None)
+        # a NEW exercise is only ever suggested for muscles the ARX is responsible for - not for one the
+        # athlete trains elsewhere; an exercise the athlete does is judged on all its targets, as always
+        judged = [m for m in targets if m not in external] if c["new"] else targets
+        if not judged:
+            continue
+        never = all(since[m] is None for m in judged)
+        days_due = max((since[m] for m in judged if since[m] is not None), default=None)
+        days_away = min((since[m] for m in judged if since[m] is not None), default=None)   # the most recently trained target
+        worst = next((m for m in judged if since[m] == days_due), judged[0])
         due = 2.0 if never else min((days_due or 0) / interval, 2.0)
         cover = 1.0 if (never or (days_due or 0) > COVER_DAYS) else 0.0
         if c["new"] and not cover:
@@ -416,7 +502,9 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
             why.append(item("sel_focus", {"region": next(r for r in c["regions"] if focus.get(r) == "more")}, cfg))
         if ps == "progressing":
             why.append(item("sel_progress", {"change_spct": (c["progress"] or {}).get("change_pct")}, cfg))
+        urgent = sorted(m for m in c["muscles"] if m in urgent_now)
         out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind,
+                        urgent=urgent, urgent_weight=sum(URGENT_WEIGHT[c["muscles"][m]] for m in urgent),
                         why_selected=why, days_since_target=days_due, days_away=days_away, due_muscle=worst,
                         bench_rank=bench_rank.get(c["name"]) if can_bench else None))
     out.sort(key=lambda c: (-c["score"], c["name"]))
@@ -450,31 +538,53 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
     overlap of their target muscles with it (halved on a focus region or in a themed session).
     Twins are skipped in a full-body session; at most max_new never-performed exercises (one - a
     whole starter session only for an athlete without a history), and only for a focus region or
-    a slot no known exercise wants (else it is listed as "closes a gap")."""
+    a slot no known exercise wants (else it is listed as "closes a gap").
+    The big slot: in a full-body session the best big exercise of every movement group is picked
+    first; WHICH one is decided by the urgent muscles it reaches (see score_candidates), then by
+    readiness and score - so an Overhead Press cannot take the chest's turn when the chest would
+    wait two weeks. A split day gets such a pick only when a muscle of the group is urgent.
+    The other slots: an exercise that is the first of the session to reach an urgent muscle goes
+    before one whose muscles can wait (calves once a week before a second arm exercise); with
+    nothing urgent the score alone decides, as it always did."""
     left = [dict(c) for c in cands if theme is None or c["group"] in theme]
     known = sum(1 for c in left if not c["new"])
     for c in left:                                 # a never-performed exercise serves a focus or fills a free
         if c["new"] and known >= size and not any(focus.get(r) == "more" for r in c["regions"]):
             c["score"], c["gap_only"] = 0.0, True  # slot - it never displaces what the athlete already does
-    if theme is None:
-        # Full body means FULL body: the best big exercise of every movement group the athlete trains is
-        # picked before anything else - so with few sessions a week no muscle waits two weeks for its turn.
-        for g in sorted({c["group"] for c in left if c["group"] != "?"}):
-            big = [c for c in left if c["group"] == g and not c["new"] and c["kind"] == "compound" and c["score"] > 0]
-            for status, bonus in (("ready", COVER_FIRST[0]), ("limited", COVER_FIRST[1])):
-                best = max((c for c in big if c["status"] == status), key=lambda c: (c["score"], c["name"]), default=None)
-                if best:
-                    best["score"], best["cover_group"] = best["score"] + bonus, g
-                    break
+    # Full body means FULL body: the best big exercise of every movement group the athlete trains is
+    # picked before anything else - so with few sessions a week no muscle waits two weeks for its turn.
+    # "Best" = reaches the most urgent muscles (as a target 1, as a helper 0.5), then ready before
+    # limited, then the score: with nothing urgent that is exactly the old choice.
+    for g in sorted({c["group"] for c in left if c["group"] != "?"}):
+        big = [c for c in left if c["group"] == g and not c["new"] and c["kind"] == "compound" and c["score"] > 0]
+        if theme is not None and not any(c.get("urgent") for c in big):
+            continue                               # a split day keeps its freedom unless a muscle would wait too long
+        plain = max(big, key=lambda c: (c["status"] == "ready", c["score"], c["name"]), default=None)
+        best = max(big, key=lambda c: (c.get("urgent_weight", 0.0), c["status"] == "ready", c["score"], c["name"]), default=None)
+        if best:
+            best["score"] += COVER_FIRST[0] if best["status"] == "ready" else COVER_FIRST[1]
+            best["cover_group"] = g
+            if best.get("urgent") and (theme is not None or best is not plain):
+                best["urgent_for"] = list(best["urgent"])          # urgency decided it: worth a sentence
     chosen, dropped = [], [{"name": c["name"], "reason": "other_groups_today", "score": c["score"], "new": c["new"]}
                            for c in cands if theme is not None and c["group"] not in theme]
+    covered: set = set()                           # muscles the session reaches so far (target or helper)
+
+    def first_to_reach(c) -> list[str]:            # urgent muscles nobody in the session reaches yet
+        return [m for m in c.get("urgent") or [] if m not in covered] if c["score"] > 0 else []
     while left and len(chosen) < size:
-        left.sort(key=lambda c: (-c["score"], c["name"]))
+        by_score = min(left, key=lambda c: (-c["score"], c["name"]))
+        # the big exercises first (their bonus), then whatever keeps a muscle at its weekly stimulus, then the score
+        left.sort(key=lambda c: (0 if c.get("cover_group") else 1, -sum(URGENT_WEIGHT[c["muscles"][m]] for m in first_to_reach(c)),
+                                 -c["score"], c["name"]))
         pick = left.pop(0)
         if pick["score"] <= 0:
             left.insert(0, pick)
             break
+        if pick is not by_score and not pick.get("cover_group") and first_to_reach(pick):
+            pick["urgent_for"] = first_to_reach(pick)
         chosen.append(pick)
+        covered |= set(pick["muscles"])
         per_region: dict = {}
         for x in chosen:
             for r in x["regions"]:
@@ -746,7 +856,9 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
     comeback = first session after weeks away: back to the known exercises first, nothing new."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
     theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg), cfg.get("_real_spw"))
-    starter = sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX       # no history yet: a first session
+    # no history yet: a first session. Judged on the HISTORY (cfg["_starter"], see build_plan) as well: an
+    # experienced athlete who switched off most of his exercises must not get a beginner session full of new ones
+    starter = cfg.get("_starter", True) and sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX
     chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1))
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
@@ -780,8 +892,10 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
         prev = seq[pos - 2] if pos > 1 else None
         rest = 0.0 if prev is None else REST_MIN.get(prev["kind"], 2.5) + min(REST_EXTRA_MAX, round(row["shared_loss_pct"] / REST_EXTRA_PER_PCT))
         why = list(c["why_selected"])
-        if c.get("cover_group"):
+        if c.get("cover_group") and not sel["theme"]:
             why.append(item("sel_cover_group", {"groups": [c["cover_group"]]}, cfg))
+        if c.get("urgent_for"):                    # the weekly stimulus decided for this exercise
+            why.append(item("sel_urgent", {"muscles": c["urgent_for"], "limit": MAX_MUSCLE_GAP_DAYS}, cfg))
         if is_bench:
             why.append(item("sel_benchmark" if c["last_fresh"] else "sel_benchmark_never",
                             {"last_date": c["last_fresh"], "k": c["n_days"]}, cfg))
@@ -913,7 +1027,11 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     focus = focus_regions(cfg)
     structure = structure_of(cfg)
     real_spw = real_frequency(sorted({s["date"][:10] for s in work}))
-    cfg = dict(cfg, _real_spw=real_spw)            # read by split_factor via score_candidates / select_session
+    external = cfg.get("_external") if cfg.get("_external") is not None else external_muscles(cfg, catalog)
+    # read by split_factor via score_candidates / select_session; _starter = is there a history at all (not: a pool);
+    # _external = muscles trained outside the ARX (arx_report sets it once for the findings too)
+    cfg = dict(cfg, _real_spw=real_spw, _starter=len(exercises) < SESSION_MIN_EX, _external=list(external))
+    excluded = excluded_block(cfg, catalog)
     chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
     state = muscle_state(load, work, catalog, aids, age)
@@ -969,11 +1087,13 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                    "exercises_per_session": size_for(None),
                    "commitment_options": commitment_options(cfg, minutes, spw, set_min, transition, per_exercise, n_regions, age)}
     if not opts:
-        return {"algo": PLAN_ALGO_VERSION, "today": {"train_today": False, "trained_today": trained_today,
-                                                     "interp": item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)},
+        # nothing can be planned: usually nothing is ready - or the athlete switched off everything he does
+        all_off = bool(exercises) and bool(excluded) and all(str(e["ex"]) in excluded_of(cfg, catalog) for e in exercises)
+        nothing = item("plan_all_excluded", {"k": len(excluded["exercises"])}, cfg) if all_off else item("date_nothing_ready", {"days": DATE_SEARCH_DAYS}, cfg)
+        return {"algo": PLAN_ALGO_VERSION, "today": {"train_today": False, "trained_today": trained_today, "interp": nothing},
                 "profile": profile_out, "next_session": None, "today_session": None, "week_plan": [], "week_strip": [],
                 "cadence_note": None, "frequency_notes": [], "dose_note": None, "structure_note": None, "date_options": [],
-                "training_break": None, "decision_space": None}
+                "training_break": None, "excluded": excluded, "decision_space": None}
     best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
     session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
     d1 = best["date"]
@@ -1107,6 +1227,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         "profile": profile_out, "next_session": session, "week_plan": [compact(s) for s in sessions], "week_strip": strip,
         "cadence_note": cadence_note, "frequency_notes": freq_notes, "dose_note": dose_note, "structure_note": structure_note,
         "training_break": brk,
+        "excluded": excluded,                      # exercises the athlete does not do on the ARX + what follows (None = none)
         "date_options": [{"date": o["date"].isoformat(), "weekday": o["date"].weekday(), "score": o["score"], "fill": o["fill_effective"],
                           "gap_days": o["gap_days"], "exercises": [c["name"] for c in o["chosen"]],
                           "limited": [c["name"] for c in o["chosen"] if c["status"] == "limited"]} for o in opts],
@@ -1131,8 +1252,7 @@ def frequency_notes(state: dict, sessions: list[dict], pool: list[dict], focus: 
     stimulus (as a target or as a helper) in this plan - the usual causes: one session a week with
     more exercises than fit into it, a one-time group choice, a region that keeps losing its slot.
     Judged per muscle, reported per region (the worst muscle of the region gives the days)."""
-    trained = {m for c in pool if not c["new"] and c["restriction"] != "avoid" for m in _targets(c)
-               if REGION_OF.get(m) and focus.get(REGION_OF[m], "normal") not in ("off", "less")}
+    trained = _trained_muscles(pool, focus, set(cfg.get("_external") or []))     # not: muscles trained outside the ARX
     worst: dict = {}
     first = sessions[0]["date"] if sessions else None
     for m in sorted(trained):

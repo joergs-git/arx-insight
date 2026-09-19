@@ -40,6 +40,14 @@ class CleanProfile(unittest.TestCase):
         past = app.clean_profile({"target": {"kind": "waist", "value": 90, "date": "2020-01-01"}}, CATALOG, TODAY)
         self.assertIsNone(past["target"]["date"])                                     # a date in the past is no deadline
 
+    def test_switched_off_exercises_are_catalog_codes_with_a_known_reason(self):
+        got = app.clean_profile({"excluded_exercises": {"11": "elsewhere", 19: "unwanted", "3": "too boring", "99": "unwanted",
+                                                        "23": None, "10": ["elsewhere"]}}, CATALOG, TODAY)
+        self.assertEqual(got["excluded_exercises"], {"11": "elsewhere", "19": "unwanted"})          # nothing free-text, nothing unknown
+        self.assertIsNone(app.clean_profile({"excluded_exercises": {}}, CATALOG, TODAY)["excluded_exercises"])
+        self.assertIsNone(app.clean_profile({"excluded_exercises": "all of them"}, CATALOG, TODAY)["excluded_exercises"])
+        self.assertNotIn("excluded_exercises", app.clean_profile({"commitment": "balanced"}, CATALOG, TODAY))   # absent = untouched
+
     def test_body_entry_keeps_only_sane_numbers(self):
         day, values = app.clean_body_entry({"date": "2026-09-17", "weight_kg": "82,4", "waist_cm": 91, "fat_pct": 140,
                                             "arm_cm": "big", "mood": "fine"}, TODAY)
@@ -66,6 +74,15 @@ class ProfileRoutes(ServerCase):
         self.assertNotIn("commitment", rec)                                           # back to the engine's recommendation
         self.assertNotIn("aids", rec)
         self.assertEqual(rec["outcome"], "strength")
+
+    def test_switched_off_exercises_round_trip_and_can_be_cleared(self):
+        body = {"user_id": 1, "goal": {"muscle": 1.0}, "sessions_per_week": 2, "excluded_exercises": {"11": "elsewhere", "77": "unwanted"}}
+        self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)
+        self.assertEqual(call(self.port, "/api/goal?user_id=1", headers=HDR)[1]["excluded_exercises"], {"11": "elsewhere"})
+        self.assertIn("excluded_exercises", app.PROFILE_KEYS)                         # -> report_cfg hands it to the planner and the coach
+        body["excluded_exercises"] = {}
+        call(self.port, "/api/goal", method="POST", body=body, headers=OK)
+        self.assertNotIn("excluded_exercises", call(self.port, "/api/goal?user_id=1", headers=HDR)[1])
 
     def test_structure_and_the_one_time_group_choice(self):
         self.assertEqual(app.clean_profile({"structure": "split"}, CATALOG, TODAY), {"structure": "split"})

@@ -530,12 +530,142 @@ class Breaks(unittest.TestCase):
         self.assertEqual(wish["next_session"]["session_type"], "split")
 
 
+# v0.7.0 - a bigger repertoire: Overhead Press and High Pull are mapped exercises the athlete really does
+OHP, HIGHPULL, CALF, LATERAL = 5, 41, 14, 77
+POS.update({OHP: (10.0, 20.0), HIGHPULL: (8.4, 20.0), CALF: (8.4, 12.0)})
+BIG = {k: v for k, v in CATALOG.items() if k != "lib:Overhead Press"}
+BIG.update({
+    "5": {"name": "Overhead Press", "group": "Push", "kind": "compound", "targets": ["shoulders"], "limiters": ["triceps"],
+          "joints": ["shoulder", "elbow", "wrist", "neck"]},
+    "41": {"name": "High Pull", "group": "Pull", "kind": "compound", "targets": ["upper_back", "shoulders"], "limiters": ["grip"],
+           "joints": ["shoulder", "elbow", "wrist", "lower_back", "neck"]},
+    "14": {"name": "Calf Raise", "group": "Drive", "kind": "isolation", "targets": ["calves"], "limiters": [], "joints": ["knee"]},
+})
+CODE = {m["name"]: int(c) for c, m in BIG.items()}
+
+
+def roll_forward(rows, start: str, weeks: int, **extra):
+    """Let the planner run: every proposed session is performed as planned, the next report is made
+    the day after. -> [(date, [exercise names], plan)]"""
+    rows, today, end, out, sid = list(rows), date.fromisoformat(start), date.fromisoformat(start) + timedelta(days=7 * weeks), [], 5000
+    while today < end:
+        plan = report(rows, today.isoformat(), _catalog=BIG, **extra)["plan"]
+        sess = plan["next_session"]
+        if not sess or date.fromisoformat(sess["date"]) >= end:
+            break
+        day = date.fromisoformat(sess["date"])
+        rows += session(datetime(day.year, day.month, day.day, 10), [CODE[n] for n in names(sess)], first_id=sid)
+        sid += 20
+        out.append((day, names(sess), plan))
+        today = day + timedelta(days=1)
+    return out
+
+
+class WeeklyStimulus(unittest.TestCase):
+    """The big slot of a movement group goes to the exercise that keeps the muscles at a weekly
+    stimulus - with Overhead Press / High Pull in the repertoire 'a compound of the group' is not
+    enough any more (found by simulation after all 17 exercises were mapped)."""
+    REPERTOIRE = [ROW, PRESS, SQUAT, OHP, HIGHPULL, CURL, PRESSDOWN, CALF]
+
+    def test_once_a_week_no_big_muscle_waits_two_weeks(self):
+        rows = []
+        for n, d in enumerate((1, 8, 15)):                                 # three weeks in which everything was trained
+            rows += session(datetime(2026, 9, d, 10), self.REPERTOIRE, first_id=100 * (n + 1))
+        log = roll_forward(rows, "2026-09-16", 5, sessions_per_week=1, session_minutes=30)
+        self.assertGreaterEqual(len(log), 4)
+        for _, ns, plan in log:
+            direct = {m for n in ns for m in BIG[str(CODE[n])]["targets"]}
+            reached = direct | {m for n in ns for m in BIG[str(CODE[n])]["limiters"]}
+            self.assertLessEqual({"chest", "lats", "upper_back", "quads", "glutes", "calves"}, direct, ns)   # every week, directly
+            self.assertIn("shoulders", reached, ns)                        # at least as a helper of the press
+            self.assertEqual(plan["frequency_notes"], [], ns)              # and the plan has nothing to warn about
+        self.assertGreater(len({tuple(sorted(ns)) for _, ns, _ in log}), 1)                # the free slot still rotates
+        said = [w for _, _, plan in log for it in plan["next_session"]["exercises"] for w in it["why_selected"] if w["code"] == "sel_urgent"]
+        self.assertTrue(said)                                              # the athlete is told why it is this exercise
+        for w in said:
+            self.assertNotIn("_", w["text"]["meaning"] + w["text"]["action"])
+            self.assertNotIn("{", w["text"]["meaning"] + w["text"]["action"])
+
+    def test_nothing_urgent_means_the_old_choice(self):
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN, PULLDOWN])          # twice a week, everything in rhythm
+        sess = report(rows, "2026-09-16", sessions_per_week=2, session_minutes=25)["plan"]["next_session"]
+        self.assertFalse([w for it in sess["exercises"] for w in it["why_selected"] if w["code"] == "sel_urgent"])
+        cands = planner.score_candidates  # noqa: F841  (the candidates carry the urgency they were judged on)
+        state = {"chest": {"ready_on": None, "last_target": "2026-09-15", "last_stim": "2026-09-15", "sore": None}}
+        pool = [{"code": "23", "name": "Horizontal Press", "group": "Push", "kind": "compound", "muscles": {"chest": "target"},
+                 "regions": ["chest"], "new": False, "library": False, "series": None, "progress": None, "restriction": "ok",
+                 "aids_possible": [], "aid": None, "set_seconds": 100, "impulse": 0, "last_fresh": None, "n_days": 3}]
+        focus = planner.focus_regions({})
+        soon = planner.score_candidates(pool, state, date(2026, 9, 18), focus, 2, {"language": "en"})
+        late = planner.score_candidates(pool, state, date(2026, 9, 21), focus, 2, {"language": "en"})
+        self.assertEqual((soon[0]["urgent"], late[0]["urgent"]), ([], ["chest"]))         # 3 + 3.5 days is fine, 6 + 3.5 is not
+
+
+class Excluded(unittest.TestCase):
+    """Exercises the athlete does not do on the ARX (profile: excluded_exercises)."""
+    def test_a_switched_off_exercise_does_not_exist_for_the_planner(self):
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT])
+        base = report(rows, "2026-09-18", session_minutes=40)["plan"]
+        self.assertIn("Biceps Curl", {n for w in base["week_plan"] for n in w["exercises"]})
+        self.assertIn("Overhead Press", names(base["next_session"]) + [a["name"] for a in base["next_session"]["alternatives"]])   # for the shoulders
+        self.assertIsNone(base["excluded"])
+        plan = report(rows, "2026-09-18", session_minutes=40,
+                      excluded_exercises={"11": "unwanted", "lib:Overhead Press": "elsewhere", "999": "unwanted", "3": "because"})["plan"]
+        everywhere = ({n for w in plan["week_plan"] for n in w["exercises"]} | {a["name"] for a in plan["next_session"]["alternatives"]}
+                      | {c["name"] for d in plan["decision_space"]["dates"] for c in d["candidates"]} | set(plan["decision_space"]["muscles"]))
+        self.assertFalse(everywhere & {"Biceps Curl", "Overhead Press"})
+        self.assertIn("Row", everywhere)                                   # an unknown reason switches nothing off
+        ex = plan["excluded"]
+        self.assertEqual([(x["name"], x["reason"]) for x in ex["exercises"]], [("Biceps Curl", "unwanted"), ("Overhead Press", "elsewhere")])
+        self.assertEqual(ex["external_muscles"], ["shoulders"])
+        self.assertEqual([n["code"] for n in ex["notes"]], ["excluded_elsewhere", "excluded_unwanted"])
+        # the coach can not bring it back: not a candidate on any date
+        problems = planner.check_rows(plan["next_session"]["date"], [{"exercise": "Biceps Curl", "sets": 1, "target_kg": 0, "effort": "submax",
+                                                                      "rest_before_min": 2}], plan["decision_space"])
+        self.assertIn("not_trainable_that_day", [p["code"] for p in problems])
+
+    def test_trained_elsewhere_means_covered_there(self):
+        catalog = dict(CATALOG, **{"77": {"name": "Lateral Raise", "group": "Push", "kind": "isolation", "targets": ["shoulders"],
+                                          "limiters": [], "joints": ["shoulder"]}})
+        rows = history([ROW, PRESS, SQUAT, DEADLIFT]) + session(datetime(2026, 8, 20, 10), [CURL], first_id=900)   # the curl: four weeks ago
+        gap = lambda plan: {a["name"] for a in plan["next_session"]["alternatives"] if a["reason"] == "closes_a_gap"}
+        neglected = lambda r: {f["muscle"] for f in r["history"]["findings"]["all"] if f["type"] == "neglected_muscle"}
+        plain = report(rows, "2026-09-18", session_minutes=20, _catalog=catalog)
+        self.assertIn("elbow_flexors", neglected(plain))
+        self.assertTrue(gap(plain["plan"]) & {"Overhead Press", "Lateral Raise"})
+        away = report(rows, "2026-09-18", session_minutes=20, _catalog=catalog,
+                      excluded_exercises={"11": "elsewhere", "lib:Overhead Press": "elsewhere"})
+        self.assertNotIn("elbow_flexors", neglected(away))                  # curls are done at home: not neglected
+        self.assertFalse(gap(away["plan"]) & {"Overhead Press", "Lateral Raise"})      # shoulders are trained elsewhere: nothing new for them
+        self.assertFalse([n for n in away["plan"]["frequency_notes"] if n["region"] in ("arms", "shoulders")])
+        unwanted = report(rows, "2026-09-18", session_minutes=20, _catalog=catalog, excluded_exercises={"lib:Overhead Press": "unwanted"})
+        self.assertIn("Lateral Raise", gap(unwanted["plan"]))               # not wanted: the muscles stay the plan's business
+        self.assertIn("elbow_flexors", neglected(unwanted))
+
+    def test_switching_off_known_exercises_is_no_reason_for_a_beginner_session(self):
+        rows = history([ROW, PRESS, SQUAT, DEADLIFT])
+        plan = report(rows, "2026-09-18", session_minutes=40, excluded_exercises={"19": "elsewhere", "10": "unwanted"})["plan"]
+        sess = plan["next_session"]
+        self.assertLessEqual(sum(1 for it in sess["exercises"] if it["new"]), 1)
+        self.assertFalse({"Belt Squat", "Dead Lift"} & set(names(sess)))
+
+    def test_everything_switched_off_is_said_plainly(self):
+        rows = history([ROW, PRESS, SQUAT])
+        plan = report(rows, "2026-09-18", excluded_exercises={"3": "unwanted", "23": "elsewhere", "19": "elsewhere"})["plan"]
+        if plan["next_session"] is None:
+            self.assertEqual(plan["today"]["interp"]["code"], "plan_all_excluded")
+        else:                                                              # only never-performed exercises are left: nothing the athlete switched off
+            self.assertFalse({"Row", "Horizontal Press", "Belt Squat"} & set(names(plan["next_session"])))
+        self.assertEqual(len(plan["excluded"]["exercises"]), 3)
+
+
 class SelfExplaining(unittest.TestCase):
     def test_every_plan_item_has_both_sentences_in_both_languages(self):
         rows = history([PULLDOWN, ROW, DEADLIFT, CURL, PRESS, PRESSDOWN, SQUAT], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.06)
         for lang, units in (("en", "imperial"), ("de", "metric")):
             for extra in ({}, {"sessions_per_week": 4}, {"checkin": {"date": "2026-09-19", "sleep": "ok", "energy": "ok", "soreness": {}}},
-                          {"_day": "2026-10-04"}, {"_day": "2026-11-20"}, {"_day": "2027-06-01"}):          # after a short / long / very long break
+                          {"_day": "2026-10-04"}, {"_day": "2026-11-20"}, {"_day": "2027-06-01"},           # after a short / long / very long break
+                          {"excluded_exercises": {"11": "elsewhere", "12": "unwanted"}}):                   # exercises switched off in the profile
                 extra = dict(extra)
                 plan = report(rows, extra.pop("_day", "2026-09-19"), language=lang, units=units, session_minutes=40, **extra)["plan"]
                 items = []

@@ -1,5 +1,5 @@
 {
- "_comment": "Meaning / action sentences of the engine (owner's rule: no number without 'what does it mean for me' and 'what follows concretely'). code -> meaning/action -> en/de. Placeholders are filled by arx_history.explain(): *_kg and *_cm are converted to the athlete's units, *_spct is a signed percentage, *_pct a percentage, *_date a short date, 'muscle' a plain-word muscle name. The report works without an API key because of these; the AI only refines the wording.",
+ "_comment": "Meaning / action sentences of the engine (owner's rule: no number without 'what does it mean for me' and 'what follows concretely'). code -> meaning/action -> en/de. Placeholders are filled by arx_history.explain(): *_kg and *_cm are converted to the athlete's units, *_spct is a signed percentage, *_pct a percentage, *_date a short date, 'muscle' a plain-word muscle name ('muscles' a list of them). The report works without an API key because of these; the AI only refines the wording.",
  "progress_progressing": {
   "meaning": {
    "en": "Stronger than your own baseline: {change_spct} on {n} comparable days (concentric {con_spct}, eccentric {ecc_spct}).",
@@ -1156,8 +1156,8 @@
    "de": "{region}: seit mindestens {days} Tagen ist kein Trainingsreiz geplant."
   },
   "action": {
-   "en": "More than about {limit} days is too rare to grow. Give the region a slot - or take it out of the programme on purpose (region focus 'less' or 'off').",
-   "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum. Gib der Region einen Platz - oder nimm sie bewusst aus dem Programm (Regionen-Fokus 'weniger' oder 'aus')."
+   "en": "More than about {limit} days is too rare to grow. Give the region a slot - or take it out of the programme on purpose (switch the exercise off in your profile, or set the region focus to 'less' or 'off').",
+   "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum. Gib der Region einen Platz - oder nimm sie bewusst aus dem Programm (Übung im Profil abschalten oder Regionen-Fokus 'weniger' oder 'aus')."
   }
  },
  "dose_one_session_growth": {
@@ -1258,6 +1258,46 @@
   "action": {
    "en": "More than about {limit} days is too rare to grow: come more often, or switch the structure to automatic / full body in your profile.",
    "de": "Mehr als etwa {limit} Tage sind zu selten für Wachstum: öfter kommen oder die Struktur im Profil auf Automatisch / Ganzkörper stellen."
+  }
+ },
+ "excluded_elsewhere": {
+  "meaning": {
+   "en": "Not planned on the ARX because you train it elsewhere: {exercises}. {muscles} count as covered there.",
+   "de": "Nicht an der ARX geplant, weil du es woanders trainierst: {exercises}. {muscles} gelten dort als abgedeckt."
+  },
+  "action": {
+   "en": "The app cannot see that training: give these muscles their rest before an ARX session that needs them, and enter soreness in the check-in - it outranks the calendar.",
+   "de": "Dieses Training sieht die App nicht: Gib diesen Muskeln ihre Pause vor einer ARX-Einheit, die sie braucht, und trag Muskelkater im Check-in ein - er geht vor dem Kalender."
+  }
+ },
+ "excluded_unwanted": {
+  "meaning": {
+   "en": "Switched off in your profile: {exercises} - never planned, never suggested.",
+   "de": "In deinem Profil abgeschaltet: {exercises} - wird nie geplant und nie vorgeschlagen."
+  },
+  "action": {
+   "en": "Where your other exercises reach the same muscles they take over; you can switch an exercise back on in the profile at any time.",
+   "de": "Wo deine anderen Übungen dieselben Muskeln erreichen, übernehmen sie; im Profil kannst du eine Übung jederzeit wieder einschalten."
+  }
+ },
+ "plan_all_excluded": {
+  "meaning": {
+   "en": "Every exercise you have done on the ARX is switched off in your profile ({k}).",
+   "de": "Alle Übungen, die du an der ARX gemacht hast, sind in deinem Profil abgeschaltet ({k})."
+  },
+  "action": {
+   "en": "Switch at least two of them back on - then there is a plan again.",
+   "de": "Schalte mindestens zwei davon wieder ein - dann gibt es wieder einen Plan."
+  }
+ },
+ "sel_urgent": {
+  "meaning": {
+   "en": "{muscles}: skipped today, more than about {limit} days would pass until the next training stimulus.",
+   "de": "{muscles}: Heute ausgelassen, vergingen mehr als etwa {limit} Tage bis zum nächsten Trainingsreiz."
+  },
+  "action": {
+   "en": "That is why this exercise goes before others whose muscles can wait - a muscle needs a stimulus about once a week to grow.",
+   "de": "Deshalb kommt diese Übung vor anderen, deren Muskeln warten können - ein Muskel braucht etwa einmal pro Woche einen Reiz, um zu wachsen."
   }
  }
 }
