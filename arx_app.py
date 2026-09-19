@@ -29,6 +29,8 @@ v0.4.0: the profile becomes a short goal interview (outcome, measurable target, 
 time-vs-effort profile, experience) plus focus per body region, grip aids per exercise and an
 OPTIONAL body log; the plan ledger (plans.json) remembers what was recommended; one shared
 database snapshot per 30 s instead of a copy per request; settings files are written atomically.
+v0.5.0: the AI coach runs as a background job (/api/coach/*), remembers its boards and answers
+follow-up questions in a chat (/api/chat/*); /api/report never calls the API.
 v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.py); the version
 check repeats every few hours, so an app that runs for days still learns about a new release.
 """
@@ -41,6 +43,7 @@ from urllib.parse import urlparse, parse_qs
 import urllib.request
 import arx_report as core   # reuse the read-only engine
 import arx_update as updater  # one-click update: download, verify, unpack, run the installer (v0.4.1)
+import arx_ai as ai           # the AI coach: structured board, memory, background jobs, chat (v0.5.0)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(core.data_dir(), "config.json")   # stable, survives re-download
@@ -278,7 +281,8 @@ def _report_key(con, cfg: dict) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
 
 
-def make_report(user_id: int, with_ai: bool) -> dict:
+def report_cfg(user_id: int) -> tuple[dict, dict]:
+    """(cfg, user info) - everything the engine and the coach need to know about one person."""
     cfg = read_json(CONFIG, {})
     goals = read_json(GOALS, {})
     info = user_info(user_id)
@@ -306,6 +310,12 @@ def make_report(user_id: int, with_ai: bool) -> dict:
     # per-user language override wins for the AI narrative (falls back to device default)
     cfg["language"] = urec.get("language") or cfg.get("language", "en")
     cfg["_catalog"] = STATE["catalog"]
+    return cfg, info
+
+
+def make_report(user_id: int, cfg_info: tuple | None = None) -> dict:
+    """The report of one person. Never calls the AI (see coach_state) - so it is fast and free."""
+    cfg, info = cfg_info or report_cfg(user_id)
     with core.shared_connection(STATE["db"]) as con:
         key = _report_key(con, cfg)
         report = REPORT_CACHE.get(key)
@@ -317,10 +327,6 @@ def make_report(user_id: int, with_ai: bool) -> dict:
             for old in list(REPORT_CACHE)[:-REPORT_CACHE_KEEP]:
                 REPORT_CACHE.pop(old, None)
     remember_plan(user_id, report)
-    report = dict(report)                          # the cached object stays free of AI fields
-    if with_ai:
-        # a failed AI call must never cost the athlete the report: text or a typed error
-        report["ai_narrative"], report["ai_error"] = cached_narrative(report, cfg)
     return report
 
 
@@ -343,59 +349,48 @@ def remember_plan(user_id: int, report: dict) -> None:
         print(f"plan ledger not updated: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-# ---- AI narrative cache -------------------------------------------------------
-# The coach board is re-requested on every report load; without a cache every
-# visit (a reload, a language switch back and forth) would bill a new call.
-# The key covers everything the answer depends on: person, day, the recorded
-# sets, today's check-in, restrictions, goal, focus, approach, units, language,
-# model and effort. New training data or a new check-in -> a new answer.
-AI_CACHE = os.path.join(core.data_dir(), ".ai_cache.json")
-AI_CACHE_KEEP = 40            # most recent answers kept
+# ---- AI coach: board as a background job, memory, chat -------------------------------------------------
+BOARDS, JOBS, CHATS = ai.BoardStore(), ai.JobManager(), ai.ChatManager()
 
 
-def _ai_cache_key(report: dict, cfg: dict) -> str:
-    import hashlib
-    basis = {
-        "user": cfg.get("user_id"), "today": report.get("today"),
-        "sets": [report.get("sets_total"), report.get("sets_working")],
-        "last_day": (report.get("training_days") or [None])[-1],
-        "checkin": report.get("checkin"), "restrictions": report.get("restrictions"),
-        "goal": report.get("goal"), "focus": report.get("focus"), "approach": report.get("approach"),
-        "plan": core.planner.ledger_signature(core.planner.ledger_entry(report.get("plan"), date.fromisoformat(report["today"])))
-                if (report.get("plan") or {}).get("next_session") else None,
-        "share": [cfg.get("ai_share_profile", True), bool(cfg.get("ai_share_body"))],
-        "units": cfg.get("units"), "language": cfg.get("language"),
-        "model": cfg.get("model"), "effort": cfg.get("ai_effort"),
-        "version": STATE.get("version"),
-    }
-    return hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
+def coach_context(user_id: int) -> dict:
+    """Report + payload + key for one person: what a board depends on and what the chat talks about."""
+    cfg, info = report_cfg(user_id)
+    report = make_report(user_id, (cfg, info))
+    earlier = [r for r in BOARDS.all(user_id)]
+    model, effort = ai.model_of(cfg), ai.effort_of(cfg, "ai_effort_board", ai.BOARD_EFFORT_DEFAULT)
+    payload = ai.build_payload(report, cfg, None)
+    key = ai.payload_key(payload, model, effort)
+    previous = ai.memory_of([r for r in earlier if r.get("key") != key])
+    return {"cfg": cfg, "info": info, "report": report, "key": key, "previous": previous}
 
 
-def cached_narrative(report: dict, cfg: dict) -> tuple[str | None, dict | None]:
-    """(text, error). Only successful answers are cached; a failure comes back as
-    {code, message} (see core.classify_ai_error) so the UI can explain it and offer a retry."""
-    key = _ai_cache_key(report, cfg)
-    cache = read_json(AI_CACHE, {})
-    hit = cache.get(key)
-    if isinstance(hit, dict) and hit.get("text"):
-        return hit["text"], None
-    try:
-        text = core.ai_narrative(report, cfg)
-    except Exception as exc:                       # AIError or anything unexpected inside the SDK
-        return None, core.classify_ai_error(exc).info()
-    if text:
-        cache[key] = {"text": text, "stored": time.strftime("%Y-%m-%dT%H:%M:%S"), "user": cfg.get("user_id")}
-        if len(cache) > AI_CACHE_KEEP:                      # drop the oldest entries
-            for k in sorted(cache, key=lambda k: cache[k].get("stored", ""))[:len(cache) - AI_CACHE_KEEP]:
-                del cache[k]
-        try:
-            write_json(AI_CACHE, cache)
-        except Exception:
-            pass
-    return text, None
+def coach_state(user_id: int, start: bool = False) -> dict:
+    """{state: no_key | none | running | done | error | limit, record?, error?}. start=True begins the
+    job when there is no board for this data state yet (two devices asking get the same job)."""
+    ctx = coach_context(user_id)
+    cfg, key = ctx["cfg"], ctx["key"]
+    if not ai.has_key(cfg):
+        return {"state": "no_key"}
+    rec = BOARDS.get(user_id, key)
+    if rec:
+        return {"state": "done", "record": rec}
+    job = JOBS.status(user_id, key)
+    if job and job["state"] == "running":
+        return {"state": "running", "since": round(time.time() - job["started"])}
+    if job and job["state"] == "error" and not start:
+        return {"state": "error", "error": job["error"]}
+    if not start:
+        return {"state": "none"}
+    if BOARDS.made_today(user_id) >= ai.BOARDS_PER_DAY:
+        return {"state": "limit", "error": {"code": "daily_limit", "message": f"{ai.BOARDS_PER_DAY} boards a day"}}
+
+    def work():
+        BOARDS.put(user_id, ai.make_board(ctx["report"], cfg, ctx["previous"]))
+    JOBS.start(user_id, key, work)
+    return {"state": "running", "since": 0}
 
 
-# ---- HTTP handler ------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):            # keep the console quiet
         pass
@@ -493,7 +488,11 @@ class Handler(BaseHTTPRequestHandler):
                 "language": cfg.get("language", "en"),      # US-first defaults
                 "units": cfg.get("units", "imperial"),
                 "sessions_per_week": cfg.get("sessions_per_week", 2),
-                "has_key": bool(cfg.get("anthropic_api_key")),
+                "has_key": bool(cfg.get("anthropic_api_key")) or bool(os.environ.get("ARX_AI_FAKE")),
+                "ai": {"models": [list(m) for m in ai.MODELS], "model": ai.model_of(cfg), "efforts": list(ai.EFFORTS),
+                       "effort_board": ai.effort_of(cfg, "ai_effort_board", ai.BOARD_EFFORT_DEFAULT),
+                       "effort_chat": ai.effort_of(cfg, "ai_effort_chat", ai.CHAT_EFFORT_DEFAULT),
+                       "auto": bool(cfg.get("ai_auto", True)), "fake": bool(os.environ.get("ARX_AI_FAKE"))},
                 "ai_share_profile": bool(cfg.get("ai_share_profile", True)),   # age band + sex (never a name)
                 "ai_share_body": bool(cfg.get("ai_share_body", False)),        # relative body changes only
                 "catalog": STATE["catalog"],
@@ -520,8 +519,24 @@ class Handler(BaseHTTPRequestHandler):
             uid = self._uid(q.get("user_id", [None])[0])
             if uid is None:
                 return self._send({"error": "bad_user_id"}, code=400)
-            ai = q.get("ai", ["0"])[0] == "1"
-            return self._send(make_report(uid, ai))
+            return self._send(make_report(uid))            # never calls the AI (see /api/coach/*)
+        if u.path in ("/api/coach/status", "/api/chat/history", "/api/chat/poll"):
+            uid = self._uid(q.get("user_id", [None])[0])
+            if uid is None:
+                return self._send({"error": "bad_user_id"}, code=400)
+            if u.path == "/api/coach/status":              # board for the current data state: none | running | done | error
+                return self._send(coach_state(uid))
+            if u.path == "/api/chat/poll":                 # incremental answer text of one turn (survives a locked phone)
+                try:
+                    start = max(0, int(q.get("from", ["0"])[0]))
+                except ValueError:
+                    start = 0
+                return self._send(CHATS.poll(uid, q.get("turn", [""])[0], start))
+            st = coach_state(uid)                          # the chat belongs to the delivered board
+            if st["state"] != "done":
+                return self._send({"turns": [], "left": 0, "board": False})
+            return self._send(dict(CHATS.history(uid, st["record"]["key"]), board=True,
+                                   suggested=(st["record"].get("board") or {}).get("suggested_questions", [])))
         return self._send({"error": "not found"}, code=404)
 
     def do_POST(self):
@@ -555,9 +570,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, "started": started, **UPDATE_JOB.status()})
         if u.path == "/api/config":                        # global setup screen
             def change(cfg):
-                for k in ("language", "units", "sessions_per_week", "model", "ai_effort", "anthropic_api_key"):
+                for k in ("language", "units", "sessions_per_week", "anthropic_api_key"):
                     if k in data and data[k] != "":
                         cfg[k] = data[k]
+                if data.get("model") in dict(ai.MODELS):               # only models the coach is written for
+                    cfg["model"] = data["model"]
+                for k in ("ai_effort_board", "ai_effort_chat"):
+                    if data.get(k) in ai.EFFORTS:
+                        cfg[k] = data[k]
+                if "ai_auto" in data:
+                    cfg["ai_auto"] = bool(data["ai_auto"])
                 for k in ("ai_share_profile", "ai_share_body"):        # what the AI may see (name-free either way)
                     if k in data:
                         cfg[k] = bool(data[k])
@@ -594,6 +616,20 @@ class Handler(BaseHTTPRequestHandler):
                 goals[str(uid)] = rec                      # keep any restrictions
             update_json(GOALS, change)
             return self._send({"ok": True})
+        if u.path == "/api/coach/start":                   # begin the board job (billed call) - idempotent per data state
+            return self._send(coach_state(uid, start=True))
+        if u.path == "/api/chat/send":                     # one question to the coach about THIS report
+            st = coach_state(uid)
+            if st["state"] != "done":
+                return self._send({"error": "no_board", "detail": "the coach board comes first"}, code=409)
+            ctx = coach_context(uid)
+            payload_text = ai.dumps_payload(ai.build_payload(ctx["report"], ctx["cfg"], ctx["previous"]))
+            try:
+                out = CHATS.send(uid, data.get("text"), data.get("client_msg_id"), cfg=ctx["cfg"], payload_text=payload_text,
+                                 board_record=st["record"], names=[ctx["info"].get("name") or ""])
+            except ai.AIError as err:
+                return self._send({"error": err.code, "detail": err.message}, code=429 if "limit" in err.code else 400)
+            return self._send(dict(out, ok=True))
         if u.path == "/api/next_groups":                   # "next session only these movement groups" - used up by the next training
             known = {m.get("group") for m in STATE["catalog"].values()} - {None, "?"}
             groups = sorted({g for g in (data.get("groups") or []) if g in known})

@@ -140,12 +140,14 @@
    "title": "Sessions per muscle per week",
    "statement": "When weekly volume is equated, training frequency per muscle has no significant effect on hypertrophy (25 studies) or on strength (volume-equated subgroups, p=0.421 in Grgic 2018; ES 0.03 low vs high in Ralston 2018). Higher frequencies only win when they carry more total volume (strength ES 0.74, 0.82, 0.93, 1.08 for 1, 2, 3, 4+ days/week when volume is not equated). The 2026 meta-regressions agree for hypertrophy but do find an identifiable, diminishing effect of frequency on strength, so the strength question is not fully settled.",
    "practical_rule": "Frequency is mainly a way to distribute volume: choose 1, 2 or 3 sessions per muscle per week by preference and recovery. If maximal strength is the goal and time allows, a second weekly exposure is the more defensible choice.",
-   "applied_as": "Sessions per week are the athlete's choice; the planner distributes the work: 1-2 sessions = full body, 3 and more = a rotating split, so every muscle is trained when it is recovered. A muscle counts as due after 7 x split / sessions per week days (3 to 7).",
+   "applied_as": "Sessions per week are the athlete's choice; the planner distributes the work: 1-2 sessions = full body, 3 and more = a rotating split, so every muscle is trained when it is recovered. A muscle counts as due after 7 x split / sessions per week days (3 to 7). Every trained muscle gets a stimulus at least about once a week: one session a week is always planned as full body (a split would stretch each muscle's gap to two or three weeks - no study in this base supports growth at that frequency), and the plan flags any muscle whose projected gap exceeds 8 days.",
    "arx_caveat": null,
    "parameters": [
     "arx_plan.DUE_INTERVAL_RANGE",
     "arx_plan.split_factor",
-    "arx_plan.CADENCE_W"
+    "arx_plan.CADENCE_W",
+    "arx_plan.MAX_MUSCLE_GAP_DAYS",
+    "arx_plan.SPLIT_MIN_SESSIONS"
    ],
    "evidence_level": "high",
    "reviewed": "2026-09-18",
@@ -423,12 +425,13 @@
    "title": "Minimum effective dose and time-efficient training",
    "statement": "Very low doses produce real strength gains. In trained men a single set of 6-12 repetitions at about 70-85% 1RM, 2-3 times/week with high effort for 8-12 weeks raised 1RM significantly (pooled +12.09 kg), which the authors call suboptimal yet significant. A retrospective analysis of 14,690 people doing one weekly session of single sets to momentary failure on six exercises showed about 30-50% strength gain in the first year and a practical plateau after ~1-2 years. Narrative reviews put the minimum for time-efficient programmes at about 4 weekly sets per muscle group and find one weekly session with fewer than 3 sets sufficient for beginners for at least 12 weeks. An RCT confirmed that single-set routines still produce gains in trained subjects. The strongest data concern strength; minimal-dose data for muscle size are thinner, and the large cohort is uncontrolled company data.",
    "practical_rule": "One all-out set per exercise once or twice a week is a legitimate, evidence-supported strength programme, but expect the rate of gain to flatten after roughly one to two years. At that point more volume or a second weekly exposure is the first thing to test.",
-   "applied_as": "The 'least time' profile: one all-out set per exercise and at most one exercise per trained body region per session. Every profile shows its price in minutes per week. When progress flattens, the first levers offered are a second set or another weekly exposure.",
+   "applied_as": "The 'least time' profile: one all-out set per exercise and at most one exercise per trained body region per session. Every profile shows its price in minutes per week. When progress flattens, the first levers offered are a second set or another weekly exposure. In a full-body session the best big exercise of every movement group (push, pull, legs) is picked before any small one - the structure the time-efficiency review recommends (a leg press, an upper-body pull, an upper-body push). With one session a week and a muscle goal the plan says what this dose is documented to deliver and that a second session is the biggest lever.",
    "arx_caveat": null,
    "parameters": [
     "arx_plan.COMMITMENT",
     "arx_plan.session_size",
-    "arx_plan.commitment_options"
+    "arx_plan.commitment_options",
+    "arx_plan.COVER_FIRST"
    ],
    "evidence_level": "moderate",
    "reviewed": "2026-09-18",

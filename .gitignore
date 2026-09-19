@@ -20,3 +20,5 @@ instance.json
 # plan ledger (per-person recommendations) - private like goals.json
 plans.json
 .detail_cache.json
+# the coach's delivered boards and chat transcripts (per person)
+ai/
