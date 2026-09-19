@@ -437,12 +437,107 @@ class Ledger(unittest.TestCase):
         self.assertIsNone(report(rows, "2026-09-12", _plan_ledger=entries)["plan_vs_actual"])   # no session after the plan yet
 
 
+class Breaks(unittest.TestCase):
+    """v0.5.1 - a gap is named as what it is: a short one holds the numbers, a long one sets a new
+    starting point, and nothing is ever "caught up" (science.json: training_breaks)."""
+    ROWS = None
+
+    def setUp(self):
+        if Breaks.ROWS is None:                    # progressing on every exercise: without a break this earns a step
+            Breaks.ROWS = history([ROW, PRESS, SQUAT, CURL], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.06)
+
+    def plan(self, today, **extra):
+        return report(self.ROWS, today, session_minutes=40, **extra)["plan"]
+
+    def test_without_a_break_nothing_changes(self):
+        plan = self.plan("2026-09-19")
+        self.assertIsNone(plan["training_break"])
+        codes = [w["code"] for w in plan["next_session"]["why_this_date"]]
+        self.assertIn("date_cadence", codes)
+        self.assertNotIn("date_after_break", codes)
+        self.assertIn("step", {it["target_rule"] for it in plan["next_session"]["exercises"]})
+        self.assertEqual(plan["decision_space"]["target_floor_pct"], {})
+
+    def test_a_short_break_continues_the_plan_but_holds_the_numbers(self):
+        plan = self.plan("2026-10-02")             # 17 days after the last session
+        brk, sess = plan["training_break"], plan["next_session"]
+        self.assertEqual((brk["tier"], brk["days"], brk["interp"]["code"]), ("short", 17, "break_short"))
+        codes = [w["code"] for w in sess["why_this_date"]]
+        self.assertIn("date_after_break", codes)
+        self.assertNotIn("date_cadence", codes)     # the weekly rhythm is no argument after a break
+        self.assertNotIn("date_overdue", codes)
+        self.assertEqual(sess["date"], "2026-10-02")                    # everything is recovered: today
+        self.assertEqual(sess["session_type"], "full_body")
+        for it in (x for x in sess["exercises"] if not x["new"]):
+            self.assertEqual((it["step_pct"], it["sets"]), (0.0, 1), it["name"])
+            self.assertNotIn(it["target_rule"], ("step", "plateau_add_set", "rebase_after_break"), it["name"])
+            self.assertEqual(it["effort_target"]["label"], "deep")      # the effort stays what the goal asks for
+        self.assertIn("plan_hold_after_break", {it["interp"]["code"] for it in sess["exercises"]})
+        later = [w for w in plan["week_plan"] if w["date"] > sess["date"]]
+        self.assertTrue(later)                      # and the week goes on as usual
+
+    def test_a_long_break_sets_a_new_starting_point_and_adds_nothing(self):
+        plan = self.plan("2026-10-25")             # 40 days
+        brk, sess, space = plan["training_break"], plan["next_session"], plan["decision_space"]
+        self.assertEqual((brk["tier"], brk["weeks"], brk["interp"]["code"]), ("long", 6, "break_long"))
+        self.assertEqual({it["target_rule"] for it in sess["exercises"]}, {"rebase_after_break"})
+        self.assertFalse(any(it["new"] for it in sess["exercises"]))   # back to the known exercises first - nothing new on the comeback day
+        for it in sess["exercises"]:
+            self.assertEqual((it["target_peak_kg"], it["sets"], it["step_pct"]), (it["base_kg"], 1, 0.0))   # orientation, nothing extra
+        self.assertEqual(set(space["target_floor_pct"]), set(names(sess)))
+        # the coach may go down to the floor, never further up than usual
+        rows = [{"exercise": it["name"], "sets": 1, "effort": "deep", "rest_before_min": it["rest_before_min"],
+                 "target_kg": round(it["target_peak_kg"] * 0.88, 1)} for it in sess["exercises"]]
+        self.assertEqual(planner.check_rows(sess["date"], rows, space), [])
+        for factor in (0.80, 1.10):
+            bad = [dict(r, target_kg=round(sess["exercises"][i]["target_peak_kg"] * factor, 1)) if i == 0 else r for i, r in enumerate(rows)]
+            self.assertIn("target_out_of_bounds", [x["code"] for x in planner.check_rows(sess["date"], bad, space)], factor)
+
+    def test_after_half_a_year_the_restart_is_gentle(self):
+        plan = self.plan("2027-05-01")
+        self.assertEqual(plan["training_break"]["tier"], "very_long")
+        self.assertEqual({it["target_rule"] for it in plan["next_session"]["exercises"]}, {"return_after_break"})
+        self.assertTrue(all(it["effort_target"]["label"] != "deep" for it in plan["next_session"]["exercises"]))
+
+    def test_a_neglected_muscle_is_treated_like_a_break(self):
+        rows = history([ROW, PRESS, SQUAT]) + session(datetime(2026, 8, 10, 10), [CURL], first_id=900)
+        ex = {it["name"]: it for it in report(rows, "2026-09-18", session_minutes=45)["plan"]["next_session"]["exercises"]}
+        # the curl's target (elbow flexors) had no DIRECT work for 39 days although the athlete trained all along
+        self.assertEqual(ex["Biceps Curl"]["target_rule"], "rebase_after_break")
+        self.assertNotEqual(ex["Row"]["target_rule"], "rebase_after_break")
+
+    def test_the_rhythm_really_lived_decides_about_a_split(self):
+        self.assertIsNone(planner.real_frequency(["2026-09-01", "2026-09-15"]))                   # too short a history
+        weekly = [(date(2026, 8, 3) + timedelta(days=7 * k)).isoformat() for k in range(7)]
+        self.assertEqual(planner.real_frequency(weekly), 1.0)
+        self.assertEqual(planner.real_frequency(weekly + ["2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]), 2.0)
+        self.assertEqual(planner.split_factor(4, "auto"), 2)
+        self.assertEqual(planner.split_factor(4, "auto", 1.5), 1)       # a muscle would wait 9 days
+        self.assertEqual(planner.split_factor(4, "auto", 2.0), 2)
+        self.assertEqual(planner.split_factor(5, "auto", 2.0), 2)       # thirds need about three real sessions a week
+        self.assertEqual(planner.split_factor(5, "auto", 3.0), 3)
+        self.assertEqual(planner.split_factor(4, "split", 1.0), 2)      # an explicit wish is kept - and commented
+        rows = []
+        for n, day in enumerate(weekly):
+            rows += session(datetime.fromisoformat(day + "T10:00:00"), [ROW, PRESS, SQUAT, CURL, DEADLIFT, PULLDOWN, PRESSDOWN],
+                            first_id=100 * (n + 1))
+        auto = report(rows, "2026-09-16", sessions_per_week=4, session_minutes=45)["plan"]
+        self.assertEqual(auto["structure_note"]["code"], "structure_adapted_real")
+        self.assertEqual((auto["profile"]["split_factor"], auto["profile"]["real_sessions_per_week"]), (1, 1.0))
+        self.assertEqual(auto["next_session"]["session_type"], "full_body")
+        wish = report(rows, "2026-09-16", sessions_per_week=4, session_minutes=45, structure="split")["plan"]
+        self.assertEqual(wish["structure_note"]["code"], "structure_split_real_too_rare")
+        self.assertEqual(wish["next_session"]["session_type"], "split")
+
+
 class SelfExplaining(unittest.TestCase):
     def test_every_plan_item_has_both_sentences_in_both_languages(self):
         rows = history([PULLDOWN, ROW, DEADLIFT, CURL, PRESS, PRESSDOWN, SQUAT], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.06)
         for lang, units in (("en", "imperial"), ("de", "metric")):
-            for extra in ({}, {"sessions_per_week": 4}, {"checkin": {"date": "2026-09-19", "sleep": "ok", "energy": "ok", "soreness": {}}}):
-                plan = report(rows, "2026-09-19", language=lang, units=units, session_minutes=40, **extra)["plan"]
+            for extra in ({}, {"sessions_per_week": 4}, {"checkin": {"date": "2026-09-19", "sleep": "ok", "energy": "ok", "soreness": {}}},
+                          {"_day": "2026-10-04"}, {"_day": "2026-11-20"}, {"_day": "2027-06-01"}):          # after a short / long / very long break
+                extra = dict(extra)
+                plan = report(rows, extra.pop("_day", "2026-09-19"), language=lang, units=units, session_minutes=40, **extra)["plan"]
                 items = []
 
                 def walk(node):
@@ -470,7 +565,8 @@ class SelfExplaining(unittest.TestCase):
             meanings = json.load(f)
         codes = set(re.findall(r'item[(]\s*"([a-z_]+)"', src))
         codes |= {f"commitment_{k}" for k in planner.COMMITMENT} | {"budget_ok", "budget_high", "budget_unknown",
-                                                                     "today_train", "today_rest", "pva_followed", "pva_partly", "pva_other"}
+                                                                     "today_train", "today_rest", "pva_followed", "pva_partly", "pva_other",
+                                                                     "break_short", "break_long", "break_very_long"}
         self.assertGreater(len(codes), 30)
         self.assertFalse(sorted(c for c in codes if c not in meanings))
 

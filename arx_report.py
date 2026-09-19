@@ -18,6 +18,8 @@ Public domain / CC0. No warranty. Not medical advice.
 v0.3.1: temp DB copies are cleaned up when the connection fails (+ sweep of stale copies), sets the
 ARX app hides from its own stats are excluded and reported, PB flags are ROM-gated, the detraining
 flag looks at the current gap only, and a failed AI call can no longer take the report down with it.
+v0.5.1: a long gap is worded by what the evidence says (nothing is lost for about three weeks, see
+DETRAINING_LOSS_DAYS); the planner names training breaks and plans the comeback (arx_plan).
 """
 
 from __future__ import annotations
@@ -684,7 +686,8 @@ def _totals(work: list[dict], weekly_rate, sequences: list[dict]) -> dict:
 # EFFORT_RANK / RANK_LABEL / REQUIRED_REST live in arx_base (shared with the planner)
 RECOVERY_LOOKBACK_DAYS = 14            # older loads cannot still be limiting
 RECENT_WINDOW_DAYS = 7                 # the load flag is judged on this window before today
-DETRAINING_GAP_DAYS = 10               # longer without training -> adaptation is being lost
+DETRAINING_GAP_DAYS = 10               # longer without training -> the weekly stimulus is missing (flag detraining_risk)
+DETRAINING_LOSS_DAYS = 21              # ... and only from about here strength / size really decline (science.json: training_breaks)
 # daily check-in: soreness regions -> the muscle vocabulary of exercises.json
 SORENESS_REGIONS = {
     "legs": ["quads", "glutes", "hamstrings", "calves"],
@@ -938,6 +941,7 @@ def _load_analysis(work: list[dict], catalog: dict, exercises: list[dict], today
         "median_gap_days": sorted(gaps)[len(gaps) // 2] if gaps else None,
         "min_gap_days": min(gaps) if gaps else None,
         "days_since_last": (today_ord - ords[-1]) if ords else None,
+        "loss_expected": bool(ords) and today_ord - ords[-1] > DETRAINING_LOSS_DAYS,   # a short gap costs nothing (yet)
         "sessions_last7": sessions_last7,
         "weekly_rate": weekly_rate,
         "hard_sessions": hard_days,                  # training days with at least one moderate/deep set

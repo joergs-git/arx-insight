@@ -59,6 +59,7 @@ and shows you what actually happened — and what to do next.
 - 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
 - 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. 20 questions per report, 40 a day.
 - 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver.
+- ⏸️ **Breaks are understood** (v0.5.1) — more than two weeks away is named as what it is. Up to about three weeks nothing is lost: the plan simply continues and holds your numbers for one session. After a longer break your old values are only an orientation — what you reach is the new starting point, and it comes back much faster than it was built. The app never makes you "catch up" with extra sets or sessions (no evidence that this helps), and if your real attendance is too low for a split it plans fuller sessions until your rhythm is back.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
 <p align="center"><i>Example report (anonymized):</i></p>
@@ -338,6 +339,20 @@ exercise, more sessions simply mean more hard sets per muscle per week — that 
 results, not the structure. *Automatic* plans full body up to two sessions a week and a rotating
 Push / Pull / Drive split from three; you can force either in the profile, and the plan tells you
 when a choice cannot deliver the number of sessions you asked for.
+
+**I was away for weeks (holiday, illness) — do I just continue?** *(v0.5.1)*
+Mostly yes. The studies behind this (see "scientific basis" in the report): training blocks separated by
+**3-week breaks** ended with the same muscle and strength as training without a break; after a **10-week
+break** strength and size were measurably down, but came back within about 5 weeks. So the plan names
+the break and reacts in three steps: **more than 2 weeks** — continue, this one session holds your numbers
+(no step up); **4 weeks or more without direct work for a muscle** — the old value is shown as an
+*orientation*, what you reach becomes the new starting point, nothing new is added on the comeback day;
+**more than half a year** — a controlled, sub-maximal first session (the protection against the machine's
+eccentric overload has faded by then). What it never does: extra sets, extra sessions or a harder session
+to "catch up" — normal training brings the level back fastest. Everything is recovered after a break,
+so the big push / pull / leg exercises come first; whether sessions are full body or a split still follows
+how often you train per week — and if you *planned* four sessions but really come once or twice, the app
+plans fuller sessions (a split would leave each muscle waiting longer than about 8 days) and says so.
 
 **I have an idea or found a bug — how do I help?**
 Open an [issue or discussion](https://github.com/joergs-git/arx-insight/issues) on GitHub, or send
