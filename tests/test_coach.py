@@ -124,6 +124,22 @@ class Payload(unittest.TestCase):
         self.assertIn("exercises they do not do on the ARX", ai.system_prompt("chat")[0]["text"])
         self.assertGreaterEqual(ai.PROMPT_VERSION, 4)                                  # a changed prompt is a new cache key
 
+    def test_the_session_size_is_a_time_decision_and_the_coach_knows_its_price(self):
+        report, cfg = make(partner=True)
+        p = ai.build_payload(report, cfg)
+        space, sess = p["planner"]["decision_space"], report["plan"]["next_session"]
+        self.assertEqual(space["rows_in_time_budget"], len(sess["exercises"]))
+        self.assertGreater(space["bounds"]["rows_max"], space["rows_in_time_budget"])    # more is possible - it costs time, no rule
+        self.assertGreater(space["minutes_per_extra_exercise"], 1)
+        self.assertIs(p["profile"]["takes_turns_with_partner"], True)
+        self.assertEqual(set(p["profile"]["exercises_by_minutes_per_session"]), {"15", "20", "30", "45", "60", "75", "90"})
+        self.assertEqual(ai.lint_payload(p), [])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn("TIME decision of the athlete", prompt)
+        self.assertIn("never recommend shortening it", prompt)
+        self.assertIn("minutes per session decide how many exercises are planned", ai.system_prompt("chat")[0]["text"])
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 5)
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)

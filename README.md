@@ -64,6 +64,7 @@ follow-up questions in a chat.
 - 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
 - 🧍 **Whole-body index** — a self-referenced score of how close you are to your own bests (ROM-comparable days only), across Push / Pull / Drive.
 - 🗓️ **ONE plan: when, what, in which order, with which targets** (v0.4.0) — the muscle-level recovery model is rolled forward day by day: the next date is where a full session is possible *and* your weekly rhythm is met best, with every reason spelled out ("you trained today", "triceps: 18 days without direct work", "last day on which this week's target can still be met"). Exercises are chosen by how overdue their muscles are, your focus per body region and coverage gaps; twins for the same muscles are not doubled. Every session keeps **one exercise as a clean measurement** (nothing before it loads its muscles — never-measured-fresh first), because progress can only be judged on fresh sets. The order is the cheapest of all permutations, using **your measured order effects** where they exist; "a helper before the exercise that targets it" (Row before Biceps Curl) stays a hard rule. Targets come from your last comparable value, are lowered by the expected loss when something loads the same muscles first, take a small step only when you are progressing *and* the last set was a real one, and turn a plateau into a second set instead of a bigger number. Plus rests, a **helper-muscle budget** (grip & co.) against what you usually do, a note when your change-over times cost you minutes, a 10-day outlook (1–2 sessions a week = full body, 3+ = a rotating Push / Pull / Drive split that keeps every helper with its exercises) — and an honest word when the cadence you asked for is more than recovery allows. You choose **how sessions are built** — automatic, always full body, or a split by groups (the evidence: at equal weekly volume both give the same results, so it is your week that decides) — and with one tap *"next session only push / pull / legs"* for a single session. A **plan ledger** remembers what was recommended; the next report shows *plan vs what you did*.
+- ⏱️ **Your time decides the session size** (v0.8.0) — no magic number of exercises: the profile shows what 15 … 90 minutes buy at your own pace (up to eight exercises; a session of seven or eight may go one deeper per body region), the coach knows the price of one more exercise in minutes, and if you train in turns with a partner the app no longer mistakes their set for set-up time.
 - 🎯 **Goals asked up front** — a four-question interview: what you want most, your time (sessions × minutes), **time or effort — what do you want to pay with?** (four profiles, each with its price in minutes per week; the app recommends one) and your experience. Optional: focus per body region (more / less / off), a **measurable target** (force on an exercise, body weight or waist, with a date — the app says whether your own measured pace is enough) and **grip aids** per exercise.
 - 🪝 **Grip aids (hooks / straps)** — switch them on per exercise and the grip stops counting as that exercise's limiter in recovery, evidence, order and budget; days with and without an aid are never compared with each other. The plan suggests an aid only where studies show a benefit (dead lifts), not for pull-downs.
 - ⚖️ **Body values — entirely optional** — weight, waist, arm, chest, thigh, body fat: any subset, whenever you like, no reminders. Shown as a rough trend with its measurement noise, read together with your strength index. Nothing entered = nothing shown.
@@ -461,6 +462,22 @@ programs pin themselves. Do it once by hand — right-click the Desktop icon *AR
 (Windows 11: *Show more options*) → *Pin to taskbar*; the app reminds you once on its start screen.
 The shortcuts start the launcher through `cmd.exe` because Windows only offers *Pin to taskbar* for
 shortcuts to programs.
+
+**How many exercises does a session have — and why not more?** *(v0.8.0)*
+As many as your time holds. *Minutes per session* in the profile is the lever: every button shows
+what it buys at **your own pace** (set + change-over, measured from your sessions), e.g. *45 → 4
+exercises, 60 → 6, 90 → 8*; *Auto* is simply what you usually take. Eight is the most a session can
+hold. Nothing in the science base speaks against a fuller session: alternating exercises for
+unrelated muscles costs no result, and for muscle size more weekly sets per muscle is the
+best-supported lever (`science.json` → *paired_sets*, *weekly_volume*). What really limits a
+session is your time, **shared muscles** (Belt Squat and Dead Lift are not "different muscle
+groups" — the second one is extra volume for the same muscles and no clean measurement), the grip
+as a helper of many pulling exercises, and — from three sessions a week on — recovery. And more
+exercises only pay off when the sets reach their effort target. The AI coach knows the price of
+one more exercise in minutes and treats the number of exercises as your time decision, not as a
+rule. **Training in turns with a partner?** Say so in the profile: the long time between two
+exercises is then your partner's set — the app stops suggesting to set up faster and tells you
+what the same session would take alone.
 
 **I squat in the gym / do curls at home — can I switch an exercise off?** *(v0.7.0)*
 Yes: profile → *Exercises I do not do on the ARX*. Tap an exercise once for **I train it elsewhere**,

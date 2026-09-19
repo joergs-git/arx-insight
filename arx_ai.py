@@ -40,7 +40,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 4
+PROMPT_VERSION = 5
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -160,6 +160,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
         "restrictions": report.get("restrictions_saved") or {}, "pain_today": report.get("pain_today") or [],
         "grip_aids": {k: v.get("aids") for k, v in (report.get("aids") or {}).items()},
         "supervision_required_minor": bool(pp.get("supervision")),
+        # training in turns with a partner: the change-over time in the data is the partner's set, not set-up time
+        "takes_turns_with_partner": bool(pp.get("partner")),
+        "minutes_per_exercise_at_own_pace": pp.get("per_exercise_min"), "exercises_by_minutes_per_session": pp.get("size_by_minutes"),
         # exercises the athlete does not do on this machine (own choice in the profile) - never to be recommended
         "exercises_switched_off": [{"exercise": x["name"], "reason": {"elsewhere": "trained_elsewhere"}.get(x["reason"], "not_wanted")}
                                    for x in (plan.get("excluded") or {}).get("exercises", [])],
@@ -245,6 +248,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
                                                                              "restriction": c["restriction"], "group": c["group"]} for c in d["candidates"]]}
                                          for d in space.get("dates", [])],
                                "bounds": space.get("bounds"), "effort_cap": space.get("effort_cap"),
+                               # bounds.rows_max = what a session can hold at all; what the athlete's TIME holds + the price of one more
+                               "rows_in_time_budget": space.get("rows_in_time_budget"),
+                               "minutes_per_extra_exercise": space.get("minutes_per_extra_exercise"),
                                # after weeks away a target may go this many % BELOW the proposal (exercise -> %)
                                "target_floor_pct": space.get("target_floor_pct") or {}},
             "week_outlook": [{"date": w["date"], "type": w["session_type"], "exercises": w["exercises"], "fresh_benchmark": w.get("benchmark")}
@@ -390,6 +396,7 @@ HOW TO JUDGE - non-negotiable:
 8. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
 9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
 10. The repertoire is the athlete's decision: an exercise in profile.exercises_switched_off is never recommended - not in the rows, not in the text, not as an alternative. reason trained_elsewhere: the athlete trains it outside this machine, so profile.muscles_trained_elsewhere get their stimulus there - do not call them neglected, do not add machine work for them, and keep in mind that this load is invisible here: when such a muscle helps in a planned exercise, say once that soreness from that training belongs into the check-in. reason not_wanted: cover its muscles with the athlete's other exercises where the decision space allows, and say plainly when nothing in the repertoire reaches them.
+11. How many exercises a session has is a TIME decision of the athlete - never present it as a training rule or as "the frame". planner.decision_space.rows_in_time_budget is what the stated time holds at the athlete's own pace, bounds.rows_max what a session can hold at all; one more exercise costs minutes_per_extra_exercise. Exercises for unrelated muscles cost no result, and for a size goal more weekly sets per muscle is the best-supported lever - so when the athlete says there is more time, build the fuller session inside the decision space, name its price in minutes and tell him that "Minutes per session" in the profile makes it permanent (profile.exercises_by_minutes_per_session shows what each budget buys). Without that signal stay within rows_in_time_budget unless volume is the lever (size goal AND the effort target is being met). Two exercises that share a TARGET muscle are more volume for it, not "another muscle group": say so, and say which of them keeps the clean measurement. With profile.takes_turns_with_partner the long change-over is the partner's set: never recommend shortening it, never count it as wasted time.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}
@@ -410,7 +417,7 @@ focus: ONE sentence - the single most valuable thing to do differently next time
 CHAT_RULES = """YOU ARE NOW IN A LIVE CONVERSATION with this athlete, often standing at the machine with a phone. The first message carries the payload and the board you delivered; then the athlete's questions follow.
 - Answer in the athlete's language (meta.language unless they write in another one), plain text, 2 to 6 sentences unless they ask for more. Lead with the answer.
 - Ground every answer in the payload: name the number and where it comes from. If the data cannot answer the question, say so and say what would be needed.
-- Stay consistent with the board you delivered. If the question reveals something new (pain, no time today, equipment), adapt inside the decision space and say what changes and why. You cannot store changes: tell the athlete where to set them in the app (profile: goal, time, focus, grip aids, session structure, exercises they do not do on the ARX; check-in; "next session only ..." in the plan).
+- Stay consistent with the board you delivered. If the question reveals something new (pain, no time today, equipment), adapt inside the decision space and say what changes and why. You cannot store changes: tell the athlete where to set them in the app (profile: goal, time - minutes per session decide how many exercises are planned -, training in turns with a partner, focus, grip aids, session structure, exercises they do not do on the ARX; check-in; "next session only ..." in the plan).
 - Safety first, no medical advice, no diagnosis; for pain or illness: stop, rest, see a professional.
 - You only ever see this one athlete's data. Never guess about other people.
 """
