@@ -59,7 +59,7 @@ and shows you what actually happened — and what to do next.
 - 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
 - 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. 20 questions per report, 40 a day.
 - 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver.
-- 📱 **On your phone, by QR code** (v0.6.0, opt-in) — switch on **Phone access** at the PC and scan a code: the **trainer code** opens the whole app on a phone in the same Wi-Fi; an **athlete code** opens exactly one person's report, check-in, profile, coach analysis and **live chat with the coach** (ask about the plan you just got, standing at the machine) — and nothing else. Codes expire, can be renewed, replaced or revoked; API key, update, exit and the codes themselves stay PC-only; a minor's chat is off until the trainer allows it; the report can be downloaded as one file that opens anywhere.
+- 📱 **On your phone, by QR code** (v0.6.0; on by default since v0.6.1, one click switches it off) — press **📱 Connect a phone** on the start screen and scan a code: the **trainer code** opens the whole app on a phone in the same Wi-Fi; an **athlete code** opens exactly one person's report, check-in, profile, coach analysis and **live chat with the coach** (ask about the plan you just got, standing at the machine) — and nothing else. Codes expire, can be renewed, replaced or revoked; API key, update, exit and the codes themselves stay PC-only; a minor's chat is off until the trainer allows it; the report can be downloaded as one file that opens anywhere.
 - ⏸️ **Breaks are understood** (v0.5.1) — more than two weeks away is named as what it is. Up to about three weeks nothing is lost: the plan simply continues and holds your numbers for one session. After a longer break your old values are only an orientation — what you reach is the new starting point, and it comes back much faster than it was built. The app never makes you "catch up" with extra sets or sessions (no evidence that this helps), and if your real attendance is too low for a split it plans fuller sessions until your rhythm is back.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
@@ -98,7 +98,8 @@ On first launch you set language, units, your weekly training target, and — op
 Claude API key (for the AI coach). Then search a person by name, set a training goal with two
 simple sliders, flag any limitations, answer the 20-second check-in (how you feel today — skippable),
 and read the report. **Exit** returns you to the search screen. The start screen also has
-**📱 Phone access** (off by default) and tells you when a new version is available.
+**📱 Connect a phone** (the QR codes; phone access is on by default and can be switched off there) and
+tells you when a new version is available.
 
 ## Run it manually (macOS / Linux / advanced)
 
@@ -124,7 +125,7 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 | `arx_ai.py` | The AI coach: name-free payload, structured board (JSON schema), rule validation + repair + engine fallback, memory of delivered boards, background jobs, chat; `ARX_AI_FAKE=ok` runs everything without a key |
 | `arx_app.py` | Tiny local web server + the touch UI in `web/` |
 | `arx_access.py` | Who may do what: trainer code, one athlete code per person (expiry, renew / replace / revoke, chat switch, daily AI allowance), wrong-code limiter, one-time download tickets |
-| `arx_lan.py` | The opt-in phone listener: bound to ONE private network address (never to all), follows a changed address, Windows adapter / network-profile / firewall checks |
+| `arx_lan.py` | The phone listener (on by default, one switch): bound to ONE private network address (never to all), follows a changed address, Windows adapter / network-profile / firewall checks |
 | `web/vendor/qrcode.js` | QR Code Generator by Kazuhiko Arase (MIT licence, unchanged from npm `qrcode-generator` 1.4.4) — draws the codes in the browser, nothing is sent anywhere |
 | `windows/firewall.ps1` | On demand only (button in the Phone dialog, UAC prompt): one inbound rule for the app's ports, local subnet, private networks |
 | `arx_update.py` | One-click update: downloads the release ZIP from this GitHub page, checks it (newer version, expected files, no path outside the target), unpacks it next to your settings and runs its installer — only after a click on the PC itself |
@@ -138,7 +139,8 @@ The ARX database is never modified — the tool always works on a temporary copy
 
 ## Privacy
 
-**Local by default.** Everything runs on your machine; the app listens on `localhost` only. Your API
+**Local.** Everything runs on your machine; with phone access switched off the app listens on
+`localhost` only (see below for the phone listener, which is on by default). Your API
 key lives only in the local, git-ignored `config.json`. The database, your keys, profiles, check-ins,
 the optional body log, the plan ledger, the phone codes and generated reports never leave the machine.
 
@@ -149,9 +151,13 @@ age-appropriate advice) and **relative body changes** ("weight −1.7 % in 38 da
 never absolute values). `python arx_report.py --ai-payload out.json` writes exactly what would be
 sent, without sending it.
 
-**Phone access (v0.6.0) is opt-in and off by default.** When you switch it on at the PC, the app
-opens a second listener on **one private address of your local network** (never on all interfaces,
-never on a public address) — so it is reachable from the same Wi-Fi / LAN, not from the internet.
+**Phone access is ON by default (since v0.6.1) — one click switches it off, and it stays off.** While
+it is on, the app opens a second listener on **one private address of your local network** (never on
+all interfaces, never on a public address) — so it is reachable from the same Wi-Fi / LAN, not from
+the internet. Windows asks once whether Python may be reached from your network; the start screen
+always shows the state (**📱 … phone access ON / off**), and *Switch off* in that dialog closes the
+listener at once. What an unknown device in your network gets without a code: the empty app page —
+no data, no names, not even the version.
 - **Every request there needs a code** from a QR code. The code travels in the address *fragment*
   (`#t=…`, which browsers never send to a server) and afterwards in a request header — not in a URL,
   not in a log. A wrong code is answered like no code; repeated wrong codes block that device for a while.
@@ -164,8 +170,8 @@ never on a public address) — so it is reachable from the same Wi-Fi / LAN, not
   access on or off, and creating, showing or changing codes.
 - **Plain HTTP inside your network.** There is no certificate on a home network, so the connection is
   not encrypted: use it in a Wi-Fi you trust (WPA2/3, no open or guest network), and **never forward
-  the port in your router** — the app is not built to face the internet. Switch phone access off when
-  you do not need it; the start screen always shows whether it is on.
+  the port in your router** — the app is not built to face the internet. If the PC is ever used in a
+  network you do not trust (a laptop in a café, a shared office Wi-Fi), switch phone access off.
 - The codes are stored readable in `access.json` next to `config.json` (so a QR code can be shown
   again); whoever can read that folder on the PC can read them — like the API key.
 
@@ -356,8 +362,9 @@ manual way (download the ZIP, run the installer) keeps working. Versions before 
 manual way once.
 
 **How do I get the report onto my phone?** *(v0.6.0)*
-At the PC: start screen → **📱 Phone access** → **Switch on**. Windows may ask whether Python may
-communicate on your network — allow it for **private** networks. Scan the **trainer code** with the
+At the PC: start screen → **📱 Connect a phone · show the QR code** (phone access is on by default; if
+you switched it off, the same button switches it on again). The first time, Windows may ask whether
+Python may communicate on your network — allow it for **private** networks. Scan the **trainer code** with the
 phone camera (the phone must be in the same Wi-Fi) and the app opens in the phone's browser; "Add to
 Home Screen" makes it an icon. For an athlete: open their report at the PC → **📱 Phone** → let them
 scan *their* code — it shows only their own data. On the phone the three chapters sit in a bottom
@@ -386,8 +393,9 @@ scan again. Switching phone access off closes the door for everyone without dele
 It is built for a home or gym network you trust: one private address, a random 192-bit code per
 device, the athlete code pinned to one person, PC-only functions, no cross-site access, and a browser
 policy that blocks foreign scripts, frames and connections. It is **not** encrypted (plain HTTP — see *Privacy*) and must never
-be reachable from the internet. If that is not good enough for your setting, leave it off: the app
-works exactly as before.
+be reachable from the internet. If that is not good enough for your setting, switch it off (start
+screen → 📱 → **Switch off**; the choice is kept): the app then listens on `localhost` only, exactly
+as before v0.6.0.
 
 **Can it put an icon into the taskbar?**
 The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on

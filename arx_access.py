@@ -3,8 +3,9 @@
 """
 ARX Insight - who may do what (v0.6.0): access links for the phone, scopes, limits.
 
-The app is local: on this machine everything is allowed. Phone access is an OPT-IN second listener
-in the local network (arx_lan); whoever connects there needs a token, handed over as a QR code:
+The app is local: on this machine everything is allowed. Phone access is a second listener in the
+local network (arx_lan; on by default since v0.6.1, one click switches it off); whoever connects
+there needs a token, handed over as a QR code:
 
   trainer   one token for the owner / trainer: everything a phone should be able to do. Still
             PC-only: API key, update, shutdown, database path, phone access itself and its links.
@@ -27,6 +28,7 @@ from typing import NamedTuple
 
 from arx_base import data_dir, write_json_atomic, _today
 
+LAN_DEFAULT_ON = True              # phone access until the owner says otherwise (v0.6.1, owner's decision)
 ATHLETE_DAYS = 90                  # an athlete link is valid this long (renewable at the PC)
 ATHLETE_BOARDS_PER_DAY = 3         # AI allowance of one athlete link per day: coach boards ...
 ATHLETE_QUESTIONS_PER_DAY = 20     # ... and chat questions (the owner's key pays)
@@ -57,7 +59,7 @@ def _new_token(prefix: str) -> str:
 
 
 class AccessStore:
-    """access.json: {lan: {enabled, ip}, trainer: {token, created}, athletes: {user_id: {token,
+    """access.json: {lan: {enabled, chosen, ip}, trainer: {token, created}, athletes: {user_id: {token,
     created, expires, chat, usage: {date, boards, questions}}}}. Every change is one locked
     read-modify-write with an atomic file swap."""
 
@@ -75,7 +77,9 @@ class AccessStore:
             data = {}
         if not isinstance(data, dict):
             data = {}
-        data.setdefault("lan", {"enabled": False, "ip": "auto"})
+        if not isinstance(data.get("lan"), dict):
+            data["lan"] = {}
+        data["lan"].setdefault("ip", "auto")
         data.setdefault("athletes", {})
         return data
 
@@ -87,16 +91,23 @@ class AccessStore:
             return out
 
     # -- phone access on / off (remembered across restarts: a kiosk PC reboots) ----------------------
+    @staticmethod
+    def _lan_view(rec: dict) -> dict:
+        """ON unless the owner switched it off: only a choice made with the switch counts ("chosen") -
+        a file written for another reason (a first athlete code) must not freeze a default."""
+        return {"enabled": bool(rec.get("enabled")) if rec.get("chosen") else LAN_DEFAULT_ON, "ip": rec.get("ip") or "auto",
+                "chosen": bool(rec.get("chosen"))}
+
     def lan(self) -> dict:
         with self._lock:
-            return dict(self._load()["lan"])
+            return self._lan_view(self._load()["lan"])
 
     def set_lan(self, enabled: bool, ip: str | None = None) -> dict:
         def fn(d):
-            d["lan"]["enabled"] = bool(enabled)
+            d["lan"].update(enabled=bool(enabled), chosen=True)
             if ip:
                 d["lan"]["ip"] = ip
-            return dict(d["lan"])
+            return self._lan_view(d["lan"])
         return self._change(fn)
 
     # -- trainer ------------------------------------------------------------------------------------
