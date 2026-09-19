@@ -294,6 +294,10 @@
     <div class="field"><label id="s_share">What the AI coach may see</label>
       <div class="tiles" id="setShare" style="grid-template-columns:1fr 1fr"></div>
       <div class="foot" id="s_share_sub" style="margin-top:8px"></div></div>
+    <div class="field localonly" id="updField"><label id="s_upd_l">Version & update</label>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="foot" id="s_upd_ver"></span>
+        <button class="btn ghost" id="updCheck" type="button" style="min-height:48px;font-size:17px;padding:0 16px">Check for updates now</button></div>
+      <div id="updResult" style="margin-top:10px"></div></div>
     <button class="btn" id="setupSave" style="width:100%">Save & start</button>
   </div>
 </div></div>
@@ -577,6 +581,11 @@ function openSettings(origin){
   const keyField=$("#setKey").closest(".field"); keyField.style.display=ACCESS.role==="local"?"":"none";
   let keyNote=$("#s_key_note"); if(!keyNote){ keyNote=document.createElement("div"); keyNote.id="s_key_note"; keyNote.className="foot"; keyField.after(keyNote); }
   keyNote.textContent=ACCESS.role==="local"?"":(de?"Der API-Schlüssel wird nur direkt am ARX-PC eingegeben – er geht nie durchs WLAN.":"The API key is only ever entered at the ARX PC itself – it never travels through the Wi-Fi.");
+  // version + "look for an update now" (this PC only): nobody has to wait for the banner
+  $("#s_upd_l").textContent=de?"Version & Update":"Version & update";
+  $("#s_upd_ver").textContent=(de?"Installiert: v":"Installed: v")+CURVER;
+  $("#updCheck").textContent=de?"Jetzt nach Updates suchen":"Check for updates now";
+  $("#updResult").innerHTML=updateBannerHtml();
   $("#setKey").value=""; $("#setKey").placeholder=HAS_KEY?(de?"•••••• (gespeichert — leer lassen, um zu behalten)":"•••••• (saved — leave blank to keep)"):"sk-ant-...";
   show("setup");
 }
@@ -908,6 +917,18 @@ function pinHintHtml(pinned){
     :'<b style="color:var(--ink)">Keep it in the taskbar:</b> right-click the Desktop icon "ARX Insight" → (Windows 11: "Show more options") → "Pin to taskbar". Windows does not let programs do this themselves.'}</span>
     <span style="flex:1"></span><button class="btn ghost" style="min-height:44px;font-size:16px" onclick="try{localStorage.setItem('arx_pin_hint','off')}catch(e){};document.getElementById('pinHint').remove()">${de?'Verstanden':'Got it'}</button></div>`;
 }
+// Settings: look for a new version NOW - the app checks by itself only every few hours. A newer version brings up
+// the same banner (and the same two-click update) as everywhere else.
+$("#updCheck").addEventListener("click",async()=>{
+  const de=CFG.language==="de", box=$("#updResult"), note=t=>`<span class="foot">${t}</span>`;
+  box.innerHTML=note(de?"sucht auf GitHub …":"looking on GitHub …");
+  let r=null; try{ r=await post("/api/update/check",{}); }catch(e){}
+  if(!r||r.error){ box.innerHTML=note(de?"Die Suche hat nicht geklappt - bitte später noch einmal.":"The check did not work - please try again later."); return; }
+  UPDATE={latest:r.latest,update_available:!!r.update_available,url:r.url}; SELF_UPDATE=!!r.self_update; UPD_STEP=0;
+  box.innerHTML=r.update_available?updateBannerHtml()
+    :note(r.reachable===false?(de?"GitHub ist gerade nicht erreichbar (keine Internetverbindung?) - installiert bleibt v"+esc(CURVER)+".":"GitHub cannot be reached right now (no internet connection?) - v"+esc(CURVER)+" stays installed.")
+                             :(de?"Du hast die neueste Version (v"+esc(CURVER)+").":"You have the latest version (v"+esc(CURVER)+")."));
+});
 function updateBannerHtml(){
   if(!UPDATE||!UPDATE.update_available) return "";
   const de=CFG.language==="de";
@@ -931,6 +952,10 @@ async function selfUpdate(btn){
   try{ await post("/api/update",{}); }catch(e){}
   const tick=async()=>{
     let st=null; try{ st=await api("/api/update/status"); }catch(e){}
+    if(st&&st.state==="error"&&String(st.detail||"").startsWith("blocked_by_security")){      // the virus scanner took the package away
+      msg.textContent=de?'Die Windows-Sicherheit (Virenschutz) hat das Update-Paket blockiert - es wurde nichts installiert. ARX Insight lädt nur seinen eigenen Quellcode von GitHub; Scanner stufen Installer-Skripte manchmal falsch ein. Unter „Windows-Sicherheit → Schutzverlauf“ stehen Datei und Bedrohungsname - bitte im GitHub-Projekt melden.'
+                        :'Windows security (virus protection) blocked the update package - nothing was installed. ARX Insight only downloads its own source code from GitHub; scanners sometimes misjudge installer scripts. "Windows Security → Protection history" names the file and the threat - please report it in the GitHub project.';
+      msg.style.color="var(--accent)"; UPD_STEP=0; btn.disabled=false; btn.style.opacity=1; btn.textContent=de?'Nochmal versuchen':'Try again'; return; }
     if(st&&st.state==="error"){ msg.textContent=(de?'Update fehlgeschlagen: ':'Update failed: ')+st.detail; msg.style.color="var(--accent)"; UPD_STEP=0; btn.disabled=false; btn.style.opacity=1; btn.textContent=de?'Nochmal versuchen':'Try again'; return; }
     if(st&&st.state==="done"&&!st.installer){ msg.textContent=(de?'Neue Version entpackt nach: ':'New version unpacked to: ')+st.folder; return; }
     msg.textContent=st&&say[st.state]?say[st.state]+(st.bytes?` ${(st.bytes/1048576).toFixed(1)} MB`:''):(de?'Die neue Version startet – einen Moment …':'The new version is starting – one moment …');

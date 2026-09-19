@@ -326,7 +326,8 @@ def firewall_command(script: str, port: int, remove: bool = False, programs: lis
         args.append("'-Remove'")
     if programs:
         args += ["'-Program'", lit('"' + ";".join(programs) + '"')]
-    return "Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList @(" + ",".join(args) + ")"
+    # a visible window on purpose (v0.8.3): what runs with administrator rights shows itself and its messages
+    return "Start-Process powershell -Verb RunAs -ArgumentList @(" + ",".join(args) + ")"
 
 
 def firewall_helper(port: int, remove: bool = False) -> bool:

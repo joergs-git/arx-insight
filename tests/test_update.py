@@ -71,6 +71,36 @@ class Staging(unittest.TestCase):
             upd.stage(self.data, "0.4.0")
         self.assertEqual(ctx.exception.code, "bad_archive")
 
+    def test_a_package_the_virus_scanner_took_away_is_named_as_that(self):
+        """Windows security answers with its own error codes (225 / 226) or simply removes the file that was just
+        written - the owner must read "blocked by security", not "not a ZIP file" (v0.8.3)."""
+        self.use(release(self.tmp, "9.9.9"))
+        real = zipfile.ZipFile
+
+        def infected(*a, **kw):
+            err = OSError("Operation did not complete successfully because the file contains a virus")
+            err.winerror = 225
+            raise err
+        zipfile.ZipFile = infected
+        try:
+            with self.assertRaises(upd.UpdateError) as ctx:
+                upd.stage(self.data, "0.4.0")
+        finally:
+            zipfile.ZipFile = real
+        self.assertEqual(ctx.exception.code, "blocked_by_security")
+        self.assertIn("Protection history", ctx.exception.detail)
+        self.assertFalse(os.listdir(os.path.join(self.data, "app")))                     # nothing was installed
+        gone = os.path.join(self.tmp, "was-here.zip")                                    # quarantined: written, then gone
+        self.assertTrue(upd.blocked_by_security(FileNotFoundError(gone), gone))
+        self.assertFalse(upd.blocked_by_security(FileNotFoundError("x"), __file__))       # the file is there: another problem
+        self.assertFalse(upd.blocked_by_security(ValueError("not a zip"), gone))
+        bad = os.path.join(self.tmp, "text.zip")
+        Path(bad).write_text("this is not a zip")
+        self.use(bad)
+        with self.assertRaises(upd.UpdateError) as ctx:
+            upd.stage(self.data, "0.4.0")
+        self.assertEqual(ctx.exception.code, "bad_archive")                               # an ordinary broken download stays that
+
     def test_a_missing_download_is_a_clean_error(self):
         os.environ["ARX_UPDATE_URL"] = Path(os.path.join(self.tmp, "nope.zip")).as_uri()
         with self.assertRaises(upd.UpdateError) as ctx:
@@ -106,6 +136,24 @@ class UpdateRoute(ServerCase):
         self.assertFalse(st["installer"])                                # staged only (see the switch above)
         self.assertTrue(os.path.isfile(os.path.join(st["folder"], "VERSION")))
         shutil.rmtree(os.path.dirname(st["folder"]), ignore_errors=True)
+
+    def test_the_owner_can_look_for_a_new_version_at_once(self):
+        """Settings -> "check for updates now": no waiting for the six-hourly check or the banner."""
+        asked, real = [], app.check_update
+        app.check_update = lambda cur: asked.append(cur) or {"latest": "9.9.9", "update_available": True, "url": app.REPO_URL, "reachable": True}
+        try:
+            app.STATE["update"] = {}
+            code, got = call(self.port, "/api/update/check", method="POST", body={}, headers=OK)
+            self.assertEqual((code, got["latest"], got["update_available"], got["version"]), (200, "9.9.9", True, app.STATE["version"]))
+            self.assertEqual(asked, [app.STATE["version"]])
+            self.assertTrue(app.STATE["update"]["update_available"])                     # the banner everywhere else knows it as well
+            self.assertTrue(call(self.port, "/api/bootstrap", headers=HDR)[1]["update"]["update_available"])
+            app.check_update = lambda cur: {"latest": cur, "update_available": False, "url": app.REPO_URL, "reachable": False}
+            got = call(self.port, "/api/update/check", method="POST", body={}, headers=OK)[1]
+            self.assertEqual((got["update_available"], got["reachable"]), (False, False))   # offline is said, not "up to date"
+        finally:
+            app.check_update = real
+            app.STATE["update"] = {}
 
     def test_bootstrap_says_whether_this_machine_can_update_itself(self):
         boot = call(self.port, "/api/bootstrap")[1]

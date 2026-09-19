@@ -61,7 +61,7 @@ class TwoListeners(unittest.TestCase):
 
 
 class RouteTable(TwoListeners):
-    PC_ONLY = {("POST", "/api/update"), ("GET", "/api/update/status"), ("POST", "/api/shutdown"), ("POST", "/api/lan"),
+    PC_ONLY = {("POST", "/api/update"), ("GET", "/api/update/status"), ("POST", "/api/update/check"), ("POST", "/api/shutdown"), ("POST", "/api/lan"),
                ("GET", "/api/lan/status"), ("POST", "/api/access/link"), ("POST", "/api/firewall")}
 
     def test_the_table_is_complete_and_conservative(self):
@@ -362,6 +362,7 @@ class Listener(unittest.TestCase):
         import base64
         cmd = lan.firewall_command(r"C:\Users\O'Neil Smith\app\windows\firewall.ps1", 8765, False, [r"C:\Program Files\Python312\python.exe"])
         self.assertIn("-Verb RunAs", cmd)
+        self.assertNotIn("Hidden", cmd)                                      # what runs elevated shows its window (v0.8.3)
         self.assertIn("O''Neil Smith", cmd)                                  # a quote inside a PowerShell literal is doubled
         self.assertIn("'-Port','8765'", cmd)
         self.assertNotIn("-Remove", cmd)
