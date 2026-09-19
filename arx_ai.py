@@ -51,9 +51,12 @@ REQUEST_TIMEOUT_S = 600.0
 
 BOARDS_KEEP = 12               # delivered boards kept per athlete
 MEMORY_BOARDS = 3              # how many earlier recommendations the next payload carries
-BOARDS_PER_DAY = 8             # new boards per athlete and day (a cached board costs nothing)
-CHAT_TURNS_MAX = 20            # turns per conversation (one conversation per delivered board)
-CHAT_TURNS_PER_DAY = 40
+# Guards against a runaway client, not a ration (owner, v0.8.2: 8 / 20 / 40 got in the way of real use). The daily
+# counters start again at midnight (the PC's date); a conversation starts anew with every new board (new set,
+# check-in or setting). A cached board costs nothing and is never counted.
+BOARDS_PER_DAY = 100           # new boards per athlete and day
+CHAT_TURNS_MAX = 100           # turns per conversation (one conversation per delivered board)
+CHAT_TURNS_PER_DAY = 100
 CHAT_QUESTION_MAX = 1000       # characters
 SERIES_POINTS = 12             # comparable-day points per exercise in the payload
 WEEKS_IN_PAYLOAD = 13

@@ -30,8 +30,9 @@ from arx_base import data_dir, write_json_atomic, _today
 
 LAN_DEFAULT_ON = True              # phone access until the owner says otherwise (v0.6.1, owner's decision)
 ATHLETE_DAYS = 90                  # an athlete link is valid this long (renewable at the PC)
-ATHLETE_BOARDS_PER_DAY = 3         # AI allowance of one athlete link per day: coach boards ...
-ATHLETE_QUESTIONS_PER_DAY = 20     # ... and chat questions (the owner's key pays)
+ATHLETE_BOARDS_PER_DAY = 20        # AI allowance of one athlete link per day: coach boards ...
+ATHLETE_QUESTIONS_PER_DAY = 100    # ... and chat questions (the owner's key pays; v0.8.2: 3 / 20 were too tight at the
+                                   # machine). Both start again at midnight - the usage record carries its date.
 BAD_TOKEN_MAX = 8                  # wrong tokens from one address within BAD_TOKEN_WINDOW_S ...
 BAD_TOKEN_WINDOW_S = 300
 BAD_TOKEN_BLOCK_S = 300            # ... block that address for this long (429)
