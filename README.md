@@ -8,8 +8,9 @@
 <h1 align="center">ARX Insight</h1>
 
 <p align="center">
-  <b>Local, private strength analytics <i>and</i> a digital coach for the ARX adaptive-resistance machine.</b><br>
-  Reads every rep straight off the machine and turns it into real sport-science metrics —<br>
+  <b>ARX workout data analysis <i>and</i> a digital coach for the ARX adaptive-resistance machine — local and private.</b><br>
+  No juggling of ARX export data (CSV files from the ARX app): ARX Insight reads every rep straight off the machine's<br>
+  local database and turns it into real sport-science metrics —<br>
   then <b>builds your training plan from your own data</b>: the next day, the exercises, their order and the targets,<br>
   re-planned after every session and every check-in, and <b>checked against what you actually did</b>.<br>
   An optional AI coach (your own Claude API key) explains it, adapts it within the rules and answers your questions —<br>
