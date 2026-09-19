@@ -664,6 +664,72 @@ class SessionSize(unittest.TestCase):
             self.assertEqual(names(turns["next_session"]), names(alone["next_session"]))   # the plan itself does not change
 
 
+class TimeWindow(unittest.TestCase):
+    """v0.8.1 (owner): the check-in may carry "minutes I have today" - an upper limit for a session planned for
+    today. It never makes a plan longer; a plan that does not fit is cut in a sensible order."""
+    SIX = [ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN]
+    DAY = "2026-09-20"                                                   # the engine recommends training on this day
+
+    def plan(self, minutes=None, day=None, **extra):
+        day = day or self.DAY
+        extra.setdefault("session_minutes", 40)
+        if minutes is not None:
+            extra["checkin"] = {"date": day, "minutes": minutes}
+        return report(history(self.SIX), day, **extra)["plan"]
+
+    def test_no_window_or_a_wide_one_changes_nothing(self):
+        base = self.plan()
+        self.assertEqual(base["next_session"]["date"], self.DAY)
+        row = lambda s: [(it["name"], it["sets"], it["target_peak_kg"], it["rest_before_min"]) for it in s["exercises"]]
+        for wide in (45, 90):                                               # more time is no reason to do more
+            p = self.plan(wide)
+            self.assertEqual(row(p["next_session"]), row(base["next_session"]))
+            self.assertNotIn("time_window", p["next_session"])
+            self.assertEqual(p["profile"]["window_minutes"], wide)
+        self.assertIsNone(base["profile"]["window_minutes"])
+        self.assertIsNone(self.plan(25)["profile"]["window_minutes"])       # not one of the offered windows: no limit
+
+    def test_a_tight_window_keeps_what_matters_most(self):
+        base = self.plan()["next_session"]
+        for lang in ("en", "de"):
+            p = self.plan(15, language=lang)
+            sess, tw = p["next_session"], p["next_session"]["time_window"]
+            self.assertLessEqual(sess["est_minutes"], 15)
+            self.assertLess(len(sess["exercises"]), len(base["exercises"]))
+            self.assertGreaterEqual(len(sess["exercises"]), planner.WINDOW_MIN_EX)
+            self.assertLessEqual(set(names(sess)), set(names(base)))         # a cut of the normal plan, nothing else
+            self.assertEqual({it["kind"] for it in sess["exercises"]}, {"compound"})      # the big exercises stay ...
+            self.assertEqual({it["group"] for it in sess["exercises"]}, {"Push", "Pull", "Drive"})   # ... one per movement group
+            self.assertEqual(sorted(tw["left_out"]), sorted(set(names(base)) - set(names(sess))))    # and what was left out is named
+            self.assertEqual((tw["interp"]["code"], tw["size"], tw["normal_size"]), ("window_applied", len(sess["exercises"]), len(base["exercises"])))
+            text = tw["interp"]["text"]["meaning"] + tw["interp"]["text"]["action"]
+            self.assertNotIn("{", text)
+            self.assertNotIn("_", text)
+            # the coach cannot blow the window, and the check-in screen promised no more than the plan delivers
+            self.assertLessEqual(p["decision_space"]["bounds"]["rows_max"], max(len(sess["exercises"]), p["profile"]["window_sizes"]["15"]))
+            self.assertEqual(p["profile"]["window_sizes"]["15"], len(sess["exercises"]))
+        # what was left out comes back by itself: the next session takes it up
+        after = self.plan(15)["week_plan"][1]["exercises"]
+        self.assertTrue(set(self.plan(15)["next_session"]["time_window"]["left_out"]) & set(after))
+
+    def test_extra_sets_go_before_exercises(self):
+        normal = self.plan(commitment="more_time_less_brutal", session_minutes=30)["next_session"]
+        self.assertIn(2, [it["sets"] for it in normal["exercises"]])
+        cut = self.plan(30, commitment="more_time_less_brutal", session_minutes=30)["next_session"]
+        self.assertEqual({it["sets"] for it in cut["exercises"]}, {1})       # volume is what goes first - the hard set stays
+        self.assertLessEqual(cut["est_minutes"], 30)
+        self.assertGreaterEqual(len(cut["exercises"]), len(normal["exercises"]) - 1)
+
+    def test_the_window_is_for_today_only(self):
+        p = self.plan(15, day="2026-09-18")                                  # the engine recommends the 20th
+        self.assertGreater(p["next_session"]["date"], "2026-09-18")
+        self.assertNotIn("time_window", p["next_session"])                   # that day has its normal budget
+        self.assertEqual(len(p["next_session"]["exercises"]), len(self.plan(day="2026-09-18")["next_session"]["exercises"]))
+        today = p["today_session"]                                           # "training today anyway" is what the window cuts
+        self.assertLessEqual(today["est_minutes"], 15)
+        self.assertEqual(today["time_window"]["interp"]["code"], "window_applied")
+
+
 class Excluded(unittest.TestCase):
     """Exercises the athlete does not do on the ARX (profile: excluded_exercises)."""
     def test_a_switched_off_exercise_does_not_exist_for_the_planner(self):
@@ -775,7 +841,8 @@ class SelfExplaining(unittest.TestCase):
         for lang, units in (("en", "imperial"), ("de", "metric")):
             for extra in ({}, {"sessions_per_week": 4}, {"checkin": {"date": "2026-09-19", "sleep": "ok", "energy": "ok", "soreness": {}}},
                           {"_day": "2026-10-04"}, {"_day": "2026-11-20"}, {"_day": "2027-06-01"},           # after a short / long / very long break
-                          {"excluded_exercises": {"11": "elsewhere", "12": "unwanted"}}):                   # exercises switched off in the profile
+                          {"excluded_exercises": {"11": "elsewhere", "12": "unwanted"}},                    # exercises switched off in the profile
+                          {"_day": "2026-09-20", "checkin": {"date": "2026-09-20", "minutes": 15}}):        # a tight time window today
                 extra = dict(extra)
                 plan = report(rows, extra.pop("_day", "2026-09-19"), language=lang, units=units, session_minutes=40, **extra)["plan"]
                 items = []

@@ -58,7 +58,7 @@ follow-up questions in a chat.
 - 🧭 **Progress per exercise** — best set per day, "vs last time", trend and a cautious forecast, on two axes (last sessions / last days).
 - 📏 **Range-of-motion validity** — force is only compared between days that used the same ROM (within 5 % of the exercise's reference). Days with a different ROM are shown but excluded from trend and forecast, and the exercise gets a visible ROM warning instead of a fake trend. A deliberately shortened range on a restricted exercise becomes the new baseline instead of a nag.
 - 🧠 **Muscle-level recovery** — readiness is judged per muscle, not by the calendar or by Push/Pull/Drive: a set loads its target muscles at the effort it reached and its limiters one level lighter; a muscle is ready again when the rest its last hard load required has passed (deep 3 days, moderate 2, sub-max 1). Two sessions on consecutive days are fine when they used different muscles. Per exercise you see *ready*, *limited* (a limiter such as the grip is not fresh — train sub-max) or *not ready*, each with a date.
-- ☀️ **Daily check-in** (20 seconds, skippable) — sleep, energy, muscle soreness per region, resting heart rate against your own baseline, pain today. Strong soreness blocks that region whatever the calendar says; an elevated resting HR or poor sleep means a light day; pain makes a body part *careful* for today. A transparent 0–100 wellness score (in the spirit of the Hooper / McLean questionnaires) goes to the coach.
+- ☀️ **Daily check-in** (20 seconds, skippable) — sleep, energy, muscle soreness per region, resting heart rate against your own baseline, pain today. Strong soreness blocks that region whatever the calendar says; an elevated resting HR or poor sleep means a light day; pain makes a body part *careful* for today. A transparent 0–100 wellness score (in the spirit of the Hooper / McLean questionnaires) goes to the coach. Since v0.8.1 you can also say **how much time you have today** (optional): an upper limit for a session planned for today — a plan that does not fit is cut the way a trainer would cut it (extra sets first, then the exercises that can wait best; the big exercise of each movement group and muscles that would otherwise wait too long stay), what was left out is named and comes first next time. More time never makes the plan longer.
 - 🛌 **Load flag on the last 7 days** — *overload* only when a muscle was loaded hard again before its rest was over (or the check-in says so), *underload* when every recent session was light, *detraining* after 10+ days off. Not judged on your first weeks forever.
 - 🧾 **Session sequence** — the order of your sets within each day, the rest before each one, machine pauses, work density, false starts, and rule-based flags: too many sets, a scattered full-body day on a split plan, the same exercise or muscle hit again within 5 minutes, and a density shift that betrays changed pause/tempo settings (only against a consistent baseline).
 - 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
@@ -478,6 +478,15 @@ one more exercise in minutes and treats the number of exercises as your time dec
 rule. **Training in turns with a partner?** Say so in the profile: the long time between two
 exercises is then your partner's set — the app stops suggesting to set up faster and tells you
 what the same session would take alone.
+
+**I only have 20 minutes today — what happens to the plan?** *(v0.8.1)*
+Tell the check-in (*Time today*, optional). It is an **upper limit for today only**: if the normal
+session fits, nothing changes; if not, extra sets go first (the one hard set per exercise is what
+holds and builds), then the session gets smaller — never below two exercises. What stays is what
+matters most right now: the big exercise of each movement group, picked so that no muscle falls
+out of its weekly stimulus, then whatever else is urgent. The plan says what was left out, and
+those muscles are the most due next time, so nothing has to be "caught up". A bigger window never
+makes the session longer — for more volume use *Minutes per session* in the profile.
 
 **I squat in the gym / do curls at home — can I switch an exercise off?** *(v0.7.0)*
 Yes: profile → *Exercises I do not do on the ARX*. Tap an exercise once for **I train it elsewhere**,

@@ -49,6 +49,12 @@ ONE plan, derived from the athlete's own data instead of rules of thumb:
             buys (size_by_minutes) and the coach gets the price of one more exercise in minutes. An
             athlete who trains in turns with a partner says so (profile: partner): the long
             change-over is then the partner's set, not something to be shortened.
+  window    (v0.8.1) The check-in may carry "minutes I have today" - an UPPER LIMIT for a session planned
+            for today, never a reason to do more. A plan that does not fit is cut in the order a
+            trainer would cut it: extra sets first (volume goes, the effort of the one hard set
+            stays), then the session gets smaller - and what stays is what the selection puts first
+            anyway: the big exercise of each movement group, urgent muscles, then the score. What
+            was left out is named and comes back by itself (its muscles are the most due next time).
   excluded  (v0.7.0) Exercises the athlete does not do on the ARX (profile: excluded_exercises =
             {code: elsewhere | unwanted}) do not exist for the planner - never planned, never
             suggested, not in the coach's decision space. "elsewhere" = trained outside the ARX:
@@ -108,7 +114,10 @@ TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
 # paired_sets, weekly_volume). The cap only keeps a session plannable (order search, one page) - v0.8.0: 6 -> 8.
 SESSION_MIN_EX, SESSION_MAX_EX = 3, 8
 BIG_SESSION_EX = 7             # from here a full-body session may go one deeper per body region, like a split day
-MINUTES_OPTIONS = (15, 20, 30, 45, 60, 75, 90)      # the time budgets offered in the profile (size_by_minutes)
+MINUTES_OPTIONS = (15, 20, 30, 45, 60, 75, 90)      # the time budgets offered in the profile (size_by_minutes) and the check-in
+WINDOW_MIN_EX = 2              # a session under a time window (check-in: "minutes I have today") keeps at least this many
+WINDOW_REST_MARGIN_MIN = 0.5   # exercises that share muscles rest a little longer than the bare pace: keeps the first
+                               # estimate (shown in the check-in) in line with the finished session
 SESSION_MINUTES_RANGE = (15, 45)
 DEFAULT_SESSION_MINUTES = 25
 DEFAULT_SET_SECONDS = 105.0
@@ -846,6 +855,13 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     return out
 
 
+def window_size(window: float, set_min: float, transition: float) -> int:
+    """How many exercises fit into a time window at the athlete's own pace: n sets and n - 1 change-overs.
+    A first estimate - build_plan checks the finished session (rests can be longer) and shrinks once more."""
+    gap = max(transition, REST_MIN["compound"]) + WINDOW_REST_MARGIN_MIN
+    return int(max(WINDOW_MIN_EX, min(SESSION_MAX_EX, math.floor((window + gap) / max(1.0, set_min + gap)))))
+
+
 def estimate_session_minutes(items: list[dict], transition_min: float) -> int:
     """Wall-clock minutes of a planned session: sets, rests between sets, change-over between
     exercises (the athlete's own median when known)."""
@@ -899,8 +915,9 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
 
 
 def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | None, age: str | None,
-                   transition: float, repeat_loss: dict) -> dict:
-    """Order, effort, targets, rests and minutes for a selected session."""
+                   transition: float, repeat_loss: dict, single_sets: bool = False) -> dict:
+    """Order, effort, targets, rests and minutes for a selected session. single_sets = the athlete's time
+    window for today is tight: one hard set per exercise, no extra volume (see build_plan)."""
     day = sel["date"]
     seq, rows, meta = best_order(sel["chosen"], ev)
     effort, caps = effort_for(cfg, commitment, band, age)
@@ -916,6 +933,10 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
         tgt = target_for(c, eff, commitment, band, age, is_bench, row, cfg, returning=returning, away_days=c.get("days_away"))
         if COMMITMENT[commitment]["extra_sets"] and pos <= 2 and not sub_max and band in (None, "go_hard"):
             tgt["sets"] = max(tgt["sets"], 1 + COMMITMENT[commitment]["extra_sets"])
+        if single_sets and tgt["sets"] > 1:        # no time for extra volume today: the one hard set stays
+            tgt["sets"] = 1
+            if tgt["target_rule"] == "plateau_add_set":            # the second set is what the time window costs today
+                tgt["target_rule"], tgt["interp"] = "plateau_hold", item("plan_plateau_min_time", tgt["interp"]["params"], cfg)
         prev = seq[pos - 2] if pos > 1 else None
         rest = 0.0 if prev is None else REST_MIN.get(prev["kind"], 2.5) + min(REST_EXTRA_MAX, round(row["shared_loss_pct"] / REST_EXTRA_PER_PCT))
         why = list(c["why_selected"])
@@ -1079,18 +1100,55 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         key = date.fromisoformat(d).isocalendar()[:2]
         week_counts[key] = week_counts.get(key, 0) + 1
 
+    # "minutes I have today" from the check-in: an upper limit for a session planned for TODAY (never a reason for more)
+    window = (cfg.get("checkin") or {}).get("minutes")
+    window = window if window in MINUTES_OPTIONS else None
+
     trained_today = bool(days) and days[-1] == today.isoformat()
     score_today = (readiness or {}).get("score")
     rest_today = band == "light_or_rest" and ((readiness or {}).get("rhr_status") == "elevated"
                                               or (score_today is not None and score_today < REST_SCORE_BELOW))
     earliest = today + timedelta(days=1) if (trained_today or rest_today) else today
 
+    # --- today under a time window: the normal plan when it fits; else extra sets go first, then the session gets
+    # smaller (never below WINDOW_MIN_EX) - judged on the FINISHED session, because rests can be longer than the pace
+    fit = None
+    if window and earliest == today:
+        def plan_today(size: int, single: bool):
+            sel = select_session(today, pool, state, cfg, focus, spw, size, today, chosen_groups,
+                                 comeback=bool(last_day) and (today - last_day).days >= BREAK_LONG_DAYS)
+            return sel and finish_session(sel, cfg, ev, commitment, band, age, transition, repeat_loss, single_sets=single)
+        normal = plan_today(size_for(band), False)
+        if normal and normal["est_minutes"] > window:
+            size = max(WINDOW_MIN_EX, min(len(normal["exercises"]), window_size(window, set_min, transition)))
+            cur = plan_today(size, True)
+            while cur and cur["est_minutes"] > window and size > WINDOW_MIN_EX:
+                size -= 1
+                cur = plan_today(size, True)
+            if cur:
+                fit = {"size": size, "normal": [it["name"] for it in normal["exercises"]], "normal_minutes": normal["est_minutes"]}
+
+    def finish(o: dict, b: str | None) -> dict:
+        """finish_session + what the time window did to a session planned for today (said openly)."""
+        windowed = fit is not None and o["date"] == today
+        sess = finish_session(o, cfg, ev, commitment, b, age, transition, repeat_loss, single_sets=windowed)
+        if windowed:
+            kept = [it["name"] for it in sess["exercises"]]
+            left = [n for n in fit["normal"] if n not in kept]
+            code = "window_tight" if sess["est_minutes"] > window else "window_applied"
+            sess["time_window"] = {"minutes": window, "size": len(kept), "normal_size": len(fit["normal"]), "left_out": left,
+                                   "normal_minutes": fit["normal_minutes"],
+                                   "interp": item(code, {"minutes": window, "k": len(kept), "n": len(fit["normal"]), "left": left or ["-"],
+                                                         "est": sess["est_minutes"], "normal": fit["normal_minutes"]}, cfg)}
+        return sess
+
     def options(start: date, prev: date | None, st8: dict, counts: dict, pool_: list[dict], with_band: bool) -> list[dict]:
         out = []
         for k in range(DATE_SEARCH_DAYS + 1):
             d = start + timedelta(days=k)
             b = band if (with_band and d == today) else None
-            sel = select_session(d, pool_, st8, cfg, focus, spw, size_for(b), today, chosen_groups if with_band else None,
+            size = fit["size"] if (fit and with_band and d == today) else size_for(b)
+            sel = select_session(d, pool_, st8, cfg, focus, spw, size, today, chosen_groups if with_band else None,
                                  comeback=bool(prev) and (d - prev).days >= BREAK_LONG_DAYS)
             if not sel:
                 continue
@@ -1120,6 +1178,9 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                    "auto_size": session_size(auto_minutes, per_exercise, n_regions, commitment, None, age, "more" in focus.values()),
                    "size_by_minutes": {str(m): session_size(m, per_exercise, n_regions, commitment, None, age, "more" in focus.values())
                                        for m in MINUTES_OPTIONS},
+                   # the check-in's "minutes I have today": how many exercises of the normal session fit into each window
+                   "window_sizes": {str(m): min(size_for(None), window_size(m, set_min, transition)) for m in MINUTES_OPTIONS},
+                   "window_minutes": window,
                    "commitment_options": commitment_options(cfg, minutes, spw, set_min, transition, per_exercise, n_regions, age)}
     if not opts:
         # nothing can be planned: usually nothing is ready - or the athlete switched off everything he does
@@ -1130,7 +1191,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                 "cadence_note": None, "frequency_notes": [], "dose_note": None, "structure_note": None, "date_options": [],
                 "training_break": None, "excluded": excluded, "decision_space": None}
     best = max(opts, key=lambda o: (o["score"], -o["date"].toordinal()))
-    session = finish_session(best, cfg, ev, commitment, best["band"], age, transition, repeat_loss)
+    session = finish(best, best["band"])
     d1 = best["date"]
 
     # --- why this date ---------------------------------------------------------------------------------
@@ -1252,7 +1313,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     # standing in the gym anyway? the session that is possible TODAY (lighter after a poor check-in)
     today_session = None
     if today_opt and d1 > today:
-        today_session = finish_session(today_opt, cfg, ev, commitment, today_opt["band"], age, transition, repeat_loss)
+        today_session = finish(today_opt, today_opt["band"])
         today_session["limiter_budget"] = limiter_budget(today_session, work, catalog, ev, cfg)
         today_session["order_notes"] = order_notes(today_session, cfg)
         today_session["note"] = item("today_anyway", {"k": len(today_session["exercises"]), "next_date": d1.isoformat()}, cfg)
@@ -1283,7 +1344,10 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             # not a rule: rows_in_time_budget + the price of one more (the coach names it instead of refusing)
             "bounds": {"target_pct": TARGET_LEEWAY_PCT, "sets_max": 1 if age in MINOR_BANDS else 2, "rest_max_min": REST_MAX_MIN,
                        "rows_min": min(2, len(session["exercises"])),
-                       "rows_max": max(len(session["exercises"]), MINOR_MAX_EXERCISES if age in MINOR_BANDS else SESSION_MAX_EX)},
+                       # ... and a time window for today is a wall the coach cannot move: what fits into it, not more
+                       "rows_max": (max(len(session["exercises"]), min(size_for(None), window_size(window, set_min, transition)))
+                                    if (window and d1 == today) else
+                                    max(len(session["exercises"]), MINOR_MAX_EXERCISES if age in MINOR_BANDS else SESSION_MAX_EX))},
             "rows_in_time_budget": len(session["exercises"]), "minutes_per_extra_exercise": round(per_exercise, 1),
             "effort_cap": effort_for(cfg, commitment, best["band"], age)[0]["label"],
         },

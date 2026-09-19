@@ -1309,5 +1309,25 @@
    "en": "Nothing to shorten: the longer rest costs no result. The {total} minutes are the estimate for training in turns; alone the same session takes about {alone} minutes.",
    "de": "Nichts zu kürzen: Die längere Pause kostet kein Ergebnis. Die {total} Minuten sind die Schätzung für das Training zu zweit; allein dauert dieselbe Einheit etwa {alone} Minuten."
   }
+ },
+ "window_applied": {
+  "meaning": {
+   "en": "You have {minutes} minutes today: the plan is cut to the {k} of {n} exercises that matter most right now (about {est} minutes instead of {normal}). Left for next time: {left}.",
+   "de": "Du hast heute {minutes} Minuten: Der Plan ist auf die {k} von {n} Übungen gekürzt, die jetzt am meisten zählen (etwa {est} statt {normal} Minuten). Für das nächste Mal bleibt: {left}."
+  },
+  "action": {
+   "en": "Keep the effort - one hard set each is what holds and builds. What was left out comes first next time; the plan re-prioritises by itself.",
+   "de": "Die Härte bleibt - ein wirklich harter Satz je Übung ist das, was hält und aufbaut. Was heute wegfällt, steht beim nächsten Mal vorn; der Plan priorisiert von selbst neu."
+  }
+ },
+ "window_tight": {
+  "meaning": {
+   "en": "You have {minutes} minutes today, but even {k} exercises need about {est} minutes at your pace.",
+   "de": "Du hast heute {minutes} Minuten, aber schon {k} Übungen brauchen bei deinem Tempo etwa {est} Minuten."
+  },
+  "action": {
+   "en": "Do the first exercise properly rather than both in a hurry - it is the one that matters most today. Left for next time: {left}.",
+   "de": "Lieber die erste Übung richtig als beide in Eile - sie ist die, die heute am meisten zählt. Für das nächste Mal bleibt: {left}."
+  }
  }
 }

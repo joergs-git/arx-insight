@@ -40,7 +40,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 5
+PROMPT_VERSION = 6
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -216,7 +216,10 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
     # ---- today: check-in, what is recovered --------------------------------------------------------------------------
     rd = report.get("readiness")
     rec = (report.get("load") or {}).get("recovery") or {}
+    tw = (ns or {}).get("time_window")
     readiness = {"checkin": ({k: rd.get(k) for k in ("score", "band", "components", "sore_regions", "rhr_status", "rhr_diff", "pain")} if rd else None),
+                 # the athlete's time window for TODAY from the check-in (an upper limit; None = no limit given)
+                 "minutes_available_today": pp.get("window_minutes"),
                  "load_flag": (report.get("load") or {}).get("flag"),
                  "muscles_not_ready": {m: {"ready_on": v["ready_on"], "why": v["reason"]} for m, v in (rec.get("muscles") or {}).items() if not v.get("ready")},
                  "everything_ready_on": (report.get("load") or {}).get("all_ready_on")}
@@ -243,6 +246,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
                          "order_notes": [_text(n) for n in ns.get("order_notes") or []],
                          "helper_muscle_budget": {m: {"status": b["status"], "share_of_usual_pct": b["share_pct"]} for m, b in (ns.get("limiter_budget") or {}).items()},
                          "aid_hints": [_text(h) for h in ns.get("aid_hints") or []], "time_note": _text(ns.get("time_note")),
+                         # today's session was cut to the athlete's time window: what stayed, what was left out
+                         "time_window": ({"minutes": tw["minutes"], "exercises_kept": tw["size"], "exercises_of_the_normal_plan": tw["normal_size"],
+                                          "left_out_for_next_time": tw["left_out"], "engine_says": _text(tw.get("interp"))} if tw else None),
                          "guard": _text(ns.get("guard"))},
             "decision_space": {"dates": [{"date": d["date"], "candidates": [{"exercise": c["name"], "status": c["status"], "new": c["new"],
                                                                              "restriction": c["restriction"], "group": c["group"]} for c in d["candidates"]]}
@@ -396,7 +402,7 @@ HOW TO JUDGE - non-negotiable:
 8. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
 9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
 10. The repertoire is the athlete's decision: an exercise in profile.exercises_switched_off is never recommended - not in the rows, not in the text, not as an alternative. reason trained_elsewhere: the athlete trains it outside this machine, so profile.muscles_trained_elsewhere get their stimulus there - do not call them neglected, do not add machine work for them, and keep in mind that this load is invisible here: when such a muscle helps in a planned exercise, say once that soreness from that training belongs into the check-in. reason not_wanted: cover its muscles with the athlete's other exercises where the decision space allows, and say plainly when nothing in the repertoire reaches them.
-11. How many exercises a session has is a TIME decision of the athlete - never present it as a training rule or as "the frame". planner.decision_space.rows_in_time_budget is what the stated time holds at the athlete's own pace, bounds.rows_max what a session can hold at all; one more exercise costs minutes_per_extra_exercise. Exercises for unrelated muscles cost no result, and for a size goal more weekly sets per muscle is the best-supported lever - so when the athlete says there is more time, build the fuller session inside the decision space, name its price in minutes and tell him that "Minutes per session" in the profile makes it permanent (profile.exercises_by_minutes_per_session shows what each budget buys). Without that signal stay within rows_in_time_budget unless volume is the lever (size goal AND the effort target is being met). Two exercises that share a TARGET muscle are more volume for it, not "another muscle group": say so, and say which of them keeps the clean measurement. With profile.takes_turns_with_partner the long change-over is the partner's set: never recommend shortening it, never count it as wasted time.
+11. How many exercises a session has is a TIME decision of the athlete - never present it as a training rule or as "the frame". planner.decision_space.rows_in_time_budget is what the stated time holds at the athlete's own pace, bounds.rows_max what a session can hold at all; one more exercise costs minutes_per_extra_exercise. Exercises for unrelated muscles cost no result, and for a size goal more weekly sets per muscle is the best-supported lever - so when the athlete says there is more time, build the fuller session inside the decision space, name its price in minutes and tell him that "Minutes per session" in the profile makes it permanent (profile.exercises_by_minutes_per_session shows what each budget buys). Without that signal stay within rows_in_time_budget unless volume is the lever (size goal AND the effort target is being met). Two exercises that share a TARGET muscle are more volume for it, not "another muscle group": say so, and say which of them keeps the clean measurement. With profile.takes_turns_with_partner the long change-over is the partner's set: never recommend shortening it, never count it as wasted time. readiness_today.minutes_available_today is the athlete's time window for TODAY (an upper limit from the check-in): a session planned for today has to fit - the engine already cut it (planner.proposal.time_window: extra sets first, then the least urgent exercises) and bounds.rows_max is then what fits; never add rows or sets beyond it, keep the effort, say what was left out and that it comes first next time.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}

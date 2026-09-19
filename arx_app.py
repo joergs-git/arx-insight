@@ -83,6 +83,9 @@ def clean_checkin(data: dict) -> dict:
         entry["soreness"] = {r: l for r, l in sore.items() if r in core.SORENESS_REGIONS and l in SORENESS_LEVELS}
     if "pain" in data:
         entry["pain"] = [p for p in (data.get("pain") if isinstance(data.get("pain"), list) else []) if p in BODY_PARTS]
+    if "minutes" in data:                          # "minutes I have today" (v0.8.1): one of the offered windows, else no limit
+        m = data.get("minutes")
+        entry["minutes"] = m if (isinstance(m, int) and not isinstance(m, bool) and m in core.planner.MINUTES_OPTIONS) else None
     if "note" in data:
         entry["note"] = str(data.get("note") or "")[:300] or None       # stays on this machine (never part of the AI payload)
     if "rhr" in data:

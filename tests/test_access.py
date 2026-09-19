@@ -232,6 +232,11 @@ class Hardening(TwoListeners):
                          {"sleep": None, "energy": "high", "soreness": {"legs": "strong"}, "pain": ["knee"], "rhr": None})
         self.assertEqual(len(stored["note"]), 300)
         self.assertNotIn("extra", stored)
+        # "minutes I have today" (v0.8.1): one of the offered windows as a number - anything else means "no limit"
+        for sent, kept in ((20, 20), (90, 90), (25, None), ("20", None), (True, None), (-5, None), ({"a": 1}, None), (None, None)):
+            self.assertEqual(self.lan_call("/api/checkin", self.athlete, method="POST", body={"user_id": 1, "date": today, "minutes": sent})[0], 200)
+            self.assertEqual(app.read_json(app.GOALS, {})["1"]["checkins"][today].get("minutes"), kept, sent)
+        self.assertNotIn("minutes", app.clean_checkin({"sleep": "ok"}))
         body = {"user_id": 1, "goal": {"muscle": 0.6, "strength": 0.4}, "focus": {"Push": "more", "Pull": {"x": 1}}, "approach": "everything",
                 "height_cm": "tall", "weight_kg": 82.5, "notes": "x" * 9000, "language": "xx"}
         self.assertEqual(self.lan_call("/api/goal", self.athlete, method="POST", body=body)[0], 200)

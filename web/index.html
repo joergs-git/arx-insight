@@ -407,6 +407,8 @@
       <div class="grid-prog" id="ckSore" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px"></div></div>
     <div class="field"><label id="ck_rhr_l">Resting heart rate (optional)</label>
       <input type="number" id="ckRhr" min="30" max="150" placeholder="bpm"><div class="foot" id="ck_rhr_hint" style="margin-top:6px"></div></div>
+    <div class="field"><label id="ck_min_l">Time today (optional)</label><div class="segbig" id="ckMinutes"></div>
+      <div class="foot" id="ck_min_hint" style="margin-top:6px"></div></div>
     <div class="field"><label id="ck_pain_l">Pain today?</label>
       <div class="grid-prog" id="ckPain" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px"></div></div>
     <div style="display:flex;gap:12px;margin-top:10px">
@@ -826,13 +828,15 @@ $("#r_limits").addEventListener("click",openLimits);
 // soreness, and hands it to the coach. Stored per person in goals.json (local, git-ignored).
 const CK_REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["arms","Arme","Arms"],["shoulders","Schultern","Shoulders"]];
 const CK_LEVELS=["none","mild","strong"];
-let CK={sleep:null,energy:null,soreness:{},rhr:"",pain:[]}, CK_BASE=null, CK_DATE=null, CK_ORIGIN="gate";
+let CK={sleep:null,energy:null,soreness:{},rhr:"",pain:[],minutes:null}, CK_BASE=null, CK_DATE=null, CK_ORIGIN="gate";
 function ckLabels(){const de=CFG.language==="de";
   $("#ck_h").textContent=de?"Wie geht es dir heute?":"How do you feel today?";
   $("#ck_sub").textContent=de?"20 Sekunden. Der Coach richtet Intensität und Auswahl danach.":"20 seconds. The coach sets today's intensity and selection by it.";
   $("#ck_sleep_l").textContent=de?"Schlaf":"Sleep"; $("#ck_energy_l").textContent=de?"Energie":"Energy";
   $("#ck_sore_l").textContent=de?"Muskelkater — Region antippen (keiner · leicht · stark)":"Muscle soreness — tap a region (none · mild · strong)";
   $("#ck_rhr_l").textContent=de?"Ruhepuls (optional)":"Resting heart rate (optional)";
+  $("#ck_min_l").textContent=de?"Zeit heute (freiwillig)":"Time today (optional)";
+  $("#ck_min_hint").textContent=de?"Eine Obergrenze nur für heute: Passt der Plan nicht hinein, fallen zuerst Zusatzsätze weg, dann die Übungen, die am ehesten warten können. Mehr Zeit macht den Plan nicht länger - das stellst du im Profil ein.":"An upper limit for today only: if the plan does not fit, extra sets go first, then the exercises that can wait best. More time does not make the plan longer - that is set in the profile.";
   $("#ck_pain_l").textContent=de?"Schmerzen heute? Körperteil antippen (gilt nur für heute)":"Pain today? Tap the body part (today only)";
   $("#ckSkip").textContent=de?"Heute überspringen":"Skip today"; $("#ckSave").textContent=de?"Speichern & Report":"Save & report";
   $("#ck_rhr_hint").textContent=CK_BASE
@@ -851,8 +855,11 @@ function renderCheckin(){const de=CFG.language==="de";
   $("#ckPain").innerHTML=BODYPARTS.map(([k,d,e])=>{const on=CK.pain.includes(k);
     return `<button class="excard" data-k="${k}" style="text-align:center;border-color:${on?'var(--accent)':'var(--rule2)'};background:${on?'rgba(255,106,82,.12)':'var(--panel)'};min-height:70px;padding:10px"><div class="exname" style="font-size:17px">${de?d:e}</div><div class="meta" style="color:${on?'var(--accent)':'var(--ink3)'};font-weight:600">${on?(de?'SCHMERZ':'PAIN'):'—'}</div></button>`;}).join("");
   $("#ckRhr").value=CK.rhr||"";
+  const ws=(REPORT&&REPORT.plan&&REPORT.plan.profile&&REPORT.plan.profile.window_sizes)||{};
+  $("#ckMinutes").innerHTML=[null,15,20,30,45,60,75,90].map(m=>`<button data-v="${m||''}" aria-pressed="${(CK.minutes||null)===m}" style="min-width:${m?84:150}px;padding:0 6px">${m?m+' min':(de?'wie üblich':'as usual')}${m&&ws[m]?`<br><small style="font-weight:400">≈ ${ws[m]} ${de?'Übungen':'exercises'}</small>`:''}</button>`).join("");
 }
 $("#ckSleep").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.sleep=CK.sleep===b.dataset.v?null:b.dataset.v;renderCheckin();});
+$("#ckMinutes").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.minutes=b.dataset.v?+b.dataset.v:null;renderCheckin();});
 $("#ckEnergy").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.energy=CK.energy===b.dataset.v?null:b.dataset.v;renderCheckin();});
 $("#ckSore").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k,cur=CK.soreness[k]||"none",nxt=CK_LEVELS[(CK_LEVELS.indexOf(cur)+1)%3];if(nxt==="none")delete CK.soreness[k];else CK.soreness[k]=nxt;renderCheckin();});
 $("#ckPain").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k;CK.pain=CK.pain.includes(k)?CK.pain.filter(x=>x!==k):[...CK.pain,k];renderCheckin();});
@@ -865,13 +872,13 @@ async function gateCheckin(){                 // once per day, skippable; then t
 async function openCheckin(origin,ck){
   CK_ORIGIN=origin||"report"; if(!ck) ck=await api("/api/checkin?user_id="+CUR.id);
   const c=ck.checkin||{};
-  CK={sleep:c.sleep||null,energy:c.energy||null,soreness:Object.assign({},c.soreness||{}),rhr:c.rhr||"",pain:[...(c.pain||[])]};
+  CK={sleep:c.sleep||null,energy:c.energy||null,soreness:Object.assign({},c.soreness||{}),rhr:c.rhr||"",pain:[...(c.pain||[])],minutes:c.minutes||null};
   CK_BASE=ck.rhr_baseline; CK_DATE=ck.date;
   CFG.language=(CUR&&CUR.language)||GLOBAL_LANG; ckLabels(); renderCheckin(); show("checkin");
 }
 $("#ckSkip").addEventListener("click",()=>{try{localStorage.setItem("arx_ck_skip_"+CUR.id,CK_DATE);}catch(e){} if(CK_ORIGIN==="report"){show("report");return;} loadReport();});
 $("#ckSave").addEventListener("click",async()=>{
-  const body={user_id:CUR.id,date:CK_DATE,sleep:CK.sleep,energy:CK.energy,soreness:CK.soreness,rhr:$("#ckRhr").value?+$("#ckRhr").value:null,pain:CK.pain};
+  const body={user_id:CUR.id,date:CK_DATE,sleep:CK.sleep,energy:CK.energy,soreness:CK.soreness,rhr:$("#ckRhr").value?+$("#ckRhr").value:null,pain:CK.pain,minutes:CK.minutes};
   await post("/api/checkin",body); loadReport();
 });
 $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
@@ -1192,6 +1199,7 @@ function checkinHtml(r){
     chips.push(chip(txt+regions,col));}
   if(rd.rhr){const rc=rd.rhr_status==='elevated'?'var(--accent)':rd.rhr_status==='raised'?'var(--warn)':rd.rhr_status?'var(--good)':'var(--ink2)';
     chips.push(chip(`${de?'Ruhepuls':'resting HR'} ${rd.rhr}${rd.rhr_baseline?` (${rd.rhr_diff>0?'+':''}${rd.rhr_diff} vs ${rd.rhr_baseline})`:(de?' · noch keine Basis':' · no baseline yet')}`,rc));}
+  if((r.checkin||{}).minutes) chips.push(chip(`⏱ ${de?'heute höchstens':'today at most'} ${r.checkin.minutes} min`,'var(--ink2)'));
   if(rd.pain&&rd.pain.length) chips.push(chip(`${de?'Schmerz':'pain'}: ${rd.pain.map(k=>{const b=BODYPARTS.find(x=>x[0]===k);return b?(de?b[1]:b[2]):k;}).join(', ')}`,'var(--accent)'));
   return `<div class="verdict" style="border-left-color:${band[1]};background:var(--panel);margin-top:12px">
     <div class="big" style="color:${band[1]}">${rd.score==null?'—':rd.score}<small>Check-in</small></div>
@@ -1396,9 +1404,9 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
   const chooser=(pr.groups||[]).length>1?`<div class="field" style="margin:16px 0 0"><div class="foot" style="margin-bottom:8px">${de?'Nächste Einheit gezielt wählen (gilt einmal):':'Pick the next session yourself (applies once):'}</div>
     <div class="segbig" id="ngSeg"><button data-g="" aria-pressed="${!act.length}" style="min-height:48px;font-size:16px">${de?'Automatisch':'Automatic'}</button>${pr.groups.map(gp=>`<button data-g="${esc(gp)}" aria-pressed="${act.includes(gp)}" style="min-height:48px;font-size:16px">${esc(GN[gp]||gp)}</button>`).join("")}</div></div>`:'';
   const ts=plan.today_session;
-  const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${sessionRowsHtml(ts)}</details>`:'';
+  const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${ts.time_window?interpHtml(ts.time_window.interp,'warn'):''}${sessionRowsHtml(ts)}</details>`:'';
   return `<section id="plan4" style="padding-top:8px">
-    ${hero}<div id="coach_next"></div>${plan.training_break?interpHtml(plan.training_break.interp,'warn'):''}${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
+    ${hero}<div id="coach_next"></div>${ns.time_window?interpHtml(ns.time_window.interp,'warn'):''}${plan.training_break?interpHtml(plan.training_break.interp,'warn'):''}${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
     <div id="planRows">${sessionRowsHtml(ns)}</div>
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}
