@@ -59,16 +59,21 @@ and shows you what actually happened — and what to do next.
 - 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
 - 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. 20 questions per report, 40 a day.
 - 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver.
+- 📱 **On your phone, by QR code** (v0.6.0, opt-in) — switch on **Phone access** at the PC and scan a code: the **trainer code** opens the whole app on a phone in the same Wi-Fi; an **athlete code** opens exactly one person's report, check-in, profile, coach analysis and **live chat with the coach** (ask about the plan you just got, standing at the machine) — and nothing else. Codes expire, can be renewed, replaced or revoked; API key, update, exit and the codes themselves stay PC-only; a minor's chat is off until the trainer allows it; the report can be downloaded as one file that opens anywhere.
 - ⏸️ **Breaks are understood** (v0.5.1) — more than two weeks away is named as what it is. Up to about three weeks nothing is lost: the plan simply continues and holds your numbers for one session. After a longer break your old values are only an orientation — what you reach is the new starting point, and it comes back much faster than it was built. The app never makes you "catch up" with extra sets or sessions (no evidence that this helps), and if your real attendance is too low for a split it plans fuller sessions until your rhythm is back.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
 
 <p align="center"><i>Example report (anonymized):</i></p>
 <p align="center">
-  <img src="docs/last-session.png" alt="Last session: each exercise vs the previous time, with the previous curve as a ghost" width="80%">
-  <img src="docs/readiness.png" alt="Check-in score and muscle-level readiness" width="80%">
-  <img src="docs/checkin.png" alt="The 20-second daily check-in" width="60%">
-  <img src="docs/progress.png" alt="Progress per exercise with ROM validity, and the whole-body factor" width="80%">
-  <img src="docs/next-training.png" alt="The plan: when and why, exercises in order with targets, effort, rests, the clean measurement of the session, and the next 10 days" width="60%">
+  <img src="docs/last-session.png" alt="Chapter 1 - last session: each exercise vs the previous time, force curve by phase, the run of the reps" width="80%">
+  <img src="docs/next-training.png" alt="Chapter 2 - the plan: when and why, exercises in order with targets, effort, rests, the clean measurement of the session, and the next 10 days" width="60%">
+  <img src="docs/history.png" alt="Chapter 3 - what stands out in your data (each with what it means and what to do), and progress per exercise" width="80%">
+  <img src="docs/checkin.png" alt="The 20-second daily check-in" width="50%">
+</p>
+<p align="center"><i>On the phone (v0.6.0): the report through an athlete code, and the Phone dialog at the PC (demo address and code):</i></p>
+<p align="center">
+  <img src="docs/phone-report.png" alt="The report on a phone through an athlete code: own data only, chapters in a bottom bar, Ask opens the coach chat" width="32%">
+  <img src="docs/phone-access.png" alt="Phone access at the PC: switch, network, firewall rule, trainer QR code, connected devices" width="46%">
 </p>
 
 ## Install on Windows (plug and play)
@@ -92,7 +97,8 @@ Next time, just use the Desktop shortcut (or `Start ARX Insight.bat`).
 On first launch you set language, units, your weekly training target, and — optionally — your
 Claude API key (for the AI coach). Then search a person by name, set a training goal with two
 simple sliders, flag any limitations, answer the 20-second check-in (how you feel today — skippable),
-and read the report. **Exit** returns you to the search screen.
+and read the report. **Exit** returns you to the search screen. The start screen also has
+**📱 Phone access** (off by default) and tells you when a new version is available.
 
 ## Run it manually (macOS / Linux / advanced)
 
@@ -117,24 +123,51 @@ Or generate just the report data (no UI): `python arx_report.py --db "..." --ai`
 | `arx_plan.py` | The ONE plan: date, selection, clean measurement, order, targets, helper budget, week plan, plan ledger |
 | `arx_ai.py` | The AI coach: name-free payload, structured board (JSON schema), rule validation + repair + engine fallback, memory of delivered boards, background jobs, chat; `ARX_AI_FAKE=ok` runs everything without a key |
 | `arx_app.py` | Tiny local web server + the touch UI in `web/` |
+| `arx_access.py` | Who may do what: trainer code, one athlete code per person (expiry, renew / replace / revoke, chat switch, daily AI allowance), wrong-code limiter, one-time download tickets |
+| `arx_lan.py` | The opt-in phone listener: bound to ONE private network address (never to all), follows a changed address, Windows adapter / network-profile / firewall checks |
+| `web/vendor/qrcode.js` | QR Code Generator by Kazuhiko Arase (MIT licence, unchanged from npm `qrcode-generator` 1.4.4) — draws the codes in the browser, nothing is sent anywhere |
+| `windows/firewall.ps1` | On demand only (button in the Phone dialog, UAC prompt): one inbound rule for the app's ports, local subnet, private networks |
 | `arx_update.py` | One-click update: downloads the release ZIP from this GitHub page, checks it (newer version, expected files, no path outside the target), unpacks it next to your settings and runs its installer — only after a click on the PC itself |
 | `exercises.json` | ARX Omni catalog: exercise code → name / group / targets / limiters / joints / possible grip aids, plus a small library of exercises nobody has mapped yet |
 | `meanings.json` | The "what it means → what to do" sentences for every code (English / German) |
 | `science.json` | The evidence behind the planner's defaults, with verified references |
-| `config.json`, `goals.json`, `plans.json`, `ai/` | Your settings, per-person profiles / check-ins / optional body log, the plan ledger, and the coach's delivered boards + chat transcripts (kept **out** of git, in your data folder) |
+| `config.json`, `goals.json`, `plans.json`, `access.json`, `ai/` | Your settings, per-person profiles / check-ins / optional body log, the plan ledger, the phone codes, and the coach's delivered boards + chat transcripts (kept **out** of git, in your data folder) |
 | `tests/` | `python -m unittest discover -s tests -t .` — synthetic data only |
 
 The ARX database is never modified — the tool always works on a temporary copy.
 
 ## Privacy
 
-Everything runs on your machine. Your API key lives only in the local, git-ignored `config.json`.
-The AI request contains **only aggregated, name-free metrics** — never a person's name, date of
-birth, height, weight or free-text note. Two things are switchable in ⚙ Settings: an **age band +
-sex** ("50-59, male"; on by default, for age-appropriate advice) and **relative body changes**
-("weight −1.7 % in 38 days"; off by default, never absolute values). The database, your keys,
-profiles, check-ins, the optional body log, the plan ledger and generated reports are all
-git-ignored and never leave the machine.
+**Local by default.** Everything runs on your machine; the app listens on `localhost` only. Your API
+key lives only in the local, git-ignored `config.json`. The database, your keys, profiles, check-ins,
+the optional body log, the plan ledger, the phone codes and generated reports never leave the machine.
+
+**What goes to Anthropic (only if you store an API key).** The AI request contains **only aggregated,
+name-free metrics** — never a person's name, date of birth, height, weight or free-text note. Two
+things are switchable in ⚙ Settings: an **age band + sex** ("50-59, male"; on by default, for
+age-appropriate advice) and **relative body changes** ("weight −1.7 % in 38 days"; off by default,
+never absolute values). `python arx_report.py --ai-payload out.json` writes exactly what would be
+sent, without sending it.
+
+**Phone access (v0.6.0) is opt-in and off by default.** When you switch it on at the PC, the app
+opens a second listener on **one private address of your local network** (never on all interfaces,
+never on a public address) — so it is reachable from the same Wi-Fi / LAN, not from the internet.
+- **Every request there needs a code** from a QR code. The code travels in the address *fragment*
+  (`#t=…`, which browsers never send to a server) and afterwards in a request header — not in a URL,
+  not in a log. A wrong code is answered like no code; repeated wrong codes block that device for a while.
+- **Two kinds of code.** *Trainer*: everything a phone should do. *Athlete*: exactly one person's
+  report, check-in, profile / goals, coach analysis and chat — any other person is refused, the
+  surname and the birth date are not sent to that phone, the downloaded file carries a date, not a name.
+  An athlete code lasts 90 days (renew / replace / revoke at the PC), has a small daily AI allowance
+  (your key pays), and for a **minor the chat is off** until you switch it on.
+- **PC-only, whatever code a phone shows:** entering the API key, updating, exiting, switching phone
+  access on or off, and creating, showing or changing codes.
+- **Plain HTTP inside your network.** There is no certificate on a home network, so the connection is
+  not encrypted: use it in a Wi-Fi you trust (WPA2/3, no open or guest network), and **never forward
+  the port in your router** — the app is not built to face the internet. Switch phone access off when
+  you do not need it; the start screen always shows whether it is on.
+- The codes are stored readable in `access.json` next to `config.json` (so a QR code can be shown
+  again); whoever can read that folder on the PC can read them — like the API key.
 
 ## Disclaimer
 
@@ -318,9 +351,43 @@ over HTTPS, checks it (a newer version, the files a release must have, nothing t
 outside its folder), unpacks it into `%LOCALAPPDATA%\ARXInsight\app\` and runs its installer, which
 refreshes the packages, re-points the shortcuts and starts the new version; the running one closes
 by itself. Your settings, goals and environment are kept, the previous version stays as a fallback.
-It never updates silently, and the button only works on the PC itself — never from a phone. The
+It never updates silently, and the button only works on the PC itself — never from a phone (the phone shows that a new version exists, nothing more). The
 manual way (download the ZIP, run the installer) keeps working. Versions before 0.4.1 need the
 manual way once.
+
+**How do I get the report onto my phone?** *(v0.6.0)*
+At the PC: start screen → **📱 Phone access** → **Switch on**. Windows may ask whether Python may
+communicate on your network — allow it for **private** networks. Scan the **trainer code** with the
+phone camera (the phone must be in the same Wi-Fi) and the app opens in the phone's browser; "Add to
+Home Screen" makes it an icon. For an athlete: open their report at the PC → **📱 Phone** → let them
+scan *their* code — it shows only their own data. On the phone the three chapters sit in a bottom
+bar, **Ask** opens the live chat with the coach, **⬇ File** downloads the report as one HTML file
+(opens anywhere without the app; "Print → Save as PDF" works from there), and "Forget the access on
+this device" at the bottom removes the code from that phone.
+
+**The phone cannot open the page — what now?**
+In this order: (1) same Wi-Fi as the PC — not a guest network (guest networks keep devices apart);
+(2) Windows network profile **Private** (Settings → Network → your Wi-Fi) — on a *Public* network
+the firewall blocks phones, the Phone dialog warns about it; (3) the firewall: press **Allow in
+Windows Firewall** in the Phone dialog (one rule for the app's ports, local subnet only; Windows asks
+for administrator rights). If you once clicked *Cancel* in the Windows prompt, Windows created a
+block rule for Python — the button switches exactly that rule off; (4) VPN off on phone and PC;
+(5) the PC must be awake; (6) after a router restart the PC's address may have changed — scan the
+code again, or give the PC a fixed address in the router. The dialog lists the devices that
+connected, so you see at once whether a scan worked.
+
+**How do I take a code away again?**
+Athlete: their report → **📱 Phone** → **Revoke** (gone at once) or **Replace the code** (a new QR
+code, the old phone is logged out). Trainer: **📱 Phone access** → **Replace the code**. An athlete
+code expires by itself after 90 days; **Renew** extends the same code, so the phone does not have to
+scan again. Switching phone access off closes the door for everyone without deleting any code.
+
+**Is phone access safe?**
+It is built for a home or gym network you trust: one private address, a random 192-bit code per
+device, the athlete code pinned to one person, PC-only functions, no cross-site access, and a browser
+policy that blocks foreign scripts, frames and connections. It is **not** encrypted (plain HTTP — see *Privacy*) and must never
+be reachable from the internet. If that is not good enough for your setting, leave it off: the app
+works exactly as before.
 
 **Can it put an icon into the taskbar?**
 The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on
