@@ -324,8 +324,12 @@ within the engine's rules (see *Can the AI invent exercises or numbers?*).
 Because a coach would. Sleep, energy, soreness per region, resting heart rate and pain take 20
 seconds and change today's plan: strong soreness blocks that region, an elevated resting HR
 (more than ~7 bpm above your own baseline, which forms after three morning values) or poor sleep
-means a light day, pain makes a body part *careful* for today. You can skip it; it is asked once
-per day and editable from the report (☀ Check-in). Everything stays in the local `goals.json`.
+means a light day, pain makes a body part *careful* for today. An **ordinary day** — sleep ok,
+energy ok, nothing sore — is a full training day (since v0.8.4 the middle answers no longer make a
+session lighter); only a clearly worse signal does, and then the plan says so in plain words: *one
+exercise fewer and no all-out sets because of the check-in — not a question of time*. You can skip
+it; it is asked once per day and editable from the report (☀ Check-in). Everything stays in the
+local `goals.json`.
 
 **What does "limited" mean for an exercise?**
 Its target muscles are recovered, but a *limiter* — the grip, the elbow flexors, the triceps on a

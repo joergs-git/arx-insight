@@ -1329,5 +1329,15 @@
    "en": "Do the first exercise properly rather than both in a hurry - it is the one that matters most today. Left for next time: {left}.",
    "de": "Lieber die erste Übung richtig als beide in Eile - sie ist die, die heute am meisten zählt. Für das nächste Mal bleibt: {left}."
   }
+ },
+ "size_checkin": {
+  "meaning": {
+   "en": "Today's check-in ({score} of 100) makes this a lighter session: {k} instead of {n} exercises and no all-out sets.",
+   "de": "Der Check-in von heute ({score} von 100) macht daraus eine leichtere Einheit: {k} statt {n} Übungen und keine Sätze bis ans Limit."
+  },
+  "action": {
+   "en": "That is a readiness rule, not a question of time - more minutes do not bring the exercise back. On a better day the full session is there again.",
+   "de": "Das ist eine Regel für deine Tagesform, keine Zeitfrage - mehr Minuten bringen die Übung nicht zurück. An einem besseren Tag ist die volle Einheit wieder da."
+  }
  }
 }

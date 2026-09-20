@@ -160,6 +160,18 @@ class Payload(unittest.TestCase):
         self.assertIn("never add rows or sets beyond it", prompt)
         self.assertGreaterEqual(ai.PROMPT_VERSION, 6)
 
+    def test_the_coach_knows_that_the_checkin_not_the_clock_made_today_smaller(self):
+        day = "2026-09-20"
+        report, cfg = make(today=day, checkin={"date": day, "sleep": "poor", "energy": "ok", "soreness": {}, "minutes": 90})
+        p = ai.build_payload(report, cfg)
+        said = p["planner"]["proposal"]["checkin_adjustment"] or p["planner"]["today_instead_adjustment"]
+        self.assertTrue(said and "check-in" in said.lower(), said)
+        self.assertEqual(p["readiness_today"]["minutes_available_today"], 90)
+        self.assertEqual(ai.lint_payload(p), [])
+        prompt = ai.system_prompt("board")[0]["text"]
+        self.assertIn("never promise more exercises for today because there is time", prompt)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 7)
+
     def test_the_system_prompt_is_static_and_carries_the_science(self):
         a, b = ai.system_prompt("board")[0]["text"], ai.system_prompt("board")[0]["text"]
         self.assertEqual(a, b)

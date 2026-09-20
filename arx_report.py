@@ -1260,7 +1260,11 @@ RHR_RAISED_BPM = 4             # resting HR this far above the baseline = mildly
 RHR_ELEVATED_BPM = 7           # ... clearly elevated: not recovered, or getting ill
 RHR_BASELINE_MIN = 3           # earlier values needed before a baseline exists
 RHR_BASELINE_N = 7             # baseline = median of the last N earlier values
-READINESS_BANDS = ((75, "go_hard"), (50, "moderate"), (0, "light_or_rest"))
+# go hard from 70 (v0.8.4; it was 75): sleep ok + energy ok + nothing sore = 73 is an ORDINARY day - the middle
+# answer is what most people tick when nothing is wrong, so it must not make a session lighter (the owner's rule
+# against middle bias). A day is "moderate" only when something is clearly off: poor sleep, low energy, soreness,
+# a raised resting heart rate.
+READINESS_BANDS = ((70, "go_hard"), (50, "moderate"), (0, "light_or_rest"))
 
 
 def _readiness(checkin: dict | None, rhr_history: list[dict] | None) -> dict | None:
