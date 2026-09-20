@@ -359,7 +359,6 @@ class Listener(unittest.TestCase):
         mgr.stop()
 
     def test_the_elevated_firewall_command_survives_odd_paths(self):
-        import base64
         cmd = lan.firewall_command(r"C:\Users\O'Neil Smith\app\windows\firewall.ps1", 8765, False, [r"C:\Program Files\Python312\python.exe"])
         self.assertIn("-Verb RunAs", cmd)
         self.assertNotIn("Hidden", cmd)                                      # what runs elevated shows its window (v0.8.3)
@@ -367,8 +366,31 @@ class Listener(unittest.TestCase):
         self.assertIn("'-Port','8765'", cmd)
         self.assertNotIn("-Remove", cmd)
         self.assertIn("'-Remove'", lan.firewall_command("x.ps1", 8765, True))
-        enc = lan.ps_encoded(cmd)
-        self.assertEqual(base64.b64decode(enc[-1]).decode("utf-16-le"), cmd)
+        # v0.8.5: the line travels as plain, readable text - possible because it contains no double quote at all
+        self.assertNotIn('"', cmd)
+        self.assertIn("[char]34", cmd)                                       # the quotes a path with spaces needs, made at run time
+        self.assertEqual(lan.ps_command(cmd, interactive=True), ["powershell", "-NoProfile", "-Command", cmd])
+        self.assertEqual(lan.ps_command("Get-Date")[:3], ["powershell", "-NoProfile", "-NonInteractive"])
+        self.assertNotIn('"', lan._PS_STATE)
+        with self.assertRaises(ValueError):
+            lan.ps_command('Write-Host "quoted"')
+
+    def test_nothing_in_the_release_looks_like_malware_without_a_reason(self):
+        """Windows security judged the release ZIP as a trojan (2026-09). Patterns that malware uses and we do not
+        need stay out: commands in encoded form, hidden windows for elevated commands, programs pinning
+        themselves to the taskbar, switching protection off. (The needles are put together here so that this
+        very file does not contain them.)"""
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        needles = ["-Encoded" + "Command", "-enc" + " ", "FromBase64" + "String", "-WindowStyle" + " Hidden", ".Do" + "It()",
+                   "Set-MpPre" + "ference", "Add-MpPre" + "ference", "DisableRealtime" + "Monitoring", "Invoke-Ex" + "pression", "| i" + "ex"]
+        shipped = [os.path.join(here, n) for n in os.listdir(here) if n.endswith((".py", ".bat", ".ps1"))]
+        shipped += [os.path.join(here, "windows", n) for n in os.listdir(os.path.join(here, "windows"))]
+        self.assertGreater(len(shipped), 12)
+        for path in shipped:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            for needle in needles:
+                self.assertNotIn(needle.lower(), text.lower(), f"{os.path.basename(path)}: {needle}")
 
 
 class Page(unittest.TestCase):

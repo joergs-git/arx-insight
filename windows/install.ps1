@@ -156,8 +156,9 @@ Say "Saved settings."
 # The shortcut target is cmd.exe running the launcher .bat: Windows offers "Pin to taskbar" only
 # for shortcuts to programs, not to .bat files. Every run re-points ALL ARX Insight shortcuts -
 # also one the user pinned to the taskbar - at THIS folder, so nothing keeps starting an old
-# version after an update. Windows 10/11 do not let a program pin itself to the taskbar; we try
-# the classic way, and if the icon is not pinned afterwards the app shows a one-time hint.
+# version after an update. Windows 10/11 do not let a program pin itself to the taskbar - and a
+# script that tries anyway (the old "pin" shell verb) is what adware does, so the installer does
+# not (v0.8.5): when no ARX Insight icon is pinned the app shows a one-time hint how to do it.
 function Set-ArxShortcut($lnkPath) {
     $ws = New-Object -ComObject WScript.Shell
     $lnk = $ws.CreateShortcut($lnkPath)
@@ -191,21 +192,10 @@ try {
     Set-ArxShortcut $startLnk
     Say "Start menu entry 'ARX Insight' is up to date."
     $pins = Get-ArxPins
-    if ($pins.Count -eq 0) {
-        # classic "pin to taskbar" verb - still there on some Windows builds, silently absent on others
-        try {
-            $sh = New-Object -ComObject Shell.Application
-            $item = $sh.Namespace((Split-Path $startLnk -Parent)).ParseName((Split-Path $startLnk -Leaf))
-            foreach ($v in $item.Verbs()) {
-                if ($v.Name.Replace("&", "") -match "Pin to taskbar|An Taskleiste anheften") { $v.DoIt(); Start-Sleep -Milliseconds 800 }
-            }
-        } catch {}
-        $pins = Get-ArxPins
-    }
     foreach ($p in $pins) { Set-ArxShortcut $p }
     $pinned = ($pins.Count -gt 0)
     if ($pinned) { Say "Taskbar icon is up to date." }
-    else { Say "Taskbar: Windows does not let apps pin themselves - the app shows how to do it with two clicks." }
+    else { Say "Taskbar: not pinned yet - the app shows how to do it with two clicks." }
 } catch { Warn "Could not create the shortcuts (not critical)." }
 # remember it for the app's one-time hint (settings file, keeps everything else)
 try {

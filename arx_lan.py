@@ -20,7 +20,7 @@ Plain HTTP inside the local network - the README says so, and that the router mu
 the port. Leaf module apart from arx_base. Public domain / CC0. No warranty.
 """
 from __future__ import annotations
-import os, sys, json, time, base64, socket, ipaddress, threading, subprocess
+import os, sys, json, time, socket, ipaddress, threading, subprocess
 
 WATCH_S = 20                       # how often the watchdog looks for a changed address
 PORT_TRIES = 6                     # the local port first, then the next ones
@@ -67,11 +67,16 @@ def has_address(ip: str) -> bool:
         s.close()
 
 
-def ps_encoded(script: str, interactive: bool = False) -> list[str]:
-    """Command line for a PowerShell script as -EncodedCommand (base64 of UTF-16LE): no quoting rules
-    of cmd / CreateProcess / PowerShell can mangle paths with spaces or quotes on the way."""
-    return (["powershell", "-NoProfile"] + ([] if interactive else ["-NonInteractive"])
-            + ["-EncodedCommand", base64.b64encode(script.encode("utf-16-le")).decode("ascii")])
+def ps_command(script: str, interactive: bool = False) -> list[str]:
+    """Command line for a PowerShell script handed over as PLAIN, READABLE TEXT after -Command (v0.8.5).
+    Until then the script travelled in PowerShell's encoded form: safe against quoting trouble, but that
+    is how malware hides its commands, and Windows security judged the whole release ZIP as a trojan (a
+    cloud verdict on the archive, no file named). Quoting cannot go wrong here either, because a script may not contain a double quote: Python
+    wraps the argument in double quotes and nothing inside needs escaping - PowerShell literals are
+    single-quoted, and where the NEW process needs a double quote it is written as [char]34."""
+    if '"' in script:
+        raise ValueError("a PowerShell script passed with -Command must not contain a double quote")
+    return ["powershell", "-NoProfile"] + ([] if interactive else ["-NonInteractive"]) + ["-Command", script]
 
 
 def _powershell(script: str) -> str | None:
@@ -79,7 +84,7 @@ def _powershell(script: str) -> str | None:
     if not IS_WINDOWS:
         return None
     try:
-        r = subprocess.run(ps_encoded("$ProgressPreference='SilentlyContinue'; " + script), capture_output=True, text=True,
+        r = subprocess.run(ps_command("$ProgressPreference='SilentlyContinue'; " + script), capture_output=True, text=True,
                            timeout=PS_TIMEOUT_S, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return r.stdout if r.returncode == 0 else None
     except Exception:
@@ -318,14 +323,16 @@ def interpreter_paths() -> list[str]:
 
 def firewall_command(script: str, port: int, remove: bool = False, programs: list[str] | None = None) -> str:
     """The PowerShell line that starts windows/firewall.ps1 ELEVATED (UAC prompt). Every path is a
-    single-quoted PowerShell literal (a quote inside is doubled) wrapped in double quotes for the
-    new process, so spaces and apostrophes in a user name do no harm."""
+    single-quoted PowerShell literal (a quote inside is doubled); the double quotes the new process
+    needs around a path with spaces are put on at run time ([char]34), so the line itself contains
+    none and can be passed as plain text (see ps_command)."""
     lit = lambda text: "'" + str(text).replace("'", "''") + "'"
-    args = ["'-NoProfile'", "'-ExecutionPolicy'", "'Bypass'", "'-File'", lit(f'"{script}"'), "'-Port'", lit(int(port))]
+    quoted = lambda text: "('{0}{1}{0}' -f [char]34," + lit(text) + ")"
+    args = ["'-NoProfile'", "'-ExecutionPolicy'", "'Bypass'", "'-File'", quoted(script), "'-Port'", lit(int(port))]
     if remove:
         args.append("'-Remove'")
     if programs:
-        args += ["'-Program'", lit('"' + ";".join(programs) + '"')]
+        args += ["'-Program'", quoted(";".join(programs))]
     # a visible window on purpose (v0.8.3): what runs with administrator rights shows itself and its messages
     return "Start-Process powershell -Verb RunAs -ArgumentList @(" + ",".join(args) + ")"
 
@@ -337,7 +344,7 @@ def firewall_helper(port: int, remove: bool = False) -> bool:
     if not IS_WINDOWS or not os.path.isfile(script):
         return False
     try:
-        subprocess.Popen(ps_encoded(firewall_command(script, port, remove, interpreter_paths()), interactive=True),
+        subprocess.Popen(ps_command(firewall_command(script, port, remove, interpreter_paths()), interactive=True),
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return True
     except Exception:

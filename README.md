@@ -427,9 +427,15 @@ It never updates silently, and the button only works on the PC itself — never 
 latest version, or that GitHub could not be reached. The manual way (download the ZIP, run the
 installer) keeps working. Versions before 0.4.1 need the manual way once.
 
-**Windows says the download contains a virus — what now?** *(v0.8.3)*
+**Windows says the download contains a virus — what now?** *(v0.8.3, v0.8.5)*
 That is the virus scanner's verdict on the ZIP (in the browser: "virus detected"; in the app: *Windows
-security blocked the update package*), not something the app can or should work around. ARX Insight
+security blocked the update package*), not something the app can or should work around. The case
+we know: in September 2026 Microsoft Defender's **cloud** classifier called the whole release ZIP
+`Trojan:Win32/Sprisky.U!cl` — a verdict on the archive, no file named (`!cl` = cloud, a statistical
+judgement, not a signature). v0.8.5 removed what such classifiers dislike and the app never needed:
+PowerShell commands handed over in encoded form (they travel as plain readable text now), a hidden
+window for the one command that asks for administrator rights, and the installer's attempt to pin
+itself to the taskbar; a test keeps these patterns out. ARX Insight
 is plain, readable source code — Python, one HTML page and four small Windows scripts (the installer
 downloads Python packages and the Firebird client and creates shortcuts; the optional firewall helper
 adds one rule for the phone access and only runs after your click and a Windows admin prompt).
