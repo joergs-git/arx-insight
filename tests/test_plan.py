@@ -82,12 +82,34 @@ class When(unittest.TestCase):
         self.assertIn("date_checkin_rest", [w["code"] for w in plan["next_session"]["why_this_date"]])
 
     def test_a_moderate_checkin_caps_effort_and_steps_today(self):
-        checkin = {"date": "2026-09-19", "sleep": "ok", "energy": "ok", "soreness": {}}     # 30 of 50 -> moderate
+        checkin = {"date": "2026-09-19", "sleep": "poor", "energy": "ok", "soreness": {}}   # 40 of 75 -> moderate
         plan = report(history([ROW, PRESS, SQUAT]), "2026-09-19", checkin=checkin)["plan"]
         sess = plan["next_session"] if plan["today"]["train_today"] else plan["today_session"]
         self.assertEqual(sess["date"], "2026-09-19")
         self.assertIn("checkin", sess["effort_caps"])
         self.assertTrue(all(it["effort_target"]["label"] != "deep" and it["step_pct"] == 0 for it in sess["exercises"]))
+
+    def test_an_ordinary_day_is_a_full_training_day(self):
+        """Owner (v0.8.4): sleep ok, energy ok, nothing sore is what people tick when nothing is wrong - the middle
+        answers must not make the session lighter. Only a clearly worse signal does - and then the plan says that
+        it was the check-in, not the clock."""
+        rows, day = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN]), "2026-09-20"
+        free = report(rows, day, session_minutes=40)["plan"]["next_session"]
+        ordinary = report(rows, day, session_minutes=40, checkin={"date": day, "sleep": "ok", "energy": "ok", "soreness": {}, "minutes": 90})
+        self.assertEqual(ordinary["readiness"]["band"], "go_hard")
+        self.assertEqual(names(ordinary["plan"]["next_session"]), names(free))            # the very same session, today
+        self.assertNotIn("checkin_cut", ordinary["plan"]["next_session"])
+        for lang in ("en", "de"):
+            off = report(rows, day, session_minutes=40, language=lang,
+                         checkin={"date": day, "sleep": "poor", "energy": "ok", "soreness": {}, "minutes": 90})
+            self.assertEqual(off["readiness"]["band"], "moderate")
+            plan = off["plan"]
+            today = plan["next_session"] if plan["today"]["train_today"] else plan["today_session"]
+            self.assertLess(len(today["exercises"]), len(free["exercises"]))              # lighter ...
+            cut = today["checkin_cut"]                                                    # ... and it says why: not the 90 minutes
+            self.assertEqual((cut["code"], cut["params"]["k"], cut["params"]["n"]), ("size_checkin", len(today["exercises"]), len(free["exercises"])))
+            self.assertNotIn("{", cut["text"]["meaning"] + cut["text"]["action"])
+            self.assertNotIn("time_window", today)                                        # 90 minutes were never the limit
 
     def test_an_athlete_without_history_gets_a_starter_session(self):
         plan = report([], "2026-09-18")["plan"]

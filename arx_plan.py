@@ -1140,6 +1140,10 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                                    "normal_minutes": fit["normal_minutes"],
                                    "interp": item(code, {"minutes": window, "k": len(kept), "n": len(fit["normal"]), "left": left or ["-"],
                                                          "est": sess["est_minutes"], "normal": fit["normal_minutes"]}, cfg)}
+        # a poor check-in makes a session planned for today smaller (session_size) - say that it was the CHECK-IN and
+        # not the clock: more minutes do not bring the exercise back (v0.8.4)
+        if b in BAND_FILL and o["date"] == today and not windowed and len(sess["exercises"]) < size_for(None):
+            sess["checkin_cut"] = item("size_checkin", {"score": score_today, "k": len(sess["exercises"]), "n": size_for(None)}, cfg)
         return sess
 
     def options(start: date, prev: date | None, st8: dict, counts: dict, pool_: list[dict], with_band: bool) -> list[dict]:
