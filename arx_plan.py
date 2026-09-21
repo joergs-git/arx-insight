@@ -86,6 +86,8 @@ DATE_SEARCH_DAYS = 10          # the next session is searched within this many d
 MIN_READY_EXERCISES = 2        # fewer ready exercises are not worth a session
 CADENCE_W = 0.35               # date score: deviation from the ideal gap (in ideal gaps) ...
 CADENCE_FREE_DAYS = 0.5        # ... beyond this many days
+SPLIT_EVENNESS_W = 0.01        # a split session SOONER than the rhythm while the week still needs sessions: only a
+                               # tie-breaker towards even spacing - consecutive days are what a split is for
 WEEK_W = 0.15                  # date score: the week's session target is still open ...
 WEEK_LAST_W = 0.15             # ... and this is one of the last days on which it can still be met
 HABIT_W = 0.10                 # date score: the athlete's usual weekday (only with a real pattern)
@@ -179,7 +181,7 @@ SCIENCE = {
     "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
-    "DUE_INTERVAL_RANGE": "frequency", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
+    "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
     "LIGHT_DAY_SHARE": "autoregulation", "REST_SCORE_BELOW": "autoregulation", "TRANSITION_TARGET_MIN": "paired_sets",
     "STRUCTURES": "split_vs_full_body", "split_factor": "split_vs_full_body", "theme_groups": "split_vs_full_body",
@@ -535,7 +537,8 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         if ps == "progressing":
             why.append(item("sel_progress", {"change_spct": (c["progress"] or {}).get("change_pct")}, cfg))
         urgent = sorted(m for m in c["muscles"] if m in urgent_now)
-        out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind,
+        sore = sorted(m for m in targets if today is not None and day == today and (state.get(m) or {}).get("sore") == "mild")
+        out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind, sore_muscles=sore,
                         urgent=urgent, urgent_weight=sum(URGENT_WEIGHT[c["muscles"][m]] for m in urgent),
                         why_selected=why, days_since_target=days_due, days_away=days_away, due_muscle=worst,
                         bench_rank=bench_rank.get(c["name"]) if can_bench else None))
@@ -558,9 +561,17 @@ def theme_groups(cands: list[dict], pool: list[dict], spw: int, structure: str =
         return None
     trained = {c["group"] for c in pool if not c["new"]}                  # what the athlete really does
     best: dict = {}
+    fresh: set = set()                             # groups with at least one known exercise that is fully ready
     for c in cands:
         if c["score"] > 0:                         # a never-performed exercise alone does not make a group "due"
             best[c["group"]] = max(best.get(c["group"], 0.0), c["score"] * (0.01 if c["new"] else 1.0))
+            if c["status"] == "ready" and not c["new"]:
+                fresh.add(c["group"])
+    # a group whose exercises are only "limited" (a helper muscle not fresh yet) does not make the theme while another
+    # group is fully ready: a rested group trains today, the limited one gets its turn fresh - instead of a half
+    # session that waits for the helper and pushes the rested group back by days (v0.8.6)
+    if fresh:
+        best = {g: s for g, s in best.items() if g in fresh}
     k = max(1, math.ceil(len(trained | {g for g in best if any(not c["new"] for c in cands if c["group"] == g)}) / k_split))
     return sorted(sorted(best, key=lambda g: (-best[g], g))[:k])
 
@@ -791,7 +802,10 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         return out
     if c["status"] == "limited":
         out["target_rule"] = "sub_max_limiter"
-        out["interp"] = item("plan_submax_limited", {"muscle": (c.get("limited_by") or [None])[0]}, cfg)
+        if c.get("sore_muscles"):                  # the check-in: mild soreness in a target muscle - today only
+            out["interp"] = item("plan_submax_sore", {"muscle": c["sore_muscles"][0]}, cfg)
+        else:
+            out["interp"] = item("plan_submax_limited", {"muscle": (c.get("limited_by") or [None])[0]}, cfg)
         return out
     if band == "light_or_rest":
         out["target_rule"], out["target_peak_kg"] = "light_day", round(base["kg"] * LIGHT_DAY_SHARE, 1)
@@ -905,7 +919,9 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
     chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1))
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
-    if len(ready) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
+    # a day on which everything is only "limited" (mild soreness, a helper not fresh) is still a possible day - a
+    # sub-maximal one, worth half (fill) - not "no session": mild soreness must not act like strong soreness (v0.8.6)
+    if len(chosen) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
         return None
     want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and c["group"] in theme)))
     fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
@@ -1162,7 +1178,15 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             open_week = missing > 0
             last_chance = open_week and (6 - d.weekday()) < missing and counts.get(d.isocalendar()[:2], 0) > 0
             fill = sel["fill"] * BAND_FILL.get(b, 1.0)
-            score = (fill - CADENCE_W * off + (WEEK_W if open_week else 0.0) + (WEEK_LAST_W if last_chance else 0.0)
+            # Too rare is always measured against the rhythm. Too SOON only holds a full-body session back: a split
+            # session trains other muscles than the last one - consecutive days are its point (science.json:
+            # split_vs_full_body) - so while the week still needs sessions it costs next to nothing (v0.8.6; before,
+            # the legs waited three days although they were rested, and the week fell short of its target)
+            if gap is not None and gap < ideal_gap and sel["theme"] is not None and open_week:
+                cadence = SPLIT_EVENNESS_W * (ideal_gap - gap) / ideal_gap
+            else:
+                cadence = CADENCE_W * off
+            score = (fill - cadence + (WEEK_W if open_week else 0.0) + (WEEK_LAST_W if last_chance else 0.0)
                      + (HABIT_W if d.weekday() in habit else 0.0))
             out.append(dict(sel, band=b, gap_days=gap, open_week=open_week, last_chance=last_chance, habit=d.weekday() in habit,
                             score=round(score, 3), fill_effective=round(fill, 2)))

@@ -331,6 +331,22 @@ exercise fewer and no all-out sets because of the check-in — not a question of
 it; it is asked once per day and editable from the report (☀ Check-in). Everything stays in the
 local `goals.json`.
 
+**Three sessions a week — why does the plan not wait for the "rhythm"?** *(v0.8.6)*
+Three a week means every other day, not three days in a row at the end of the week. In a split
+(from three sessions a week) a session trains other muscles than the last one, so the day after an
+upper-body session is exactly when rested legs are due — the plan takes it, and it does not wait
+until a second group is fresh either: a group whose exercises are only *limited* (a helper such as
+the biceps still recovering) gets its turn fresh, the rested group trains now. Only a full-body
+session is held back when it comes sooner than the rhythm; the muscle-level recovery decides the
+rest. The week outlook then reads Mon · Wed · Fri, not Wed · Sat · Tue.
+
+**Mild or strong soreness — what is the difference?**
+Strong soreness in a region blocks its exercises for the day, whatever the calendar says. Mild
+soreness keeps them: the exercise is *limited* — sub-maximal, by feel, no target number, and the
+plan says why. Since v0.8.6 such a day is still a possible training day ("training today anyway":
+the sore muscles sub-maximal); the full session is recommended for the next fresh day. Both also
+count in the readiness score (mild costs half the soreness points, strong all of them).
+
 **What does "limited" mean for an exercise?**
 Its target muscles are recovered, but a *limiter* — the grip, the elbow flexors, the triceps on a
 press — is not fresh yet (for example after a deep Biceps Curl two days ago). You can train it

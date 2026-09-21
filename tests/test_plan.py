@@ -686,6 +686,67 @@ class SessionSize(unittest.TestCase):
             self.assertEqual(names(turns["next_session"]), names(alone["next_session"]))   # the plan itself does not change
 
 
+class SplitRhythm(unittest.TestCase):
+    """v0.8.6 (owner): three sessions a week means every other day - a rested group trains the day after a session
+    of the OTHER group; it does not wait until a limited group is fresh, and the week does not fall short."""
+    UPPER, LEGS = [PRESS, DECLINE, ROW, PULLDOWN, CURL, PRESSDOWN], [SQUAT, DEADLIFT]
+    HOOKS = {"10": {"aids": ["hooks"], "since": "2026-09-01"}}             # the grip is no limiter of the dead lift
+
+    def rows(self):
+        out, sid = [], 100
+        for d, ex in ((8, self.UPPER), (10, self.LEGS), (12, self.UPPER), (14, self.LEGS), (16, self.UPPER), (18, self.LEGS), (20, self.UPPER)):
+            out += session(datetime(2026, 9, d, 10), ex, first_id=sid)
+            sid += 20
+        return out
+
+    def test_a_rested_group_trains_the_day_after_the_other_groups_session(self):
+        plan = report(self.rows(), "2026-09-21", sessions_per_week=3, session_minutes=60, aids=self.HOOKS)["plan"]
+        sess = plan["next_session"]
+        self.assertIn(sess["date"], ("2026-09-21", "2026-09-22"))             # legs were rested for three days: now, not in three days
+        self.assertEqual({it["group"] for it in sess["exercises"]}, {"Drive"})
+        dates = [date.fromisoformat(w["date"]) for w in plan["week_plan"]]
+        gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
+        self.assertGreaterEqual(len([d for d in dates if (d - dates[0]).days < 7]), 3)   # three in the first seven days
+        self.assertTrue(all(g <= 3 for g in gaps), gaps)                        # every other day, never bunched at the end
+        self.assertIsNone(plan["cadence_note"])
+        groups = [set(CATALOG[c]["group"] for c in CATALOG if CATALOG[c]["name"] in w["exercises"]) for w in plan["week_plan"]]
+        self.assertTrue(all(a != b for a, b in zip(groups, groups[1:])), groups)            # the split rotates
+
+    def test_a_limited_group_does_not_delay_a_fresh_one(self):
+        """The upper body was trained deep yesterday; the legs are fresh. A Drive+Pull day whose rows would only be
+        'limited' (biceps not fresh) must not push the legs back - legs today, the rows fresh on their day."""
+        plan = report(self.rows(), "2026-09-21", sessions_per_week=3, session_minutes=60, aids=self.HOOKS)["plan"]
+        first, second = plan["week_plan"][0], plan["week_plan"][1]
+        self.assertFalse({"Row", "Pull Down", "Biceps Curl"} & set(first["exercises"]))
+        self.assertLessEqual((date.fromisoformat(second["date"]) - date.fromisoformat(first["date"])).days, 3)
+
+
+class Soreness(unittest.TestCase):
+    """Mild soreness takes the all-out set away for the day; strong soreness takes the exercise away."""
+    def test_mild_is_a_sub_maximal_day_and_strong_is_a_day_off_for_that_muscle(self):
+        rows, hooks = SplitRhythm().rows(), SplitRhythm.HOOKS
+        free = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks)["plan"]
+        self.assertIn(free["next_session"]["date"], ("2026-09-21", "2026-09-22"))
+        self.assertEqual([o["date"] for o in free["date_options"]][:1], ["2026-09-21"])   # today is a possible day
+        mild = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks,
+                      checkin={"date": "2026-09-21", "sleep": "good", "energy": "high", "soreness": {"legs": "mild"}})["plan"]
+        strong = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks,
+                        checkin={"date": "2026-09-21", "sleep": "good", "energy": "high", "soreness": {"legs": "strong"}})["plan"]
+        # mild: the legs may work today, sub-maximal, and the plan says why - the full session is recommended later
+        today = mild["next_session"] if mild["next_session"]["date"] == "2026-09-21" else mild["today_session"]
+        self.assertIsNotNone(today)                                            # "training today anyway": yes, sub-maximal
+        legs = [it for it in today["exercises"] if it["group"] == "Drive"]
+        self.assertTrue(legs)
+        for it in legs:
+            self.assertEqual((it["status"], it["effort_target"]["label"], it["target_peak_kg"], it["interp"]["code"]), ("limited", "submax", None, "plan_submax_sore"))
+            self.assertNotIn("_", it["interp"]["text"]["meaning"] + it["interp"]["text"]["action"])
+        # strong: no leg exercise today at all
+        self.assertFalse(strong["today"]["train_today"])
+        blocked = strong["today_session"]
+        self.assertTrue(blocked is None or not [it for it in blocked["exercises"] if it["group"] == "Drive"])
+        self.assertNotEqual([o["date"] for o in mild["date_options"]][:1], [o["date"] for o in strong["date_options"]][:1])
+
+
 class TimeWindow(unittest.TestCase):
     """v0.8.1 (owner): the check-in may carry "minutes I have today" - an upper limit for a session planned for
     today. It never makes a plan longer; a plan that does not fit is cut in a sensible order."""
