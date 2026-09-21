@@ -1082,14 +1082,15 @@
    "title": "Rest between sessions for the same muscle",
    "statement": "Training to failure slows recovery: in trained men neuromuscular performance stayed reduced for up to 24-48 h after sets to failure, while non-failure protocols, even with the same total volume, recovered significantly faster; muscle function remained reduced at 48 h especially when sets to failure contained many repetitions. Muscle protein synthesis is more than doubled at 24 h and almost back to baseline by 36 h after heavy training. Nevertheless two trials of three full-body sessions on consecutive vs non-consecutive days found similar strength and body-composition gains over 7-12 weeks, so 48-72 h spacing is convention rather than a demonstrated requirement at moderate effort. After unaccustomed maximal eccentric work, recovery can take many days (see topic 6), and hypertrophy relates to protein synthesis only once early muscle damage has attenuated. No study tested recovery from a single all-out eccentric-overloaded set in accustomed users.",
    "practical_rule": "After an all-out set to failure allow about 48 h before loading the same muscle hard again, and longer while eccentric work is still new or soreness persists; other muscles can be trained sooner. Judge readiness by performance and soreness rather than by a fixed calendar.",
-   "applied_as": "Rest per muscle after a load: deep 3 days, moderate 2, sub-maximal 1; helper muscles (limiters) one level lower. Different muscles can be trained on consecutive days. The athlete's own recovery response is measured and shown next to the default.",
+   "applied_as": "Rest per muscle after a load follows the fatigue that was produced (v0.11.0): a deep set (force drop of 20 % or more, failure-like, with the machine's eccentric overload) 3 days; a set below that line - moderate or sub-maximal, i.e. not taken to failure - 1 day, because that is what the recovery studies show for non-failure sets; helper muscles (limiters) one level lower. A session whose sets missed the effort target therefore causes no rest debt: the plan may re-plan the same exercises the next day (\"again, properly\"), and while the session is still open the report says \"once more, now\". Different muscles can be trained on consecutive days. The athlete's own recovery response is measured and shown next to the default.",
    "arx_caveat": "The studies report reduced performance for up to 48 h after conventional sets to failure. The third day after a DEEP set is this app's own margin for maximal eccentric efforts, which those studies did not test - a default, not a finding.",
    "parameters": [
     "arx_base.REQUIRED_REST",
-    "arx_evidence.RECOVERY_BANDS"
+    "arx_evidence.RECOVERY_BANDS",
+    "arx_plan.REPEAT_SOON_DAYS"
    ],
    "evidence_level": "moderate",
-   "reviewed": "2026-09-18",
+   "reviewed": "2026-09-21",
    "references": [
     {
      "authors": "Morán-Navarro R, Pérez CE, Mora-Rodríguez R, et al.",

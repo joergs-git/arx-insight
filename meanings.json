@@ -1419,5 +1419,35 @@
    "en": "Same force ({target_kg}); tempo and pauses are exhausted, so {reps_from} → {reps_to} repetitions. The comparison basis starts anew.",
    "de": "Gleiche Kraft ({target_kg}); Tempo und Pausen sind ausgereizt, also {reps_from} → {reps_to} Wiederholungen. Die Vergleichsbasis beginnt neu."
   }
+ },
+ "repeat_now_panel": {
+  "meaning": {
+   "en": "Still on the machine? That was a strength test, not a stimulus - {exercises}: below the {target_pct} force drop your goal asks for.",
+   "de": "Noch am Gerät? Das war ein Krafttest, kein Reiz - {exercises}: unter den {target_pct} Kraftabfall, die dein Ziel verlangt."
+  },
+  "action": {
+   "en": "Once more, now, properly: all-out from the first repetition, and the set ends when the force breaks down - not when the repetitions are over. A set without fatigue costs no rest, so nothing is lost by repeating it.",
+   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz ohne Ermüdung kostet keine Erholung, wiederholen kostet also nichts."
+  }
+ },
+ "repeat_now": {
+  "meaning": {
+   "en": "{last_pct} force drop - below the {target_pct} your goal asks for: no stimulus yet.",
+   "de": "{last_pct} Kraftabfall - unter den {target_pct}, die dein Ziel verlangt: noch kein Reiz."
+  },
+  "action": {
+   "en": "Once more, properly - now if you are still on the machine, otherwise tomorrow: a set without fatigue needs no rest day.",
+   "de": "Nochmal, richtig - jetzt, wenn du noch am Gerät bist, sonst morgen: ein Satz ohne Ermüdung braucht keinen Ruhetag."
+  }
+ },
+ "plan_repeat_after_miss": {
+  "meaning": {
+   "en": "The session of {last_date} was a strength test for {exercises}: no set reached the force drop your goal asks for.",
+   "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Kraftabfall, den dein Ziel verlangt."
+  },
+  "action": {
+   "en": "A set without fatigue costs no rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the set ends when the force breaks down.",
+   "de": "Ein Satz ohne Ermüdung kostet keine Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, der Satz endet, wenn die Kraft einbricht."
+  }
  }
 }

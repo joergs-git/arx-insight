@@ -357,6 +357,55 @@ class How(unittest.TestCase):
                 self.assertNotIn("tempo_s", it["settings_change"])
 
 
+class NoRestDebt(unittest.TestCase):
+    """v0.11.0 (owner): rest follows the fatigue produced - a set below the deep line frees its muscles the next
+    day (a deep set after three); while the session is open the report says "once more, now"; the next session says
+    "again, properly" when it re-plans the exercises that were no stimulus."""
+    def test_a_moderate_set_frees_the_muscle_next_day_and_a_deep_set_after_three(self):
+        for decl, days in ((0.03, 1), (0.05, 3), (0.01, 1)):
+            rows = [fx.make_set(1, PRESS, datetime(2026, 9, 20, 10, 0), con=(150, decl), ecc=(240, decl))]
+            r = report(rows, "2026-09-21")
+            self.assertEqual(r["load"]["recovery"]["muscles"]["chest"]["ready_on"], f"2026-09-{20 + days}", decl)
+
+    def test_once_more_now_while_the_session_is_open(self):
+        miss = fx.make_set(1, PRESS, datetime(2026, 9, 21, 10, 0), con=(150, 0.01), ecc=(240, 0.01))
+        hit = fx.make_set(2, ROW, datetime(2026, 9, 21, 10, 10), con=(150, 0.05), ecc=(240, 0.05))
+        for lang in ("en", "de"):
+            ls = report([miss, hit], "2026-09-21", language=lang, _now="2026-09-21T10:35:00")["last_session"]
+            self.assertTrue(ls["open"])
+            self.assertEqual((ls["repeat_now"], ls["inroad_target"]), (["Horizontal Press"], 20))
+            by = {x["name"]: x for x in ls["exercises"]}
+            self.assertTrue(by["Horizontal Press"]["repeat_now"]); self.assertFalse(by["Row"]["repeat_now"])
+            for t in (ls["repeat_panel"], by["Horizontal Press"]["repeat_interp"]):
+                self.assertNotIn("{", t["text"]["meaning"] + t["text"]["action"])
+            self.assertIn("Horizontal Press", ls["repeat_panel"]["text"]["meaning"])
+        # a later set of the same exercise in this visit that reaches the target clears it
+        again = fx.make_set(3, PRESS, datetime(2026, 9, 21, 10, 20), con=(150, 0.05), ecc=(240, 0.05))
+        ls = report([miss, hit, again], "2026-09-21", _now="2026-09-21T10:40:00")["last_session"]
+        self.assertEqual(ls["repeat_now"], [])
+        # the session is over: no panel, the fact stays on the row, and the muscle is free the next day
+        r = report([miss, hit], "2026-09-21", _now="2026-09-21T13:00:00")
+        ls = r["last_session"]
+        self.assertFalse(ls["open"]); self.assertIsNone(ls["repeat_panel"])
+        self.assertTrue({x["name"]: x for x in ls["exercises"]}["Horizontal Press"]["repeat_now"])
+        self.assertEqual(r["load"]["recovery"]["muscles"]["chest"]["ready_on"], "2026-09-22")
+
+    def test_the_next_session_says_again_properly(self):
+        def rows(last_decl):
+            return [fx.make_set(1 + i, PRESS, datetime(2026, 9, 10 + 5 * i, 10, 0), con=(150, d), ecc=(240, d))
+                    for i, d in enumerate([0.05, 0.05, last_decl])]                  # the last day: 2026-09-20
+        p = report(rows(0.01), "2026-09-21")["plan"]
+        sess = p["next_session"] if p["next_session"]["date"] <= "2026-09-22" else p["today_session"]
+        self.assertIsNotNone(sess)
+        self.assertIn("Horizontal Press", names(sess))
+        note = sess.get("repeat_note")
+        self.assertEqual((note["code"], note["params"]["exercises"]), ("plan_repeat_after_miss", ["Horizontal Press"]))
+        self.assertNotIn("{", note["text"]["meaning"] + note["text"]["action"])
+        p = report(rows(0.05), "2026-09-21")["plan"]                                # a real set: three days, no note
+        for sess in (p["next_session"], p["today_session"]):
+            self.assertTrue(not sess or not sess.get("repeat_note"))
+
+
 class EffortEscalation(unittest.TestCase):
     """v0.10.0 (owner): a missed effort target is acted on - once the cue is intent (the number holds), twice in
     a row the set-up changes (slower per direction, no turnaround pauses; two reps more once those are exhausted).
