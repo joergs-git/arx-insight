@@ -118,7 +118,13 @@ class Payload(unittest.TestCase):
                          (["Horizontal Press"], ["Row"]))
         self.assertEqual(ai.lint_payload(today), [])
         self.assertIn("exercises_not_today", ai.system_prompt("board")[0]["text"])
-        self.assertGreaterEqual(ai.PROMPT_VERSION, 11)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 12)
+        # a missed effort target is acted on (v0.10.0): the coach sees the streak, the rule, and a filler why is refused
+        hist = today["history"]["exercises"][0]
+        self.assertIn("effort_misses_in_a_row", hist); self.assertIn("inroad_target_pct", hist)
+        self.assertIn("effort_misses_in_a_row", ai.system_prompt("board")[0]["text"])
+        self.assertIn("settings_change", json.dumps(today["planner"]["proposal"]["rows"][0]))
+        self.assertTrue(ai.is_filler("Platzhalter") and ai.is_filler(" - ") and ai.is_filler("") and not ai.is_filler("Der Satz bleibt die saubere Messung."))
         self.assertIn("sore_regions", ai.system_prompt("board")[0]["text"])     # soreness / pain = reasons behind the flags (v0.9.0)
         self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
         offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}

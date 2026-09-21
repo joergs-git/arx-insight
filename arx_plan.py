@@ -182,11 +182,21 @@ EFFORT_TARGETS = {   # label -> what the set should reach (effort v3, see arx_de
     "moderate": {"label": "moderate", "inroad_min": INROAD_MODERATE},
     "submax":   {"label": "submax", "inroad_min": 0},
 }
+# A missed effort target is acted on (v0.10.0, owner): once -> the number holds and the cue is intent; twice in a
+# row -> the set-up changes (slower per direction, no pauses at the turnarounds - or two reps more), never a third
+# "hold" without a change. The tempo step stays inside the band where results are equal (science.json: tempo).
+EFFORT_RESET_AFTER = 2         # misses in a row that trigger a parameter change
+EFFORT_TEMPO_STEP_S = 1.0      # seconds per direction added per change
+EFFORT_TEMPO_MAX_S = 5.0       # ... never beyond this (10 s per repetition)
+EFFORT_REPS_STEP = 2           # the alternative lever once tempo and pauses are exhausted
+EFFORT_STREAK_DAYS = 42        # lookback for the streak, from the exercise's last training day
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
     "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
+    "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",
+    "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
@@ -855,6 +865,62 @@ def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) ->
     return dict(EFFORT_TARGETS[label]), caps
 
 
+def planned_minima(entries: list[dict] | None, name: str) -> dict:
+    """{planned date: inroad_min} the plan ledger asked of one exercise (0 = sub-maximal by plan)."""
+    out = {}
+    for e in entries or []:
+        for x in e.get("exercises") or []:
+            if x.get("name") == name:
+                out[e["date"]] = x.get("inroad_min") or 0
+    return out
+
+
+def effort_streak(occ: list[dict], inroad_min: float, planned: dict | None = None) -> dict:
+    """How many of the exercise's most recent training days IN A ROW missed the effort target (best set's
+    force drop below inroad_min - BORDERLINE), stopping at the first day that reached it. Not counted:
+    familiarisation / low-force capped days, days with other settings, days the ledger had planned sub-maximal
+    ({date: inroad_min}, 0 = sub-max); a day planned with a lower target is judged against that one.
+    Lookback EFFORT_STREAK_DAYS from the last training day (v0.10.0)."""
+    misses, last = 0, None
+    if not occ:
+        return {"misses": 0, "last_inroad": None, "inroad_min": inroad_min}
+    floor = (date.fromisoformat(occ[-1]["date"][:10]) - timedelta(days=EFFORT_STREAK_DAYS)).isoformat()
+    for o in reversed(occ):
+        if o["date"][:10] < floor:
+            break
+        if o.get("inroad") is None or o.get("effort_capped") or not o.get("settings_ok", True):
+            continue
+        want = inroad_min
+        if planned and o["date"][:10] in planned:
+            if not planned[o["date"][:10]]:        # planned sub-maximal: neither a miss nor a hit
+                continue
+            want = min(want, planned[o["date"][:10]])
+        if last is None:
+            last = o["inroad"]
+        if o["inroad"] >= want - BORDERLINE:
+            break
+        misses += 1
+    return {"misses": misses, "last_inroad": last, "inroad_min": inroad_min}
+
+
+def effort_reset_settings(settings: dict | None) -> dict | None:
+    """The parameter change after EFFORT_RESET_AFTER misses, built from the last comparable settings: seconds per
+    direction + EFFORT_TEMPO_STEP_S (never beyond EFFORT_TEMPO_MAX_S), pauses at the turnarounds to 0 - only what
+    actually changes; once tempo and pauses are exhausted, EFFORT_REPS_STEP repetitions more. None = nothing known."""
+    if not settings:
+        return None
+    out = {}
+    t = settings.get("tempo_s")
+    if t and t < EFFORT_TEMPO_MAX_S - 0.25:        # a quarter second below the cap is "at the cap" already
+        out["tempo_s"] = {"from": round(t, 1), "to": float(min(EFFORT_TEMPO_MAX_S, round(t) + EFFORT_TEMPO_STEP_S))}
+    for k in ("pause_end_s", "pause_return_s"):
+        if (settings.get(k) or 0) > 0:
+            out[k] = {"from": settings[k], "to": 0}
+    if not out and settings.get("reps"):
+        out["reps"] = {"from": settings["reps"], "to": settings["reps"] + EFFORT_REPS_STEP}
+    return out or None
+
+
 def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: str | None, is_bench: bool,
                row: dict, cfg: dict, returning: bool = False, away_days: int | None = None) -> dict:
     """Force target, sets and the rule behind them (see the module docstring). away_days = days the
@@ -904,16 +970,23 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         return out
     after_break = away_days is not None and away_days > BREAK_SHORT_DAYS      # a short break: continue, but hold the numbers
     profile = COMMITMENT[commitment]
-    last_inroad = occ[-1].get("inroad")
+    last_inroad, misses = occ[-1].get("inroad"), 0
     # the last set stopped short of the effort the goal asks for (a borderline value counts as reached)
     room = last_inroad is not None and last_inroad < effort["inroad_min"] - BORDERLINE
     may_step = profile["step"] and band in (None, "go_hard") and age not in MINOR_BANDS and not after_break
     hit = prog.get("effort_hit_rate")
     step = 0.0
+    # the set stopped short of the effort: once the cue is intent (the number holds), twice in a row the set-up
+    # changes - for the benchmark exercise as well: a clean measurement that never fatigues is half a stimulus (v0.10.0)
+    streak = effort_streak(occ, effort["inroad_min"], planned_minima(cfg.get("_plan_ledger"), c["name"])) if room else None
+    change = effort_reset_settings(out["settings"]) if (streak and streak["misses"] >= EFFORT_RESET_AFTER) else None
     if prog.get("status") == "progressing" and may_step and not room:
         per_session = abs(prog.get("change_pct") or 0.0) / max(1, (prog.get("n") or 2) - 1)
         step = min(STEP_RANGE_PCT[1], max(STEP_RANGE_PCT[0], per_session))
         rule, code = "step", "plan_step"
+    elif change:
+        rule, out["settings_change"], misses = "effort_reset", change, streak["misses"]
+        code = "plan_effort_reps" if "reps" in change else ("plan_effort_reset" if "tempo_s" in change else "plan_effort_pauses")
     elif is_bench:                                                    # today's clean measurement
         rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
     elif room:
@@ -943,9 +1016,14 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     out["target_peak_kg"] = round(base["kg"] * factor, 1)
     if len(comparable) >= 3 and base.get("con_top3_kg"):
         out["target_con_mean_kg"] = round(base["con_top3_kg"] * factor, 1)
+    chg = out.get("settings_change") or {}
     out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
                                 "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
-                                "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days}, cfg)
+                                "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days,
+                                # the parameter change after repeated misses (v0.10.0)
+                                "misses": misses, "tempo_from": (chg.get("tempo_s") or {}).get("from"),
+                                "tempo_to": (chg.get("tempo_s") or {}).get("to", (out["settings"] or {}).get("tempo_s")),
+                                "reps_from": (chg.get("reps") or {}).get("from"), "reps_to": (chg.get("reps") or {}).get("to")}, cfg)
     return out
 
 

@@ -1847,6 +1847,12 @@ def build_report(con, cfg: dict) -> dict:
     # obeys those flags (planner.today_exercise_levels); listed here for the chips and the coach, no rule of its own
     pain_today = [p for p in (checkin.get("pain") or []) if _LEVEL_RANK.get(restrictions.get(p, "ok"), 0) < 1]
     exercises = _exercise_series(work, catalog, restrictions, careful)
+    # a missed effort target is acted on (v0.10.0): how many of the exercise's last days in a row ended below the
+    # force drop the GOAL asks for (the plan row judges against its own cap; the coach reads this one)
+    goal_min = planner.EFFORT_TARGETS[planner.goal_effort(cfg.get("goal") or {})]["inroad_min"]
+    for e in exercises:
+        stk = planner.effort_streak(e["occ"], goal_min, planner.planned_minima(cfg.get("_plan_ledger"), e["name"]))
+        e["effort_misses"], e["effort_last_inroad"], e["effort_target_inroad"] = stk["misses"], stk["last_inroad"], goal_min
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"), careful)
         # switched off in the profile: its history stays (it is data), but it has no say in anything that looks

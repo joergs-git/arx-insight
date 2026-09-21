@@ -345,11 +345,73 @@ class How(unittest.TestCase):
         self.assertFalse(opts["maintain"]["progression"])
 
     def test_an_unfinished_set_means_effort_before_force(self):
-        rows = history([ROW, PRESS, SQUAT], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.01)   # no real fatigue
+        rows = history([ROW, PRESS, SQUAT], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.01)   # no real fatigue, five times
         sess = report(rows, "2026-09-19")["plan"]["next_session"]
         rules = {it["name"]: it["target_rule"] for it in sess["exercises"] if not it["benchmark"]}
-        self.assertTrue(rules and set(rules.values()) == {"hold_reach_effort"}, rules)
+        self.assertTrue(rules and set(rules.values()) == {"effort_reset"}, rules)       # v0.10.0: five misses -> the set-up changes
         self.assertTrue(all(it["step_pct"] == 0 for it in sess["exercises"]))
+        for it in sess["exercises"]:
+            if not it["benchmark"]:              # fixture sets: 5 s per direction (the cap) with a 3 s pause -> the pauses go
+                self.assertEqual(it["interp"]["code"], "plan_effort_pauses")
+                self.assertEqual(it["settings_change"]["pause_return_s"]["to"], 0)
+                self.assertNotIn("tempo_s", it["settings_change"])
+
+
+class EffortEscalation(unittest.TestCase):
+    """v0.10.0 (owner): a missed effort target is acted on - once the cue is intent (the number holds), twice in
+    a row the set-up changes (slower per direction, no turnaround pauses; two reps more once those are exhausted).
+    A day the ledger planned sub-maximal is not a miss; a hit in between resets the streak."""
+    NAME = "Horizontal Press"
+
+    def sets(self, declines, tempo=3.0, pause_start=2.0):
+        out = []
+        for i, d in enumerate(declines):                       # 5 % decline per rep -> 28 % drop (deep); 1 % -> 6 % (a miss); 3 % would be 17 % = moderate
+            out.append(fx.make_set(1 + i, PRESS, datetime(2026, 9, 1 + 3 * i, 10, 0), sec_per_dir=tempo, pause_start=pause_start,
+                                   con=(150, d), ecc=(240, d)))
+        return out
+
+    def row(self, rows, **extra):
+        r = report(rows, "2026-09-11", **extra)
+        return r, next(x for x in r["plan"]["next_session"]["exercises"] if x["name"] == self.NAME)
+
+    def test_one_miss_is_intent_two_misses_change_the_set_up(self):
+        r, it = self.row(self.sets([0.05, 0.05, 0.05, 0.01]))
+        self.assertLess(r["exercises"][0]["occ"][-1]["inroad"], planner.INROAD_DEEP)
+        # one miss: the number holds (as the session's benchmark the row is a clean retest, otherwise the intent cue)
+        self.assertIn(it["target_rule"], ("hold_reach_effort", "retest_fresh"))
+        self.assertEqual((it.get("settings_change"), it["step_pct"]), (None, 0))
+        self.assertEqual(r["exercises"][0]["effort_misses"], 1)
+        for lang in ("en", "de"):
+            r, it = self.row(self.sets([0.05, 0.05, 0.01, 0.01]), language=lang)
+            self.assertEqual((it["target_rule"], it["interp"]["code"], it["step_pct"]), ("effort_reset", "plan_effort_reset", 0))
+            self.assertEqual(it["settings_change"]["tempo_s"], {"from": 3.0, "to": 4.0})
+            self.assertEqual(it["settings_change"]["pause_return_s"]["to"], 0)
+            self.assertEqual(it["target_peak_kg"], it["base_kg"])                    # the number holds
+            text = it["interp"]["text"]["meaning"] + it["interp"]["text"]["action"]
+            self.assertNotIn("{", text)
+            self.assertIn("4", text)
+            self.assertEqual(r["exercises"][0]["effort_misses"], 2)
+        # a hit in between resets the streak
+        r, it = self.row(self.sets([0.01, 0.05, 0.01]))
+        self.assertEqual((it.get("settings_change"), r["exercises"][0]["effort_misses"]), (None, 1))
+        # tempo at the cap and no pauses left: two repetitions more
+        r, it = self.row(self.sets([0.05, 0.01, 0.01], tempo=5.0, pause_start=0.0))
+        self.assertEqual((it["target_rule"], it["interp"]["code"], it["settings_change"]), ("effort_reset", "plan_effort_reps", {"reps": {"from": 8, "to": 10}}))
+        # a day the ledger planned sub-maximal (inroad_min 0) is neither a miss nor a hit
+        ledger = [{"created": "2026-09-06", "date": "2026-09-07", "session_type": "full_body", "est_minutes": 20, "benchmark": None, "commitment": "balanced",
+                   "exercises": [{"name": self.NAME, "order": 1, "sets": 1, "target_peak_kg": None, "target_rule": "sub_max_careful", "effort": "submax",
+                                  "inroad_min": 0, "rest_before_min": 0, "aid_hint": None, "settings": None}]}]
+        r, it = self.row(self.sets([0.05, 0.05, 0.01, 0.01]), _plan_ledger=ledger)
+        self.assertEqual((it.get("settings_change"), r["exercises"][0]["effort_misses"]), (None, 1))
+        # the streak helper itself: capped days are skipped, a lower planned target counts as reached
+        occ = [{"date": "2026-09-01", "inroad": 5, "effort_capped": "familiarisation"}, {"date": "2026-09-04", "inroad": 12},
+               {"date": "2026-09-07", "inroad": 8}]
+        self.assertEqual(planner.effort_streak(occ, 20)["misses"], 2)
+        self.assertEqual(planner.effort_streak(occ, 20, {"2026-09-04": 10})["misses"], 1)
+        self.assertEqual(planner.effort_reset_settings({"tempo_s": 4.6, "pause_end_s": 0, "pause_return_s": 0, "reps": 8}), {"tempo_s": {"from": 4.6, "to": 5.0}})
+        self.assertEqual(planner.effort_reset_settings({"tempo_s": 5.0, "pause_end_s": 0, "pause_return_s": 0, "reps": 8}), {"reps": {"from": 8, "to": 10}})
+        self.assertIsNone(planner.effort_reset_settings(None))
+
 
     def test_minors_are_capped_and_supervised(self):
         rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT], factors=[1.0, 1.04, 1.08, 1.12, 1.16], decline=0.06)
