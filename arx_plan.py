@@ -191,6 +191,7 @@ EFFORT_TEMPO_MAX_S = 5.0       # ... never beyond this (10 s per repetition)
 EFFORT_REPS_STEP = 2           # the alternative lever once tempo and pauses are exhausted
 EFFORT_STREAK_DAYS = 42        # lookback for the streak, from the exercise's last training day
 REPEAT_SOON_DAYS = 2           # a fruitless session's exercises back in the plan within this many days -> "again, properly" (v0.11.0)
+BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate, the athlete sets the level, nothing is a miss (v0.12.0)
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
@@ -198,6 +199,7 @@ SCIENCE = {
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
     "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",
     "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo", "REPEAT_SOON_DAYS": "recovery_between_sessions",
+    "BEGINNER_SESSIONS": "eccentric",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
@@ -846,8 +848,15 @@ def best_order(chosen: list[dict], ev: dict) -> tuple[list[dict], list[dict], di
 # =============================================================================
 # Effort, targets, rests
 # =============================================================================
+def beginner_phase(cfg: dict) -> bool:
+    """A new athlete's first BEGINNER_SESSIONS training days (profile experience "new"): the effort target is
+    moderate, the athlete sets the level himself ("about half of what you have", then "beat your previous number by
+    what feels comfortable" - ARX Academy practice), and no set is judged a miss; the real set comes after (v0.12.0)."""
+    return cfg.get("experience") == "new" and (cfg.get("_n_days") or 0) < BEGINNER_SESSIONS
+
+
 def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) -> tuple[dict, list[str]]:
-    """The effort a set should reach + what capped it (commitment | checkin | age)."""
+    """The effort a set should reach + what capped it (commitment | checkin | age | beginner)."""
     label, caps = goal_effort(cfg.get("goal") or {}), []
 
     def cap(to: str, why: str):
@@ -863,6 +872,8 @@ def effort_for(cfg: dict, commitment: str, band: str | None, age: str | None) ->
         cap("submax", "checkin")
     if age in MINOR_BANDS:
         cap("moderate", "age")
+    if beginner_phase(cfg):
+        cap("moderate", "beginner")
     return dict(EFFORT_TARGETS[label]), caps
 
 
@@ -904,10 +915,11 @@ def effort_streak(occ: list[dict], inroad_min: float, planned: dict | None = Non
     return {"misses": misses, "last_inroad": last, "inroad_min": inroad_min}
 
 
-def effort_reset_settings(settings: dict | None) -> dict | None:
+def effort_reset_settings(settings: dict | None, keep_pauses: bool = False) -> dict | None:
     """The parameter change after EFFORT_RESET_AFTER misses, built from the last comparable settings: seconds per
     direction + EFFORT_TEMPO_STEP_S (never beyond EFFORT_TEMPO_MAX_S), pauses at the turnarounds to 0 - only what
-    actually changes; once tempo and pauses are exhausted, EFFORT_REPS_STEP repetitions more. None = nothing known."""
+    actually changes; once tempo and pauses are exhausted, EFFORT_REPS_STEP repetitions more. None = nothing known.
+    keep_pauses (a strength goal, v0.12.0): the rest-pause serves tension - the lever is tempo, then repetitions."""
     if not settings:
         return None
     out = {}
@@ -915,7 +927,7 @@ def effort_reset_settings(settings: dict | None) -> dict | None:
     if t and t < EFFORT_TEMPO_MAX_S - 0.25:        # a quarter second below the cap is "at the cap" already
         out["tempo_s"] = {"from": round(t, 1), "to": float(min(EFFORT_TEMPO_MAX_S, round(t) + EFFORT_TEMPO_STEP_S))}
     for k in ("pause_end_s", "pause_return_s"):
-        if (settings.get(k) or 0) > 0:
+        if not keep_pauses and (settings.get(k) or 0) > 0:
             out[k] = {"from": settings[k], "to": 0}
     if not out and settings.get("reps"):
         out["reps"] = {"from": settings["reps"], "to": settings["reps"] + EFFORT_REPS_STEP}
@@ -979,15 +991,20 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     step = 0.0
     # the set stopped short of the effort: once the cue is intent (the number holds), twice in a row the set-up
     # changes - for the benchmark exercise as well: a clean measurement that never fatigues is half a stimulus (v0.10.0)
-    streak = effort_streak(occ, effort["inroad_min"], planned_minima(cfg.get("_plan_ledger"), c["name"])) if room else None
-    change = effort_reset_settings(out["settings"]) if (streak and streak["misses"] >= EFFORT_RESET_AFTER) else None
+    beginner = beginner_phase(cfg)                 # first sessions: nothing is a miss, nothing escalates (v0.12.0)
+    streak = effort_streak(occ, effort["inroad_min"], planned_minima(cfg.get("_plan_ledger"), c["name"])) if (room and not beginner) else None
+    keep_pauses = goal_effort(cfg.get("goal") or {}) == "moderate"     # a strength goal keeps the rest-pause (tension)
+    change = effort_reset_settings(out["settings"], keep_pauses) if (streak and streak["misses"] >= EFFORT_RESET_AFTER) else None
     if prog.get("status") == "progressing" and may_step and not room:
         per_session = abs(prog.get("change_pct") or 0.0) / max(1, (prog.get("n") or 2) - 1)
         step = min(STEP_RANGE_PCT[1], max(STEP_RANGE_PCT[0], per_session))
         rule, code = "step", "plan_step"
     elif change:
         rule, out["settings_change"], misses = "effort_reset", change, streak["misses"]
-        code = "plan_effort_reps" if "reps" in change else ("plan_effort_reset" if "tempo_s" in change else "plan_effort_pauses")
+        code = ("plan_effort_reps" if "reps" in change else "plan_effort_pauses" if "tempo_s" not in change
+                else "plan_effort_tempo" if keep_pauses else "plan_effort_reset")
+    elif beginner and room:                        # first sessions: a set that stopped short is fine - no "clean measurement" talk yet
+        rule, code = "hold_reach_effort", "plan_beginner_row"
     elif is_bench:                                                    # today's clean measurement
         rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
     elif room:
@@ -1144,6 +1161,8 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
     return {"date": day.isoformat(), "weekday": day.weekday(), "session_type": "split" if sel["theme"] else "full_body",
             "regions": regions, "theme": sel["theme"], "fill": sel["fill"], "est_minutes": estimate_session_minutes(items, transition),
             "exercises": items, "benchmark": meta["benchmark"], "effort_target": effort, "effort_caps": caps,
+            # a new athlete's first sessions (v0.12.0): moderate on purpose, said openly
+            "beginner_note": item("plan_beginner", {"k": BEGINNER_SESSIONS, "n": cfg.get("_n_days") or 0}, cfg) if "beginner" in caps else None,
             "alternatives": sel["dropped"][:8], "order_meta": meta}
 
 
@@ -1260,7 +1279,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     # read by split_factor via score_candidates / select_session; _starter = is there a history at all (not: a pool);
     # _external = muscles trained outside the ARX (arx_report sets it once for the findings too)
     cfg = dict(cfg, _real_spw=real_spw, _starter=len(exercises) < SESSION_MIN_EX, _external=list(external),
-               _today_exercises=today_exercise_levels(cfg, catalog), _today_why=today_exercise_why(cfg, catalog))
+               _today_exercises=today_exercise_levels(cfg, catalog), _today_why=today_exercise_why(cfg, catalog),
+               _n_days=len({s["date"][:10] for s in work}))
     excluded = excluded_block(cfg, catalog)
     chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)

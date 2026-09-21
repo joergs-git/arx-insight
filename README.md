@@ -377,7 +377,20 @@ without changing something, and the comparison basis starts anew with the new se
 were told to go easy on do not count as misses. And a set without fatigue costs no rest *(v0.11.0)*:
 while you are still on the machine (last set less than an hour ago) chapter 1 says *once more, now,
 properly* for exactly those exercises; afterwards their muscles are free again the next day — the
-plan re-plans the same exercises and says so, instead of making you wait for a rhythm.
+plan re-plans the same exercises and says so, instead of making you wait for a rhythm. For a
+**strength** goal the pauses at the turnarounds are kept when the set-up changes — a rest-pause serves
+tension, which is what a strength goal wants — so the lever is the tempo, then the repetitions
+*(v0.12.0)*. And every intent cue reads the same way ARX coaches it: build the force fast but smoothly,
+the machine sets the speed, never a jerk.
+
+**I am new to the ARX — does the plan push me to the limit right away?** *(v0.12.0)*
+No. With *experience: new* in the profile the first **two** sessions ask for a moderate effort on
+purpose — about half of what you have, learn the movements, build the force smoothly — and the
+plan says so above the session. Nothing counts as a missed target in those sessions and nothing
+escalates; next time the number is your own, to beat by what feels comfortable. From the third
+session the goal's effort applies (for a size goal: sets taken to a real force drop). This is the
+ARX Academy's own practice; the first maximal eccentric bouts are also where the soreness comes
+from (`science.json` → *eccentric*).
 
 **What does "limited" mean for an exercise?**
 Its target muscles are recovered, but a *limiter* — the grip, the elbow flexors, the triceps on a

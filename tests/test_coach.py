@@ -118,7 +118,8 @@ class Payload(unittest.TestCase):
                          (["Horizontal Press"], ["Row"]))
         self.assertEqual(ai.lint_payload(today), [])
         self.assertIn("exercises_not_today", ai.system_prompt("board")[0]["text"])
-        self.assertGreaterEqual(ai.PROMPT_VERSION, 13)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 14)
+        self.assertIn("beginner_note", today["planner"]["proposal"]); self.assertIn("BEGINNER", ai.system_prompt("board")[0]["text"])
         self.assertIn("session_open", today["last_session"]); self.assertIn("repeat_now", today["last_session"]["exercises"][0])
         self.assertIn("repeat_note", today["planner"]["proposal"]); self.assertIn("session_open", ai.system_prompt("board")[0]["text"])
         # a missed effort target is acted on (v0.10.0): the coach sees the streak, the rule, and a filler why is refused
