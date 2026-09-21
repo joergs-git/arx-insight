@@ -406,6 +406,26 @@ class NoRestDebt(unittest.TestCase):
             self.assertTrue(not sess or not sess.get("repeat_note"))
 
 
+class BeginnerRamp(unittest.TestCase):
+    """v0.12.0 (owner, ARX Academy): a new athlete's first two sessions ask for a moderate effort, the athlete sets
+    the level, nothing is a miss and nothing escalates; from the third session the goal's effort applies."""
+    def days(self, n, decl=0.01):
+        return [fx.make_set(1 + i, PRESS, datetime(2026, 9, 1 + 3 * i, 10, 0), con=(150, decl), ecc=(240, decl)) for i in range(n)]
+
+    def test_first_two_sessions_are_moderate_without_escalation(self):
+        for n, label, capped in ((0, "moderate", True), (1, "moderate", True), (2, "deep", False), (3, "deep", False)):
+            sess = report(self.days(n), "2026-09-21", experience="new")["plan"]["next_session"]
+            self.assertEqual((sess["effort_target"]["label"], "beginner" in sess["effort_caps"], bool(sess.get("beginner_note"))), (label, capped, capped), n)
+            if capped:
+                self.assertNotIn("{", sess["beginner_note"]["text"]["meaning"] + sess["beginner_note"]["text"]["action"])
+                self.assertFalse([it for it in sess["exercises"] if it["target_rule"] == "effort_reset"])
+        row = next(it for it in report(self.days(1), "2026-09-21", experience="new")["plan"]["next_session"]["exercises"] if it["name"] == "Horizontal Press")
+        self.assertEqual((row["target_rule"], row["interp"]["code"]), ("hold_reach_effort", "plan_beginner_row"))   # a miss is fine
+        # an experienced athlete: the goal's effort from the first day
+        sess = report(self.days(1), "2026-09-21", experience="experienced")["plan"]["next_session"]
+        self.assertEqual((sess["effort_target"]["label"], sess.get("beginner_note")), ("deep", None))
+
+
 class EffortEscalation(unittest.TestCase):
     """v0.10.0 (owner): a missed effort target is acted on - once the cue is intent (the number holds), twice in
     a row the set-up changes (slower per direction, no turnaround pauses; two reps more once those are exhausted).
@@ -446,6 +466,13 @@ class EffortEscalation(unittest.TestCase):
         # tempo at the cap and no pauses left: two repetitions more
         r, it = self.row(self.sets([0.05, 0.01, 0.01], tempo=5.0, pause_start=0.0))
         self.assertEqual((it["target_rule"], it["interp"]["code"], it["settings_change"]), ("effort_reset", "plan_effort_reps", {"reps": {"from": 8, "to": 10}}))
+        # a strength goal keeps the rest-pause (it serves tension): the lever is tempo, then repetitions - never the pauses
+        goal = {"strength": 0.6, "muscle": 0.3, "conditioning": 0.1}
+        r, it = self.row(self.sets([0.05, 0.05, 0.01, 0.01]), goal=goal)
+        self.assertEqual((it["target_rule"], it["interp"]["code"], it["settings_change"]), ("effort_reset", "plan_effort_tempo", {"tempo_s": {"from": 3.0, "to": 4.0}}))
+        self.assertIn("pauses" if True else "", it["interp"]["text"]["action"])
+        r, it = self.row(self.sets([0.05, 0.01, 0.01], tempo=5.0, pause_start=2.0), goal=goal)
+        self.assertEqual((it["interp"]["code"], it["settings_change"]), ("plan_effort_reps", {"reps": {"from": 8, "to": 10}}))
         # a day the ledger planned sub-maximal (inroad_min 0) is neither a miss nor a hit
         ledger = [{"created": "2026-09-06", "date": "2026-09-07", "session_type": "full_body", "est_minutes": 20, "benchmark": None, "commitment": "balanced",
                    "exercises": [{"name": self.NAME, "order": 1, "sets": 1, "target_peak_kg": None, "target_rule": "sub_max_careful", "effort": "submax",

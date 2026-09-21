@@ -506,8 +506,8 @@
    "de": "Der letzte Satz endete bei {last_pct} Abfall - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
   },
   "action": {
-   "en": "Same force ({target_kg}) - but all-out from the first repetition, and the set ends when the force breaks down, not when the repetitions are over. A second time like this and the set-up changes.",
-   "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Noch einmal so, und die Einstellungen ändern sich."
+   "en": "Same force ({target_kg}) - but all-out from the first repetition, building the force fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down, not when the repetitions are over. A second time like this and the set-up changes.",
+   "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Noch einmal so, und die Einstellungen ändern sich."
   }
  },
  "plan_plateau_add_set": {
@@ -1426,8 +1426,8 @@
    "de": "Noch am Gerät? Das war ein Krafttest, kein Reiz - {exercises}: unter den {target_pct} Kraftabfall, die dein Ziel verlangt."
   },
   "action": {
-   "en": "Once more, now, properly: all-out from the first repetition, and the set ends when the force breaks down - not when the repetitions are over. A set without fatigue costs no rest, so nothing is lost by repeating it.",
-   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz ohne Ermüdung kostet keine Erholung, wiederholen kostet also nichts."
+   "en": "Once more, now, properly: all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. A set without fatigue costs no rest, so nothing is lost by repeating it.",
+   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz ohne Ermüdung kostet keine Erholung, wiederholen kostet also nichts."
   }
  },
  "repeat_now": {
@@ -1446,8 +1446,38 @@
    "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Kraftabfall, den dein Ziel verlangt."
   },
   "action": {
-   "en": "A set without fatigue costs no rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the set ends when the force breaks down.",
-   "de": "Ein Satz ohne Ermüdung kostet keine Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, der Satz endet, wenn die Kraft einbricht."
+   "en": "A set without fatigue costs no rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down.",
+   "de": "Ein Satz ohne Ermüdung kostet keine Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen (das Tempo macht die Maschine), der Satz endet, wenn die Kraft einbricht."
+  }
+ },
+ "plan_beginner": {
+  "meaning": {
+   "en": "Your first sessions on the ARX ({n} of {k} done): the plan asks for a moderate effort on purpose, not the limit.",
+   "de": "Deine ersten Einheiten an der ARX ({n} von {k} absolviert): der Plan verlangt mit Absicht moderaten Einsatz, nicht das Limit."
+  },
+  "action": {
+   "en": "About half of what you have, learn the movements, build the force smoothly. Next time: beat your own numbers by what feels comfortable - the real set comes from session three.",
+   "de": "Etwa die Hälfte von dem, was du hast, die Bewegungen lernen, die Kraft gleichmäßig aufbauen. Nächstes Mal: deine eigenen Zahlen um so viel schlagen, wie sich gut anfühlt - der echte Satz kommt ab der dritten Einheit."
+  }
+ },
+ "plan_beginner_row": {
+  "meaning": {
+   "en": "Last time the set ended at a {last_pct} drop - fine for a first session.",
+   "de": "Der letzte Satz endete bei {last_pct} Abfall - für eine erste Einheit in Ordnung."
+  },
+  "action": {
+   "en": "Same number ({target_kg}) or a little more, whatever feels comfortable; the real set comes from session three.",
+   "de": "Gleiche Zahl ({target_kg}) oder etwas mehr, wie es sich gut anfühlt; der echte Satz kommt ab der dritten Einheit."
+  }
+ },
+ "plan_effort_tempo": {
+  "meaning": {
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+  },
+  "action": {
+   "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction; your pauses at the turnarounds stay - they serve the tension a strength goal wants. Or two repetitions more instead. The comparison basis starts anew.",
+   "de": "Gleiche Kraft ({target_kg}), neue Einstellung: {tempo_from} → {tempo_to} s je Richtung; deine Pausen an den Umkehrpunkten bleiben - sie dienen der Spannung, die ein Kraftziel will. Oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
   }
  }
 }
