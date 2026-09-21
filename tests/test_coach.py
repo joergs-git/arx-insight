@@ -111,6 +111,14 @@ class Payload(unittest.TestCase):
         self.assertEqual(care["profile"]["exercises_with_care"], ["Horizontal Press"])
         self.assertEqual(care["profile"]["exercises_switched_off"], [])
         self.assertIn("exercises_with_care", ai.system_prompt("board")[0]["text"])
+        day = "2026-09-20"                                                     # today's check-in about single exercises (v0.8.9)
+        today = ai.build_payload(*make(today=day, checkin={"date": day, "sleep": "good", "energy": "high", "soreness": {},
+                                                             "exercises": {"23": "injury", "3": "careful"}}))
+        self.assertEqual((today["readiness_today"]["exercises_not_today"], today["readiness_today"]["exercises_with_care_today"]),
+                         (["Horizontal Press"], ["Row"]))
+        self.assertEqual(ai.lint_payload(today), [])
+        self.assertIn("exercises_not_today", ai.system_prompt("board")[0]["text"])
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 10)
         self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
         offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}
         self.assertFalse(offered & {"Biceps Curl", "Dead Lift"})                       # not in the decision space ...

@@ -1369,5 +1369,35 @@
    "en": "Sub-maximal and smooth, no target number, no all-out eccentric - movement helps a recovering joint, the maximal set does not. Stop at any pain; back to 'in the plan' in the profile once it is fully possible again.",
    "de": "Submaximal und ruhig, keine Zielzahl, keine Exzentrik bis ans Limit - Bewegung hilft einem Gelenk in Erholung, der Maximalsatz nicht. Bei Schmerz aufhören; im Profil zurück auf 'im Plan', sobald es wieder voll geht."
   }
+ },
+ "plan_submax_careful_today": {
+  "meaning": {
+   "en": "Your check-in: only with care today - the exercise stays, but not at the limit.",
+   "de": "Dein Check-in: heute nur mit Vorsicht - die Übung bleibt, aber nicht bis ans Limit."
+  },
+  "action": {
+   "en": "Sub-maximal and smooth, no target number, stop at any pain. Tomorrow it is planned normally again - if it stays, set the exercise to 'with care' in the profile.",
+   "de": "Submaximal und ruhig, keine Zielzahl, bei Schmerz aufhören. Morgen wird sie wieder normal geplant - bleibt es, setz die Übung im Profil auf 'nur mit Vorsicht'."
+  }
+ },
+ "checkin_off_today": {
+  "meaning": {
+   "en": "Left out today because your check-in says so: {exercises}.",
+   "de": "Heute weggelassen, weil dein Check-in es sagt: {exercises}."
+  },
+  "action": {
+   "en": "Only for today - tomorrow it is planned again. If it stays, switch the exercise off in the profile ('not possible for health reasons').",
+   "de": "Nur für heute - morgen wird sie wieder geplant. Bleibt es, schalte die Übung im Profil ab ('gesundheitlich nicht möglich')."
+  }
+ },
+ "checkin_careful_today": {
+  "meaning": {
+   "en": "Sub-maximal today because your check-in says so: {exercises}.",
+   "de": "Heute submaximal, weil dein Check-in es sagt: {exercises}."
+  },
+  "action": {
+   "en": "No target number for these today. If it stays, set the exercise to 'with care' in the profile.",
+   "de": "Für diese heute keine Zielzahl. Bleibt es, setz die Übung im Profil auf 'nur mit Vorsicht'."
+  }
  }
 }

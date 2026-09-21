@@ -1982,6 +1982,8 @@ def build_report(con, cfg: dict) -> dict:
         "goal_progress": goal_progress,          # None without a measurable target
         "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
         "careful_exercises": list(careful),      # set to "careful" for health reasons by the athlete (profile tiles, v0.8.8)
+        # today's check-in about single exercises {name: careful | injury} - today only (v0.8.9)
+        "today_exercises": {(catalog.get(c) or {}).get("name") or f"Exercise {c}": lvl for c, lvl in planner.today_exercise_levels(cfg, catalog).items()},
         "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
         "featured": featured,
