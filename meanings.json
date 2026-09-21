@@ -1339,5 +1339,15 @@
    "en": "That is a readiness rule, not a question of time - more minutes do not bring the exercise back. On a better day the full session is there again.",
    "de": "Das ist eine Regel für deine Tagesform, keine Zeitfrage - mehr Minuten bringen die Übung nicht zurück. An einem besseren Tag ist die volle Einheit wieder da."
   }
+ },
+ "plan_submax_sore": {
+  "meaning": {
+   "en": "{muscle}: mild soreness today (your check-in) - the muscle works, but it is not fully recovered.",
+   "de": "{muscle}: leichter Muskelkater heute (dein Check-in) - der Muskel arbeitet, ist aber nicht ganz erholt."
+  },
+  "action": {
+   "en": "Today sub-maximal, by feel - no target number. Strong soreness would have blocked the exercise for the day; mild only takes the all-out set away.",
+   "de": "Heute submaximal, nach Gefühl - keine Zielzahl. Starker Muskelkater hätte die Übung für heute gesperrt; leichter nimmt nur den Satz bis ans Limit."
+  }
  }
 }
