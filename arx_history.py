@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - history: time windows, progress factors per exercise and notable findings (v0.4.0).
@@ -19,7 +21,7 @@ Every item carries meaning/action CODES with parameters; meanings.json turns the
 (English / German, in the athlete's units), so the report explains itself without an API key. The AI
 later refines the wording - it never invents the facts.
 
-Leaf module apart from arx_base. Public domain / CC0. No warranty. Not medical advice.
+Leaf module apart from arx_base. GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

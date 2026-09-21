@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 """Export the ARX app's history for arx-free - contract ``arx-export-1`` (ARX Insight tool).
 
 arx-free is the owner's independent control software for the same machine; its contract lives in its repository

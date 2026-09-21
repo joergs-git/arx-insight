@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - the AI coach (v0.5.0): a structured board, a memory, a live chat.
@@ -30,7 +32,7 @@ Privacy: never a name, date of birth, height, weight or free-text note. Age band
 relative body changes only behind their switches. ARX_AI_FAKE=<scenario> replaces the API with a
 deterministic fake (tests, screenshots, demos - no key, no cost).
 
-Imports arx_base and arx_plan only. Public domain / CC0. No warranty. Not medical advice.
+Imports arx_base and arx_plan only. GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

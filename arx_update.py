@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - one-click update (v0.4.1).
@@ -17,7 +19,7 @@ README's update procedure asks the user to do by hand - and nothing else:
 Deliberately NOT automatic: code is only ever downloaded after a click in the app on this machine
 (the route is loopback-only), never silently and never from a phone. The trust is the same as for
 the manual download: GitHub over HTTPS. Older staged versions are removed, the previous one stays
-as a fallback. Standard library only. Public domain / CC0. No warranty.
+as a fallback. Standard library only. GPL-3.0-or-later (see LICENSE). No warranty.
 """
 
 from __future__ import annotations

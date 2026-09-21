@@ -11,7 +11,7 @@ If the Windows prompt "Allow Python to communicate on these networks?" was once 
 -Program names our interpreter(s); inbound block rules for exactly these programs are DISABLED (not
 deleted - they stay visible in "Windows Defender Firewall with Advanced Security").
 
-Public domain / CC0. No warranty.
+GPL-3.0-or-later (see LICENSE). No warranty.
 #>
 param(
     [int]$Port = 8765,

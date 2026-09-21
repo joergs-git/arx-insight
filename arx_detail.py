@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - detail metrics: what really happened INSIDE a set (v0.4.0).
@@ -33,7 +35,7 @@ ECCENTRICMAX columns):
     grip). They are reported as a neutral steadiness figure, to be read against the exercise's own
     typical value only.
 
-Leaf module: imports arx_base only. Public domain / CC0. No warranty. Not medical advice.
+Leaf module: imports arx_base only. GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

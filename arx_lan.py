@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - phone access in the local network (v0.6.0).
@@ -17,7 +19,7 @@ a PC that sits directly on the internet is refused.
   firewall_*      Windows only: is our inbound rule there, run the helper script (UAC prompt)
 
 Plain HTTP inside the local network - the README says so, and that the router must never forward
-the port. Leaf module apart from arx_base. Public domain / CC0. No warranty.
+the port. Leaf module apart from arx_base. GPL-3.0-or-later (see LICENSE). No warranty.
 """
 from __future__ import annotations
 import os, sys, json, time, socket, ipaddress, threading, subprocess

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - local touch app.
@@ -19,7 +21,7 @@ Real names are shown because this runs locally on the owner's machine. The API
 key stays in config.json (git-ignored) and is only used server-side.
 
 Run:  python arx_app.py --db "<path to DB.FDB4>"   then open http://localhost:8765
-Public domain / CC0. Not medical advice.
+GPL-3.0-or-later (see LICENSE). Not medical advice.
 
 v0.3.1: exactly ONE app process (exclusive bind on Windows + instance file + takeover of an older
 version), every /api call must carry the X-ARX-Token header (no cross-site requests), POST bodies

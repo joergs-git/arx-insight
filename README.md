@@ -20,7 +20,7 @@
 <p align="center">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20(macOS%2FLinux%20too)-2C6E8F">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3E86A8">
-  <img alt="license" src="https://img.shields.io/badge/license-CC0%20(public%20domain)-5E9138">
+  <img alt="license" src="https://img.shields.io/badge/license-GPL--3.0--or--later-5E9138">
   <img alt="status" src="https://img.shields.io/badge/status-experimental-C9552F">
 </p>
 
@@ -655,7 +655,7 @@ a pull request. Feedback on the methodology and the recommendations is very welc
 
 ## License
 
-[CC0 1.0](LICENSE) — public domain. Do whatever you like. No warranty.
+[GNU GPL v3 or later](LICENSE) — free software: use it, study it, change it and pass it on, as long as your version stays under the same license and keeps the author's name (Copyright © 2026 joergsflow). No warranty. Versions up to v0.14.0 were published under CC0 (public domain) and stay so; from v0.14.1 on the GPL applies.
 
 <p align="center" style="font-size:11px;color:#888">
   <sub>© <a href="https://github.com/joergs-git" target="_blank" rel="noopener">joergs-git</a> · community project, not affiliated with ARX</sub>

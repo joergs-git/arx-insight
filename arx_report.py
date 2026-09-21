@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight  -  read-only analyzer for the ARX training database.
@@ -13,7 +15,7 @@ session suggestion in plain language.
 Nothing is ever written back to the ARX database. We copy the file first and
 open the copy, so a running ARX app is never disturbed.
 
-Public domain / CC0. No warranty. Not medical advice.
+GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 
 v0.3.1: temp DB copies are cleaned up when the connection fails (+ sweep of stale copies), sets the
 ARX app hides from its own stats are excluded and reported, PB flags are ROM-gated, the detraining

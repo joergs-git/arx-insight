@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - who may do what (v0.6.0): access links for the phone, scopes, limits.
@@ -19,7 +21,7 @@ holds the API key) - readable, so the QR code can be shown again. They travel in
 of the QR code (never sent to a server, never in a log) and afterwards in the X-ARX-Token header.
 The route table in arx_app decides what a role may do; this module only answers "who is this?".
 
-Leaf module: imports arx_base only. Public domain / CC0. No warranty.
+Leaf module: imports arx_base only. GPL-3.0-or-later (see LICENSE). No warranty.
 """
 from __future__ import annotations
 import os, time, secrets, threading

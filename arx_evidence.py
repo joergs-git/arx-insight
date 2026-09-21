@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - evidence: what THIS athlete's own data says about order, rest, limiters and
@@ -21,7 +23,7 @@ Principles (hard-won, see tasks/lessons.md):
     (lifting hooks / straps), which removes the grip as a limiter of that exercise from the day
     the athlete started using them.
 
-Leaf module apart from arx_base. Public domain / CC0. No warranty. Not medical advice.
+Leaf module apart from arx_base. GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

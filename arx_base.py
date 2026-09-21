@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - shared base: data directory, units, Firebird access (always a read-only COPY),
@@ -7,7 +9,7 @@ engine (arx_report), the detail metrics (arx_detail) and later modules can all b
 without import cycles. Everything here was moved verbatim out of arx_report.py (v0.4.0);
 arx_report re-exports the names, so existing callers keep working.
 
-Public domain / CC0. No warranty. Not medical advice.
+GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

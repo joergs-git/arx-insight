@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 # -*- coding: utf-8 -*-
 """
 ARX Insight - the planner: WHEN to train next, WHAT, in which ORDER, with which targets (v0.4.0).
@@ -67,7 +69,7 @@ AI's plan will have to pass as well (v0.5.0). The plan ledger remembers what was
 the next report can say what was done with it (plan_vs_actual).
 
 Pure functions on the report's data; imports arx_base, arx_detail (constants), arx_evidence and
-arx_history only. Public domain / CC0. No warranty. Not medical advice.
+arx_history only. GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations

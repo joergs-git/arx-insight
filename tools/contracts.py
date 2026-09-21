@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
 """Keep what ARX Insight shares with arx-free from drifting apart (v0.13.0).
 
 Everything the two products have to agree on is a **contract**: a file in ``contracts/`` with a version and ONE owner
