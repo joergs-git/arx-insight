@@ -747,6 +747,46 @@ class Soreness(unittest.TestCase):
         self.assertNotEqual([o["date"] for o in mild["date_options"]][:1], [o["date"] for o in strong["date_options"]][:1])
 
 
+class ExercisesToday(unittest.TestCase):
+    """v0.8.9 (owner): a health limit can come up spontaneously - the check-in says "not today" or "only with care
+    today" for single exercises. Today only: it never touches later sessions, the profile or the mirror."""
+    def test_not_today_and_with_care_today_touch_only_todays_session(self):
+        rows, day = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN]), "2026-09-20"
+        free = report(rows, day, session_minutes=40)
+        self.assertEqual(free["plan"]["next_session"]["date"], day)
+        self.assertLessEqual({"Horizontal Press", "Row"}, set(names(free["plan"]["next_session"])))
+        for lang in ("en", "de"):
+            r = report(rows, day, session_minutes=40, language=lang,
+                       checkin={"date": day, "sleep": "good", "energy": "high", "soreness": {}, "exercises": {"23": "injury", "3": "careful", "999": "injury"}})
+            sess = r["plan"]["next_session"]
+            self.assertEqual(sess["date"], day)
+            self.assertNotIn("Horizontal Press", names(sess))                    # not today ...
+            row = next(it for it in sess["exercises"] if it["name"] == "Row")     # ... and the row only with care
+            self.assertEqual((row["restriction"], row["effort_target"]["label"], row["target_peak_kg"], row["interp"]["code"]),
+                             ("careful", "submax", None, "plan_submax_careful_today"))
+            codes = [n["code"] for n in sess["checkin_notes"]]
+            self.assertEqual(codes, ["checkin_off_today", "checkin_careful_today"])
+            for n in sess["checkin_notes"]:
+                self.assertNotIn("{", n["text"]["meaning"] + n["text"]["action"])
+            self.assertEqual(r["today_exercises"], {"Horizontal Press": "injury", "Row": "careful"})
+            # the limits shape today's session but never decide the day: today is judged as if nothing were limited
+            self.assertEqual([(o["date"], o["score"], o["fill"]) for o in r["plan"]["date_options"]],
+                             [(o["date"], o["score"], o["fill"]) for o in free["plan"]["date_options"]])
+            # today only: the week goes on with both, the report's exercise list keeps them at "ok", no mirror entry
+            later = [w["exercises"] for w in r["plan"]["week_plan"][1:]]
+            self.assertTrue(any("Horizontal Press" in ex for ex in later), later)
+            self.assertEqual({e["name"]: e["restriction"] for e in r["exercises"]}["Row"], "ok")
+            self.assertEqual(r["restriction_checks"], [])
+            self.assertIsNone(r["plan"]["excluded"])
+        # a session recommended for another day is not touched; "training today anyway" is
+        rows2, day2 = history([ROW, PRESS, SQUAT, CURL, DEADLIFT, PRESSDOWN]), "2026-09-18"
+        p = report(rows2, day2, session_minutes=40, checkin={"date": day2, "sleep": "good", "energy": "high", "soreness": {}, "exercises": {"23": "injury"}})["plan"]
+        self.assertGreater(p["next_session"]["date"], day2)
+        self.assertNotIn("checkin_notes", p["next_session"])
+        if p["today_session"]:
+            self.assertNotIn("Horizontal Press", names(p["today_session"]))
+
+
 class TimeWindow(unittest.TestCase):
     """v0.8.1 (owner): the check-in may carry "minutes I have today" - an upper limit for a session planned for
     today. It never makes a plan longer; a plan that does not fit is cut in a sensible order."""

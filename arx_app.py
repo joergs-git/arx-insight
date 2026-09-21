@@ -85,6 +85,10 @@ def clean_checkin(data: dict) -> dict:
         entry["soreness"] = {r: l for r, l in sore.items() if r in core.SORENESS_REGIONS and l in SORENESS_LEVELS}
     if "pain" in data:
         entry["pain"] = [p for p in (data.get("pain") if isinstance(data.get("pain"), list) else []) if p in BODY_PARTS]
+    if "exercises" in data:                        # single exercises today (v0.8.9): not today / only with care - today only
+        raw = data.get("exercises") if isinstance(data.get("exercises"), dict) else {}
+        entry["exercises"] = {str(c): lvl for c, lvl in raw.items()
+                              if str(c) in STATE["catalog"] and isinstance(lvl, str) and lvl in core.planner.TODAY_CHOICES}
     if "minutes" in data:                          # "minutes I have today" (v0.8.1): one of the offered windows, else no limit
         m = data.get("minutes")
         entry["minutes"] = m if (isinstance(m, int) and not isinstance(m, bool) and m in core.planner.MINUTES_OPTIONS) else None
@@ -223,7 +227,9 @@ def checkin_payload(urec: dict, day: str) -> dict:
                if d < day and v.get("rhr")]
     scored = core._readiness({"date": day}, history)     # only for the baseline figure
     return {"date": day, "checkin": ci, "history": history,
-            "rhr_baseline": scored["rhr_baseline"] if scored else None}
+            "rhr_baseline": scored["rhr_baseline"] if scored else None,
+            # what the profile switched off for good: the check-in screen does not ask about those again (v0.8.9)
+            "excluded_exercises": {c: r for c, r in (urec.get("excluded_exercises") or {}).items() if r != "careful"}}
 
 
 # ---- profile (goal interview), body log --------------------------------------------------------------------

@@ -222,6 +222,17 @@ def excluded_of(cfg: dict, catalog: dict) -> dict:
             if str(c) in (catalog or {}) and r in EXCLUDE_REASONS}
 
 
+TODAY_CHOICES = ("careful", "injury")      # what the check-in may say about one exercise for TODAY (v0.8.9)
+
+
+def today_exercise_levels(cfg: dict, catalog: dict) -> dict:
+    """{exercise code: careful | injury} from TODAY's check-in - a limit that came up spontaneously. It touches only
+    a session planned for today (the profile tiles hold what lasts) and never the mirror of past sets."""
+    ck = (cfg or {}).get("checkin") or {}
+    raw = ck.get("exercises") if isinstance(ck.get("exercises"), dict) else {}
+    return {str(c): lvl for c, lvl in raw.items() if str(c) in (catalog or {}) and lvl in TODAY_CHOICES}
+
+
 def careful_of(cfg: dict, catalog: dict) -> list[str]:
     """Codes of the exercises the athlete set to "careful" for health reasons (same profile field as the
     exclusions, but these stay in the plan - sub-maximal, no target number)."""
@@ -498,13 +509,17 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         return (day - date.fromisoformat(last)).days if last else None
     urgent_now = {m for m in _trained_muscles(pool, focus, external)
                   if waited(m) is not None and waited(m) + next_gap > MAX_MUSCLE_GAP_DAYS}
+    # today's check-in about single exercises (v0.8.9): "injury" = not today, "careful" = sub-maximal today
+    today_levels = (cfg.get("_today_exercises") or {}) if (today is not None and day == today) else {}
     never_fresh = sorted((c for c in pool if not c["new"] and not c["last_fresh"]), key=lambda c: (-c["n_days"], c["name"]))
     measured = sorted((c for c in pool if not c["new"] and c["last_fresh"]), key=lambda c: (c["last_fresh"], c["name"]))
     bench_rank = {c["name"]: i for i, c in enumerate(never_fresh + measured)}
     out = []
     for c in pool:
-        if c["restriction"] == "avoid":
+        if c["restriction"] == "avoid" or today_levels.get(c["code"]) == "injury":
             continue
+        if today_levels.get(c["code"]) == "careful" and c["restriction"] == "ok":
+            c = dict(c, restriction="careful", careful_today=True)         # this day only - the pool itself stays as it is
         weight = max([FOCUS_WEIGHT[focus.get(r, "normal")] for r in c["regions"]] or [1.0])
         if weight == 0.0:
             continue
@@ -817,7 +832,8 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     if c["restriction"] == "careful":
         out["target_rule"] = "sub_max_careful"
         # the athlete's own choice for THIS exercise (profile tile) - or a body part he marked as careful
-        code = "plan_submax_careful_exercise" if c["name"] in (cfg.get("_careful_names") or ()) else "plan_submax_careful"
+        code = ("plan_submax_careful_today" if c.get("careful_today")
+                else "plan_submax_careful_exercise" if c["name"] in (cfg.get("_careful_names") or ()) else "plan_submax_careful")
         out["interp"] = item(code, {}, cfg)
         return out
     if c["status"] == "limited":
@@ -1116,7 +1132,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     external = cfg.get("_external") if cfg.get("_external") is not None else external_muscles(cfg, catalog)
     # read by split_factor via score_candidates / select_session; _starter = is there a history at all (not: a pool);
     # _external = muscles trained outside the ARX (arx_report sets it once for the findings too)
-    cfg = dict(cfg, _real_spw=real_spw, _starter=len(exercises) < SESSION_MIN_EX, _external=list(external))
+    cfg = dict(cfg, _real_spw=real_spw, _starter=len(exercises) < SESSION_MIN_EX, _external=list(external),
+               _today_exercises=today_exercise_levels(cfg, catalog))
     excluded = excluded_block(cfg, catalog)
     chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
@@ -1176,11 +1193,23 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                                    "normal_minutes": fit["normal_minutes"],
                                    "interp": item(code, {"minutes": window, "k": len(kept), "n": len(fit["normal"]), "left": left or ["-"],
                                                          "est": sess["est_minutes"], "normal": fit["normal_minutes"]}, cfg)}
+        if o["date"] == today and cfg.get("_today_exercises"):
+            names_of = {c["code"]: c["name"] for c in pool}
+            off = sorted(names_of[c] for c, lvl in cfg["_today_exercises"].items() if lvl == "injury" and c in names_of)
+            care = sorted(names_of[c] for c, lvl in cfg["_today_exercises"].items() if lvl == "careful" and c in names_of)
+            sess["checkin_notes"] = ([item("checkin_off_today", {"exercises": off, "k": len(off)}, cfg)] if off else []) \
+                + ([item("checkin_careful_today", {"exercises": care, "k": len(care)}, cfg)] if care else [])
         # a poor check-in makes a session planned for today smaller (session_size) - say that it was the CHECK-IN and
         # not the clock: more minutes do not bring the exercise back (v0.8.4)
         if b in BAND_FILL and o["date"] == today and not windowed and len(sess["exercises"]) < size_for(None):
             sess["checkin_cut"] = item("size_checkin", {"score": score_today, "k": len(sess["exercises"]), "n": size_for(None)}, cfg)
         return sess
+
+    # the check-in's limits on single exercises (v0.8.9) shape the session for TODAY - they never decide the day:
+    # a twinge that rules out one exercise is no reason to move the whole session (the fill would drop and a fuller
+    # day would win), exactly like the time window. The day is judged as if nothing were limited.
+    limits = bool(cfg.get("_today_exercises"))
+    cfg_free = dict(cfg, _today_exercises={}) if limits else cfg
 
     def options(start: date, prev: date | None, st8: dict, counts: dict, pool_: list[dict], with_band: bool) -> list[dict]:
         out = []
@@ -1188,10 +1217,16 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             d = start + timedelta(days=k)
             b = band if (with_band and d == today) else None
             size = fit["size"] if (fit and with_band and d == today) else size_for(b)
-            sel = select_session(d, pool_, st8, cfg, focus, spw, size, today, chosen_groups if with_band else None,
-                                 comeback=bool(prev) and (d - prev).days >= BREAK_LONG_DAYS)
+            groups_ = chosen_groups if with_band else None
+            comeback = bool(prev) and (d - prev).days >= BREAK_LONG_DAYS
+            sel = select_session(d, pool_, st8, cfg_free, focus, spw, size, today, groups_, comeback=comeback)
             if not sel:
                 continue
+            if limits and with_band and d == today:
+                lim = select_session(d, pool_, st8, cfg, focus, spw, size, today, groups_, comeback=comeback)
+                if not lim:                        # nothing is left for today - then today is really no option
+                    continue
+                sel = dict(lim, fill=sel["fill"])
             gap = (d - prev).days if prev else None
             off = max(0.0, abs(gap - ideal_gap) - CADENCE_FREE_DAYS) / ideal_gap if gap is not None else 0.0
             missing = spw - counts.get(d.isocalendar()[:2], 0)     # sessions the week of d still needs

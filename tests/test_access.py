@@ -237,6 +237,17 @@ class Hardening(TwoListeners):
             self.assertEqual(self.lan_call("/api/checkin", self.athlete, method="POST", body={"user_id": 1, "date": today, "minutes": sent})[0], 200)
             self.assertEqual(app.read_json(app.GOALS, {})["1"]["checkins"][today].get("minutes"), kept, sent)
         self.assertNotIn("minutes", app.clean_checkin({"sleep": "ok"}))
+        # single exercises today (v0.8.9): codes of the app's catalog with "careful" | "injury", nothing else
+        app.STATE["catalog"] = {"23": {"name": "Horizontal Press"}, "3": {"name": "Row"}, "10": {"name": "Dead Lift"}, "4": {"name": "Pull Down"}}
+        try:
+            body = {"user_id": 1, "date": today, "exercises": {"23": "injury", "3": "careful", "3000": "injury", "10": "hurts", "4": ["injury"]}}
+            self.assertEqual(self.lan_call("/api/checkin", self.athlete, method="POST", body=body)[0], 200)
+            self.assertEqual(app.read_json(app.GOALS, {})["1"]["checkins"][today].get("exercises"), {"23": "injury", "3": "careful"})
+            self.assertEqual(app.clean_checkin({"exercises": "all"})["exercises"], {})
+            self.assertEqual(app.clean_checkin({"exercises": {"23": "injury"}})["exercises"], {"23": "injury"})
+            self.assertNotIn("exercises", app.clean_checkin({"sleep": "ok"}))
+        finally:
+            app.STATE["catalog"] = {}
         body = {"user_id": 1, "goal": {"muscle": 0.6, "strength": 0.4}, "focus": {"Push": "more", "Pull": {"x": 1}}, "approach": "everything",
                 "height_cm": "tall", "weight_kg": 82.5, "notes": "x" * 9000, "language": "xx"}
         self.assertEqual(self.lan_call("/api/goal", self.athlete, method="POST", body=body)[0], 200)
