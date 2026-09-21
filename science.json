@@ -323,7 +323,7 @@
    "title": "Eccentric work: adaptations, damage, repeated-bout effect",
    "statement": "Eccentric strength is about 40% higher than concentric strength (meta-analysis of 1516 ratios: 1.41; higher in older adults, 1.62, and rising with velocity). Eccentric training at higher intensities increases total and eccentric strength more than concentric training, but the gains are specific to contraction mode and velocity. For hypertrophy the advantage is small and uncertain: ES difference 0.25 (p=0.076; 10.0% vs 6.8%) in 2017, and no significant difference in a 2025 meta-analysis of 26 trials (GRADE very low). Unaccustomed eccentric work causes the largest damage: in sedentary men strength was reduced by 13-49% four days after a first eccentric bout, arms more than legs, but after a second bout two weeks later all markers were much smaller. This repeated bout effect lasts at least 6 months and is lost between 9 and 12 months. Training-like exercise usually means mild damage with recovery within a few days; extreme unaccustomed maximal eccentric exercise can need more than a week, with large individual variation.",
    "practical_rule": "Introduce maximal eccentric efforts gradually: the first sessions (and the first after a break of many months) cause by far the most soreness and strength loss, particularly in arm muscles. Expect eccentric strength gains to show up mainly in eccentric measures.",
-   "applied_as": "A never-performed exercise is planned sub-maximal and without a target number; familiarisation days count neither as progress nor as hard loads. Concentric and eccentric progress are reported separately because gains are specific to the contraction mode. A new athlete's first BEGINNER_SESSIONS (2) sessions are planned moderate on purpose (v0.12.0).",
+   "applied_as": "A never-performed exercise is planned sub-maximal and without a target number; familiarisation days count neither as progress nor as hard loads. Concentric and eccentric progress are reported separately because gains are specific to the contraction mode. A new athlete's first BEGINNER_SESSIONS (2) sessions are planned moderate on purpose (v0.12.0). Negative-only sets (contract modes-1, phase 'negative') get no fatigue judgement, are judged on the eccentric force alone and load their muscles at the deep rank; the plan suggests one such session as a plateau lever under a strength goal (v0.15.0).",
    "arx_caveat": "The machine overloads the eccentric phase automatically (the athlete resists a motor). That is why new exercises start gently and why this app gives deep sets one day more rest than the literature on conventional sets suggests.",
    "parameters": [
     "arx_plan.NEW_WEIGHT",
@@ -1083,7 +1083,7 @@
    "title": "Rest between sessions for the same muscle",
    "statement": "Training to failure slows recovery: in trained men neuromuscular performance stayed reduced for up to 24-48 h after sets to failure, while non-failure protocols, even with the same total volume, recovered significantly faster; muscle function remained reduced at 48 h especially when sets to failure contained many repetitions. Muscle protein synthesis is more than doubled at 24 h and almost back to baseline by 36 h after heavy training. Nevertheless two trials of three full-body sessions on consecutive vs non-consecutive days found similar strength and body-composition gains over 7-12 weeks, so 48-72 h spacing is convention rather than a demonstrated requirement at moderate effort. After unaccustomed maximal eccentric work, recovery can take many days (see topic 6), and hypertrophy relates to protein synthesis only once early muscle damage has attenuated. No study tested recovery from a single all-out eccentric-overloaded set in accustomed users.",
    "practical_rule": "After an all-out set to failure allow about 48 h before loading the same muscle hard again, and longer while eccentric work is still new or soreness persists; other muscles can be trained sooner. Judge readiness by performance and soreness rather than by a fixed calendar.",
-   "applied_as": "Rest per muscle after a load follows the fatigue that was produced (v0.11.0): a deep set (force drop of 20 % or more, failure-like, with the machine's eccentric overload) 3 days; a set below that line - moderate or sub-maximal, i.e. not taken to failure - 1 day, because that is what the recovery studies show for non-failure sets; helper muscles (limiters) one level lower. A session whose sets missed the effort target therefore causes no rest debt: the plan may re-plan the same exercises the next day (\"again, properly\"), and while the session is still open the report says \"once more, now\". Different muscles can be trained on consecutive days. The athlete's own recovery response is measured and shown next to the default.",
+   "applied_as": "Rest per muscle after a load follows the fatigue that was produced (v0.11.0): a deep set (force drop of 20 % or more, failure-like, with the machine's eccentric overload) 3 days; a set below that line - moderate or sub-maximal, i.e. not taken to failure - 1 day, because that is what the recovery studies show for non-failure sets; helper muscles (limiters) one level lower. A session whose sets missed the effort target therefore causes no rest debt: the plan may re-plan the same exercises the next day (\"again, properly\"), and while the session is still open the report says \"once more, now\". Different muscles can be trained on consecutive days. The athlete's own recovery response is measured and shown next to the default. Since v0.15.0 the mode matters too: a static hold loads its muscles one rank lower than a dynamic set of the same effort (isometric work damages less), negative-only sets load at the deep rank (eccentric-only work is the most damaging kind).",
    "arx_caveat": "The studies report reduced performance for up to 48 h after conventional sets to failure. The third day after a DEEP set is this app's own margin for maximal eccentric efforts, which those studies did not test - a default, not a finding.",
    "parameters": [
     "arx_base.REQUIRED_REST",
@@ -1527,6 +1527,87 @@
      "pmid": "15741293",
      "type": "reliability study",
      "key_finding": "19 men (72 +/- 5 y), Biodex, two test days, identical positioning. ICC 0.84-0.94 (good relative reliability), but the typical error as a coefficient of variation was 8-10 % for averaged torque and 8-17 % for single peak torque - the day-to-day scatter of a peak-force number even without any change of range."
+    }
+   ]
+  },
+  "isometric_training": {
+   "title": "Static holds (isometric training): strength, pain, damage",
+   "statement": "Isometric training builds strength and muscle: in a systematic review of 26 outputs, training at longer muscle lengths produced more hypertrophy than equal volumes at shorter lengths, and the adaptations are specific to the trained joint angle. A single bout of isometric contractions (5 x 45 s at 70 % of maximal voluntary contraction) reduced patellar tendon pain from 7.0 to 0.2 on a 0-10 scale immediately and for 45 minutes, more than isotonic contractions, and released cortical inhibition (randomised cross-over, 6 athletes). Exercise-induced muscle damage arises mainly from unaccustomed exercise with a large eccentric component; isometric and concentric work damages far less (review).",
+   "practical_rule": "A hold at a pain-free, strong joint angle is a way to keep training an exercise that hurts or to restart after a long break: it loads the muscle and the tendon without the eccentric overload, builds strength mainly at that angle, and costs little recovery. Long muscle lengths give more, but not at the cost of pain.",
+   "applied_as": "The plan suggests a static hold (STATIC_HOLD_S = 40 s at a pain-free, strong position, ended by the machine's Inroad Mode) for an exercise on 'go easy' and for the first session after a very long break; the row's own target stays and every text says that a mode change restarts the comparison basis. A hold loads its muscles one rank lower than a dynamic set of the same effort (REQUIRED_REST).",
+   "arx_caveat": "The pain study is small (n = 6, patellar tendinopathy, athletes) and acute; the isometric review concerns training over weeks with conventional set-ups; no study tested holds against a motor-driven machine's eccentric overload. Holds are angle-specific: strength gained in the hold transfers only partly to the full movement.",
+   "parameters": [
+    "arx_plan.STATIC_HOLD_S",
+    "arx_base.REQUIRED_REST"
+   ],
+   "evidence_level": "low",
+   "reviewed": "2026-09-21",
+   "references": [
+    {
+     "authors": "Oranchuk DJ, Storey AG, Nelson AR, Cronin JB",
+     "year": 2019,
+     "title": "Isometric training and long-term adaptations: Effects of muscle length, intensity, and intent: A systematic review",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.13375",
+     "pmid": "30580468",
+     "type": "systematic review",
+     "key_finding": "26 research outputs. Isometric training at longer muscle lengths produced greater hypertrophy (0.86-1.69 %/week) than equal volumes at shorter lengths (0.08-0.83 %/week); adaptations are specific to the trained joint angle; ballistic intent gave more neuromuscular activation and rapid force."
+    },
+    {
+     "authors": "Rio E, Kidgell D, Purdam C, et al.",
+     "year": 2015,
+     "title": "Isometric exercise induces analgesia and reduces inhibition in patellar tendinopathy",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsports-2014-094386",
+     "pmid": "25979840",
+     "type": "randomised cross-over",
+     "key_finding": "6 volleyball players with patellar tendinopathy. One bout of isometric contractions reduced pain during the single-leg decline squat from 7.0 to 0.17 (0-10), isotonic contractions from 6.33 to 3.75; the isometric effect lasted 45 minutes and released cortical inhibition (27.5 % -> 55.0 %), isotonic did not."
+    },
+    {
+     "authors": "Clarkson PM, Hubal MJ",
+     "year": 2002,
+     "title": "Exercise-induced muscle damage in humans",
+     "journal": "Am J Phys Med Rehabil",
+     "doi": "10.1097/00002060-200211001-00007",
+     "pmid": "12409811",
+     "type": "review",
+     "key_finding": "Exercise-induced muscle injury occurs after unaccustomed exercise, particularly with a large amount of eccentric contractions: Z-line streaming, prolonged force loss, inflammation, soreness; one eccentric bout protects against the next (repeated bout effect)."
+    }
+   ]
+  },
+  "timed_sets_conditioning": {
+   "title": "Timed sets (Countdown) for a conditioning goal",
+   "statement": "Resistance circuit-based training - resistance work in continuous rounds against the clock - raised maximum oxygen uptake and bench-press 1RM in healthy adults (meta-analysis, 8 + 8 studies); large VO2max effects came from about 14-30 sessions over 6-12 weeks of at least 20-30 minutes at 60-90 % 1RM. A later systematic review confirms improvements in body composition, strength and cardiorespiratory fitness.",
+   "practical_rule": "When endurance is part of the goal, work against the clock: timed sets with as much work as possible in a fixed time, on the big exercises, session after session a little more - the 'output' is the number to beat, not the peak force.",
+   "applied_as": "With a conditioning share of the goal of CONDITIONING_SHARE (30 %) or more, or the outcome 'performance', the plan suggests Countdown sets of COUNTDOWN_SECONDS (90 s) on the big exercises; the Output target is the last comparable Output plus OUTPUT_STEP_PCT (2 %) at the same duration ('beat your gray line'). The row's force target stays; timed sets are compared only with timed sets of the same length.",
+   "arx_caveat": "Circuit training in the studies means several stations and 20-30 minutes; a single timed set on an adaptive-resistance machine is a piece of that, not the whole. The Output target and the 90 s are conventions from the machine's own practice, not tested values.",
+   "parameters": [
+    "arx_plan.CONDITIONING_SHARE",
+    "arx_plan.COUNTDOWN_SECONDS",
+    "arx_plan.OUTPUT_STEP_PCT"
+   ],
+   "evidence_level": "indirect",
+   "reviewed": "2026-09-21",
+   "references": [
+    {
+     "authors": "Muñoz-Martínez FA, Rubio-Arias JÁ, Ramos-Campo DJ, Alcaraz PE",
+     "year": 2017,
+     "title": "Effectiveness of Resistance Circuit-Based Training for Maximum Oxygen Uptake and Upper-Body One-Repetition Maximum Improvements: A Systematic Review and Meta-Analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-017-0773-4",
+     "pmid": "28822112",
+     "type": "meta-analysis",
+     "key_finding": "8 studies / 118 adults for VO2max, 8 studies / 237 adults for bench-press 1RM: significant increases in both after resistance circuit-based training and versus controls, independent of the protocol; large VO2max effects need ~14-30 sessions over ~6-12 weeks, sessions of at least ~20-30 min at ~60-90 % 1RM."
+    },
+    {
+     "authors": "Ramos-Campo DJ, Andreu Caravaca L, Martínez-Rodríguez A, Rubio-Arias JÁ",
+     "year": 2021,
+     "title": "Effects of Resistance Circuit-Based Training on Body Composition, Strength and Cardiorespiratory Fitness: A Systematic Review and Meta-Analysis",
+     "journal": "Biology (Basel)",
+     "doi": "10.3390/biology10050377",
+     "pmid": "33924785",
+     "type": "meta-analysis",
+     "key_finding": "Systematic review with meta-analysis of resistance circuit-based training: improvements in body composition, strength and cardiorespiratory fitness in adults."
     }
    ]
   }

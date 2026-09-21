@@ -194,6 +194,12 @@ EFFORT_REPS_STEP = 2           # the alternative lever once tempo and pauses are
 EFFORT_STREAK_DAYS = 42        # lookback for the streak, from the exercise's last training day
 REPEAT_SOON_DAYS = 2           # a fruitless session's exercises back in the plan within this many days -> "again, properly" (v0.11.0)
 BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate, the athlete sets the level, nothing is a miss (v0.12.0)
+# mode suggestions (v0.15.0, contract modes-1): the athlete's goal first, then the situation - a line on the row, never a
+# silent change of its target. Science: science.json isometric_training, timed_sets_conditioning, eccentric
+CONDITIONING_SHARE = 0.3       # conditioning share of the goal from which timed (Countdown) sets are suggested
+COUNTDOWN_SECONDS = 90         # length of a suggested Countdown set (inside the 60-120 s the ARX practice uses)
+OUTPUT_STEP_PCT = 2.0          # the Output target of a timed set: last comparable Output + this
+STATIC_HOLD_S = 40             # a suggested static hold (the machine's Inroad Mode may end it earlier)
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
@@ -202,6 +208,8 @@ SCIENCE = {
     "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",
     "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo", "REPEAT_SOON_DAYS": "recovery_between_sessions",
     "BEGINNER_SESSIONS": "eccentric",
+    "CONDITIONING_SHARE": "timed_sets_conditioning", "COUNTDOWN_SECONDS": "timed_sets_conditioning", "OUTPUT_STEP_PCT": "timed_sets_conditioning",
+    "STATIC_HOLD_S": "isometric_training",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
@@ -347,7 +355,7 @@ def goal_effort(goal: dict) -> str:
     """The effort the training goal asks for: muscle -> deep; strength / conditioning -> moderate
     (full force on every rep, stop before form breaks)."""
     g = goal or {}
-    if (g.get("conditioning") or 0) >= 0.3 or (g.get("strength") or 0) > (g.get("muscle") or 0):
+    if (g.get("conditioning") or 0) >= CONDITIONING_SHARE or (g.get("strength") or 0) > (g.get("muscle") or 0):
         return "moderate"
     return "deep"
 
@@ -936,6 +944,39 @@ def effort_reset_settings(settings: dict | None, keep_pauses: bool = False) -> d
     return out or None
 
 
+def mode_of(s: dict | None) -> str | None:
+    """A set's mode as written everywhere (contract modes-1): movement/ending[/phase]."""
+    if not s:
+        return None
+    return f"{s.get('movement', 'dynamic')}/{s.get('ending', 'reps')}" + (f"/{s['phase']}" if s.get("phase") in ("negative", "positive") else "")
+
+
+def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool) -> dict | None:
+    """A mode SUGGESTION for the row - never a silent change of its target (v0.15.0). The athlete's goal first,
+    then the situation: a static hold (ended by the machine's Inroad Mode) for an exercise to go easy on and for
+    the first session after months away; Countdown with an Output target on the big exercises when the goal
+    carries a conditioning share; negative-only repetitions as a plateau lever under a strength goal. A mode
+    change restarts the comparison basis - every text says so. Nothing for beginners or new exercises."""
+    if beginner_phase(cfg) or c["new"]:
+        return None
+    goal = cfg.get("goal") or {}
+    e = c.get("series") or {}
+    if c["restriction"] == "careful" or returning:
+        code = "mode_static_careful" if c["restriction"] == "careful" else "mode_static_return"
+        return {"mode": "static/inroad", "settings": {"hold_s": STATIC_HOLD_S}, "interp": item(code, {"seconds": STATIC_HOLD_S}, cfg)}
+    if ((goal.get("conditioning") or 0) >= CONDITIONING_SHARE or cfg.get("outcome") == "performance") and c["kind"] == "compound":
+        timed = [o for o in (e.get("output_series") or []) if o.get("comparable") and o.get("output_kg_s")]
+        target = round(timed[-1]["output_kg_s"] * (1 + OUTPUT_STEP_PCT / 100.0)) if timed else None
+        imperial = cfg.get("units") == "imperial"
+        shown = round(target * (2.20462 if imperial else 1)) if target else None
+        code = "mode_countdown_output" if target else "mode_countdown_conditioning"
+        return {"mode": "dynamic/time", "settings": {"seconds": COUNTDOWN_SECONDS, "output_target_kg_s": target},
+                "interp": item(code, {"seconds": COUNTDOWN_SECONDS, "output": shown, "unit": "lb·s" if imperial else "kg·s", "step_pct": OUTPUT_STEP_PCT}, cfg)}
+    if goal_effort(goal) == "moderate" and (goal.get("conditioning") or 0) < CONDITIONING_SHARE and (c.get("progress") or {}).get("status") == "plateau":
+        return {"mode": "dynamic/reps/negative", "settings": {"sessions": 1}, "interp": item("mode_negative_plateau", {}, cfg)}
+    return None
+
+
 def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: str | None, is_bench: bool,
                row: dict, cfg: dict, returning: bool = False, away_days: int | None = None) -> dict:
     """Force target, sets and the rule behind them (see the module docstring). away_days = days the
@@ -1157,7 +1198,9 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
             "second_set_loss_pct": repeat_loss.get(c["name"]) if tgt["sets"] > 1 else None,
             "why_selected": why, "order_rules": rules, "score": c["base_score"], "days_since_target": c["days_since_target"],
             "days_away": c.get("days_away"),
-            "progress_status": (c["progress"] or {}).get("status"), **tgt,
+            "progress_status": (c["progress"] or {}).get("status"),
+            "mode_hint": mode_hint_for(c, eff, cfg, returning),           # a suggestion, the row's target stays (v0.15.0)
+            **tgt,
         })
     regions = sorted({r for it in items for r in it["regions"]})
     return {"date": day.isoformat(), "weekday": day.weekday(), "session_type": "split" if sel["theme"] else "full_body",
@@ -1808,7 +1851,8 @@ def ledger_entry(plan: dict, today: date) -> dict | None:
             "exercises": [{"name": it["name"], "order": it["order"], "sets": it["sets"], "target_peak_kg": it["target_peak_kg"],
                            "target_rule": it["target_rule"], "effort": it["effort_target"]["label"],
                            "inroad_min": it["effort_target"]["inroad_min"], "rest_before_min": it["rest_before_min"],
-                           "aid_hint": it["aid_hint"], "settings": it.get("settings")} for it in s["exercises"]]}
+                           "aid_hint": it["aid_hint"], "settings": it.get("settings"),
+                           "mode_hint": (it.get("mode_hint") or {}).get("mode")} for it in s["exercises"]]}
 
 
 def ledger_signature(entry: dict) -> str:
@@ -1851,7 +1895,10 @@ def plan_vs_actual(entries: list[dict], last_session: dict | None, cfg: dict) ->
         a = actual.get(p["name"])
         row = {"name": p["name"], "done": bool(a), "target_peak_kg": p["target_peak_kg"], "actual_peak_kg": (a or {}).get("max_kg"),
                "target_met": None, "inroad_min": p["inroad_min"], "inroad": (a or {}).get("inroad"), "effort_met": None,
-               "rest_planned_min": p["rest_before_min"], "rest_actual_min": (a or {}).get("rest_before_min")}
+               "rest_planned_min": p["rest_before_min"], "rest_actual_min": (a or {}).get("rest_before_min"),
+               # the mode suggestion of the plan against the mode the set was really done in (v0.15.0)
+               "mode_hint": p.get("mode_hint"), "mode_actual": mode_of(a),
+               "mode_followed": (mode_of(a) == p.get("mode_hint")) if (a and p.get("mode_hint")) else None}
         if a and p["target_peak_kg"] and a.get("max_kg"):
             row["target_met"] = a["max_kg"] >= TARGET_HIT_SHARE * p["target_peak_kg"]
             judged += 1
@@ -1866,6 +1913,7 @@ def plan_vs_actual(entries: list[dict], last_session: dict | None, cfg: dict) ->
            "done": both, "skipped": [n for n in planned if n not in done], "added": [n for n in done if n not in planned],
            "order_agreement": round(same_order / len(pairs), 2) if pairs else None,
            "targets_met": hits, "targets_judged": judged, "effort_met": effort_hits, "effort_judged": effort_judged,
+           "modes_hinted": sum(1 for r in rows if r["mode_followed"] is not None), "modes_followed": sum(1 for r in rows if r["mode_followed"]),
            "exercises": rows}
     code = "pva_followed" if (len(both) == len(planned) and not out["added"]) else ("pva_partly" if both else "pva_other")
     out["interp"] = item(code, {"k": len(both), "total": len(planned), "skipped": out["skipped"], "added": out["added"],
