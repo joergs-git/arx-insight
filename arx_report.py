@@ -1928,6 +1928,17 @@ def build_report(con, cfg: dict) -> dict:
         detail.save_detail_cache(dcache)
     cap_low_force(work)
     evidence.annotate_context(work, catalog, aids)   # fresh | preloaded | repeat, per visit
+    # the machine's inroad scale against the fatigue in the set, over the athlete's own dynamic both-phase sets: what
+    # Inroad Mode setting reaches the fatigue target (v0.16.0) - per exercise when the data carries it, else all sets
+    pairs_all, pairs_ex = [], {}
+    for s in work:
+        if s.get("movement", "dynamic") == "dynamic" and (s.get("phase") or "both") == "both" and not s.get("effort_capped") \
+                and s.get("inroad_legacy") is not None and s.get("inroad") is not None:
+            pairs_all.append((s["inroad_legacy"], s["inroad"]))
+            pairs_ex.setdefault(s["name"], []).append((s["inroad_legacy"], s["inroad"]))
+    calibration = {"all": planner.fit_inroad_scale(pairs_all), "n_sets": len(pairs_all),
+                   "exercises": {n: f for n, p in pairs_ex.items() if (f := planner.fit_inroad_scale(p))}}
+    cfg["_calibration"] = calibration              # cfg is this report's own copy (see the top of build_report)
 
     today = _today(cfg)
     checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
@@ -2057,6 +2068,8 @@ def build_report(con, cfg: dict) -> dict:
         "goal_progress": goal_progress,          # None without a measurable target
         "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
         "careful_exercises": list(careful),      # set to "careful" for health reasons by the athlete (profile tiles, v0.8.8)
+        # machine inroad <-> fatigue in the set (v0.16.0): the fit over all sets, per exercise, and what setting reaches the goal
+        "inroad_calibration": dict(calibration, machine_for_goal=planner.machine_setting(calibration["all"], goal_min)),
         # today's check-in about single exercises {name: careful | injury} - today only (v0.8.9)
         "today_exercises": {(catalog.get(c) or {}).get("name") or f"Exercise {c}": lvl for c, lvl in planner.today_exercise_levels(cfg, catalog).items()},
         "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),

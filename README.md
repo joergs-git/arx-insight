@@ -204,7 +204,7 @@ duration), and chapter 3 says which modes an exercise's history contains. Timed 
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
 own inroad scale (best rep peak → last rep peak, what its Inroad Mode uses) is shown next to the fatigue in the set
 as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-2.md`; the next steps
-(calibrating the machine's Inroad setting to your fatigue target) are in the roadmap.
+are done (v0.15.0 / v0.16.0, see the FAQ).
 
 **Which mode does the plan suggest, and when?** *(v0.15.0)* — a suggestion on the row (◎), never a silent change of
 your target: your **goal** first, then the situation. A conditioning share of 30 % or more (or the outcome
@@ -217,6 +217,15 @@ repetitions (judged on the eccentric force only, full rest afterwards). A balanc
 get no mode suggestions. Every text says that a mode change restarts the comparison basis, and the plan-vs-actual
 mirror tells whether you followed the suggestion. Evidence: `science.json` → *isometric_training*,
 *timed_sets_conditioning*, *eccentric*.
+
+**Can Insight tell me what to set the machine's Inroad Mode to?** *(v0.16.0)* — once your own sets carry the
+answer. The machine's Inroad Mode works on its own scale (best rep peak → last rep peak), Insight judges fatigue in
+the set on another; a straight line through your dynamic sets (at least 6, spread over 10 machine points, half the
+scatter explained) maps one to the other, per exercise when possible. Then the escalation row after two misses gets
+a **fourth lever** ("Inroad Mode at about X % — stop when the zone is missed"), static hints carry the machine value,
+and under a **maintain** goal the plan walks the ARX ladder: start at the calibrated value, one step of 5 down while
+your strength holds, one up when it drops, never below the setting that maps to the moderate line. Without a usable
+fit the plan says nothing about machine values — it never guesses one.
 
 ## The sibling project: arx-free
 

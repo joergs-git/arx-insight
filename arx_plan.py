@@ -199,7 +199,13 @@ BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate
 CONDITIONING_SHARE = 0.3       # conditioning share of the goal from which timed (Countdown) sets are suggested
 COUNTDOWN_SECONDS = 90         # length of a suggested Countdown set (inside the 60-120 s the ARX practice uses)
 OUTPUT_STEP_PCT = 2.0          # the Output target of a timed set: last comparable Output + this
-STATIC_HOLD_S = 40             # a suggested static hold (the machine's Inroad Mode may end it earlier)
+STATIC_HOLD_S = 40             # a suggested static hold (in Inroad Mode the athlete stops when the zone is missed)
+# the machine's Inroad Mode setting calibrated to the fatigue target (v0.16.0): a straight line through the athlete's
+# own sets, fatigue in the set (effort-v3) against the machine's inroad scale (best rep peak -> last rep peak)
+CALIB_MIN_SETS = 6             # sets needed for a fit
+CALIB_MIN_R2 = 0.5             # ... and this much of the scatter explained
+CALIB_MIN_SPREAD = 10          # ... over at least this many machine-scale points, else no fit
+INROAD_LADDER_STEP = 5         # the maintain ladder (ARX practice: find the least fatigue that still holds strength)
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
@@ -209,7 +215,7 @@ SCIENCE = {
     "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo", "REPEAT_SOON_DAYS": "recovery_between_sessions",
     "BEGINNER_SESSIONS": "eccentric",
     "CONDITIONING_SHARE": "timed_sets_conditioning", "COUNTDOWN_SECONDS": "timed_sets_conditioning", "OUTPUT_STEP_PCT": "timed_sets_conditioning",
-    "STATIC_HOLD_S": "isometric_training",
+    "STATIC_HOLD_S": "isometric_training", "INROAD_LADDER_STEP": "minimum_dose",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
@@ -944,6 +950,41 @@ def effort_reset_settings(settings: dict | None, keep_pauses: bool = False) -> d
     return out or None
 
 
+def fit_inroad_scale(pairs: list[tuple]) -> dict | None:
+    """Least squares of fatigue in the set (effort-v3) on the machine's own inroad scale over (machine, v3) pairs:
+    {n, slope, intercept, r2, machine_min, machine_max}. None below CALIB_MIN_SETS pairs, CALIB_MIN_SPREAD points of
+    spread or CALIB_MIN_R2 - then the athlete's data does not carry the answer yet (say so, never guess)."""
+    pts = [(float(m), float(v)) for m, v in pairs if m is not None and v is not None]
+    if len(pts) < CALIB_MIN_SETS:
+        return None
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    if max(xs) - min(xs) < CALIB_MIN_SPREAD:
+        return None
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    syy = sum((y - my) ** 2 for y in ys)
+    if sxx <= 0 or syy <= 0:
+        return None
+    slope = sxy / sxx
+    r2 = sxy * sxy / (sxx * syy)
+    if slope <= 0 or r2 < CALIB_MIN_R2:
+        return None
+    return {"n": len(pts), "slope": round(slope, 3), "intercept": round(my - slope * mx, 1), "r2": round(r2, 2),
+            "machine_min": round(min(xs)), "machine_max": round(max(xs))}
+
+
+def machine_setting(cal: dict | None, target_pct: float) -> int | None:
+    """The machine-scale inroad at which the athlete's fit reaches target_pct of fatigue in the set - only inside the
+    range the fit was made on (+- 5 points), rounded to whole percent."""
+    if not cal or not cal.get("slope"):
+        return None
+    m = (target_pct - cal["intercept"]) / cal["slope"]
+    if m < cal["machine_min"] - 5 or m > cal["machine_max"] + 5:
+        return None
+    return int(round(m))
+
+
 def mode_of(s: dict | None) -> str | None:
     """A set's mode as written everywhere (contract modes-1): movement/ending[/phase]."""
     if not s:
@@ -951,7 +992,7 @@ def mode_of(s: dict | None) -> str | None:
     return f"{s.get('movement', 'dynamic')}/{s.get('ending', 'reps')}" + (f"/{s['phase']}" if s.get("phase") in ("negative", "positive") else "")
 
 
-def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool) -> dict | None:
+def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool, commitment: str = "") -> dict | None:
     """A mode SUGGESTION for the row - never a silent change of its target (v0.15.0). The athlete's goal first,
     then the situation: a static hold (ended by the machine's Inroad Mode) for an exercise to go easy on and for
     the first session after months away; Countdown with an Output target on the big exercises when the goal
@@ -961,9 +1002,29 @@ def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool) -> dict | N
         return None
     goal = cfg.get("goal") or {}
     e = c.get("series") or {}
+    cal = ((cfg.get("_calibration") or {}).get("exercises") or {}).get(c["name"]) or (cfg.get("_calibration") or {}).get("all")
+    machine = machine_setting(cal, effort["inroad_min"]) if effort.get("inroad_min") else None
     if c["restriction"] == "careful" or returning:
         code = "mode_static_careful" if c["restriction"] == "careful" else "mode_static_return"
-        return {"mode": "static/inroad", "settings": {"hold_s": STATIC_HOLD_S}, "interp": item(code, {"seconds": STATIC_HOLD_S}, cfg)}
+        return {"mode": "static/inroad", "settings": {"hold_s": STATIC_HOLD_S, "inroad_machine_pct": machine}, "interp": item(code, {"seconds": STATIC_HOLD_S}, cfg)}
+    # maintain (outcome or profile): the ARX ladder - the least machine inroad that still holds strength, one step at a time;
+    # needs the athlete's own calibration (the machine's scale is not ours)
+    if (cfg.get("outcome") == "maintain" or commitment == "maintain") and machine is not None:
+        used = [o for o in (e.get("occ") or []) if o.get("ending") == "inroad" and o.get("inroad_machine") is not None]
+        status = (c.get("progress") or {}).get("status")
+        if not used:
+            return {"mode": "dynamic/inroad", "settings": {"inroad_machine_pct": machine},
+                    "interp": item("mode_inroad_start", {"machine_pct": machine, "target_pct": effort["inroad_min"]}, cfg)}
+        last = used[-1]["inroad_machine"]
+        floor = machine_setting(cal, INROAD_MODERATE) or max(INROAD_LADDER_STEP, machine - 3 * INROAD_LADDER_STEP)
+        if status == "regressing":
+            nxt, code = last + INROAD_LADDER_STEP, "mode_inroad_ladder_up"
+        elif status in ("stable", "plateau", "progressing") and last - INROAD_LADDER_STEP >= floor:
+            nxt, code = last - INROAD_LADDER_STEP, "mode_inroad_ladder_down"
+        else:
+            return None
+        return {"mode": "dynamic/inroad", "settings": {"inroad_machine_pct": nxt},
+                "interp": item(code, {"machine_pct": nxt, "last_pct": last, "step": INROAD_LADDER_STEP, "floor_pct": floor}, cfg)}
     if ((goal.get("conditioning") or 0) >= CONDITIONING_SHARE or cfg.get("outcome") == "performance") and c["kind"] == "compound":
         timed = [o for o in (e.get("output_series") or []) if o.get("comparable") and o.get("output_kg_s")]
         target = round(timed[-1]["output_kg_s"] * (1 + OUTPUT_STEP_PCT / 100.0)) if timed else None
@@ -1046,6 +1107,13 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         rule, out["settings_change"], misses = "effort_reset", change, streak["misses"]
         code = ("plan_effort_reps" if "reps" in change else "plan_effort_pauses" if "tempo_s" not in change
                 else "plan_effort_tempo" if keep_pauses else "plan_effort_reset")
+        # the fourth lever (v0.16.0): let the machine's Inroad Mode show when the set is done - at the machine-scale value
+        # the athlete's own calibration maps to the fatigue target; the stop is by hand when the zone is missed
+        cal = ((cfg.get("_calibration") or {}).get("exercises") or {}).get(c["name"]) or (cfg.get("_calibration") or {}).get("all")
+        machine = machine_setting(cal, effort["inroad_min"])
+        if machine is not None:
+            out["inroad_mode_pct"] = machine
+            out["lever_note"] = item("plan_effort_inroad_mode", {"machine_pct": machine, "target_pct": effort["inroad_min"], "n": cal["n"]}, cfg)
     elif beginner and room:                        # first sessions: a set that stopped short is fine - no "clean measurement" talk yet
         rule, code = "hold_reach_effort", "plan_beginner_row"
     elif is_bench:                                                    # today's clean measurement
@@ -1199,7 +1267,7 @@ def finish_session(sel: dict, cfg: dict, ev: dict, commitment: str, band: str | 
             "why_selected": why, "order_rules": rules, "score": c["base_score"], "days_since_target": c["days_since_target"],
             "days_away": c.get("days_away"),
             "progress_status": (c["progress"] or {}).get("status"),
-            "mode_hint": mode_hint_for(c, eff, cfg, returning),           # a suggestion, the row's target stays (v0.15.0)
+            "mode_hint": mode_hint_for(c, eff, cfg, returning, commitment),   # a suggestion, the row's target stays (v0.15.0)
             **tgt,
         })
     regions = sorted({r for it in items for r in it["regions"]})

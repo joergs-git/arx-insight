@@ -487,6 +487,43 @@ class ModeHints(unittest.TestCase):
         self.assertEqual((pva["modes_hinted"], pva["modes_followed"], pva["exercises"][0]["mode_actual"]), (1, 1, "dynamic/reps/negative"))
 
 
+class InroadCalibration(unittest.TestCase):
+    """v0.16.0: the machine's Inroad Mode setting that reaches the fatigue target, from the athlete's own sets - a fit
+    of fatigue in the set on the machine's inroad scale; a fourth lever after repeated misses; the maintain ladder."""
+    def test_the_fit_needs_enough_sets_spread_and_agreement(self):
+        exact = [(m, 0.6 * m - 2) for m in (20, 25, 30, 35, 40, 45)]
+        cal = planner.fit_inroad_scale(exact)
+        self.assertEqual((cal["n"], cal["slope"], cal["r2"]), (6, 0.6, 1.0))
+        self.assertEqual(planner.machine_setting(cal, 20), 37)                        # 0.6 m - 2 = 20 -> m = 36.7
+        self.assertIsNone(planner.machine_setting(cal, 60))                          # outside the range the fit was made on
+        self.assertIsNone(planner.fit_inroad_scale(exact[:5]))                       # too few
+        self.assertIsNone(planner.fit_inroad_scale([(30, 10 + i) for i in range(8)]))   # no spread on the machine scale
+        self.assertIsNone(planner.fit_inroad_scale([(20, 30), (30, 5), (40, 28), (25, 4), (35, 26), (45, 6)]))   # no agreement
+        self.assertIsNone(planner.machine_setting(None, 20))
+
+    def test_the_report_carries_the_calibration_and_the_rows_use_it(self):
+        rows = [fx.make_set(1 + i, PRESS, datetime(2026, 8, 1 + 3 * i, 10, 0), con=(150, d), ecc=(240, d))
+                for i, d in enumerate([0.02, 0.03, 0.04, 0.05, 0.06, 0.02, 0.04, 0.06])]
+        r = report(rows, "2026-08-26")
+        cal = r["inroad_calibration"]
+        self.assertGreaterEqual(cal["n_sets"], 6)
+        self.assertIsNotNone(cal["all"]); self.assertIn("Horizontal Press", cal["exercises"])
+        self.assertIsNotNone(cal["machine_for_goal"])
+        # two misses in a row -> the escalation row also names the machine setting for the target
+        rows += [fx.make_set(20 + i, PRESS, datetime(2026, 8, 27 + 3 * i, 10, 0), con=(150, 0.01), ecc=(240, 0.01)) for i in range(2)]
+        it = next(x for x in report(rows, "2026-09-03")["plan"]["next_session"]["exercises"] if x["name"] == "Horizontal Press")
+        self.assertEqual(it["target_rule"], "effort_reset")
+        self.assertIsNotNone(it.get("inroad_mode_pct")); self.assertEqual(it["lever_note"]["code"], "plan_effort_inroad_mode")
+        self.assertNotIn("{", it["lever_note"]["text"]["meaning"] + it["lever_note"]["text"]["action"])
+        # maintain: the ladder starts at the calibrated value, steps down while strength holds, up when it drops
+        it = next(x for x in report(rows[:8], "2026-08-26", outcome="maintain")["plan"]["next_session"]["exercises"] if x["name"] == "Horizontal Press")
+        self.assertEqual((it["mode_hint"]["mode"], it["mode_hint"]["interp"]["code"]), ("dynamic/inroad", "mode_inroad_start"))
+        used = rows[:8] + [fx.make_set(30, PRESS, datetime(2026, 8, 27, 10, 0), protocol=0, con=(150, 0.05), ecc=(240, 0.05))]
+        it = next(x for x in report(used, "2026-08-29", outcome="maintain")["plan"]["next_session"]["exercises"] if x["name"] == "Horizontal Press")
+        self.assertIn(it["mode_hint"]["interp"]["code"], ("mode_inroad_ladder_down", "mode_inroad_ladder_up"))
+        self.assertNotIn("{", it["mode_hint"]["interp"]["text"]["meaning"] + it["mode_hint"]["interp"]["text"]["action"])
+
+
 class EffortEscalation(unittest.TestCase):
     """v0.10.0 (owner): a missed effort target is acted on - once the cue is intent (the number holds), twice in
     a row the set-up changes (slower per direction, no turnaround pauses; two reps more once those are exhausted).
