@@ -40,7 +40,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 11
+PROMPT_VERSION = 12
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -249,6 +249,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
                                    "settings": ({"reps": x["settings"].get("reps"), "seconds_per_direction": x["settings"].get("tempo_s"),
                                                  "pause_end_s": x["settings"].get("pause_end_s"), "pause_return_s": x["settings"].get("pause_return_s"),
                                                  "range_of_motion": L(x["settings"].get("rom_cm"))} if x.get("settings") else None),
+                                   # after two fruitless sessions the engine changes the set-up (v0.10.0): {field: {from, to}}
+                                   "settings_change": ({("seconds_per_direction" if k == "tempo_s" else k): v for k, v in x["settings_change"].items()}
+                                                       if x.get("settings_change") else None),
                                    "why": [t for t in [_text(w) for w in (x.get("why_selected") or []) + [x.get("interp"), x.get("context_note")]
                                                        + (x.get("order_rules") or [])] if t]} for x in ns["exercises"]],
                          "order_notes": [_text(n) for n in ns.get("order_notes") or []],
@@ -298,6 +301,8 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
             "exercise": e["name"], "group": e["group"], "kind": e["kind"], "targets": e.get("targets"), "helpers": e.get("limiters_eff", e.get("limiters")),
             "restriction": e.get("restriction"), "training_days": e["n"], "last_date": e.get("last_date"),
             "best_comparable": F(e.get("pb_comparable")), "range_reference": L(e.get("rom_cm_reference")), "range_drift_pct": e.get("rom_drift_pct"),
+            # a missed effort target is acted on (v0.10.0): the streak of last days below the goal's force drop
+            "effort_misses_in_a_row": e.get("effort_misses"), "last_inroad_pct": e.get("effort_last_inroad"), "inroad_target_pct": e.get("effort_target_inroad"),
             "progress": {"status": p.get("status"), "change_pct": p.get("change_pct"), "concentric_change_pct": p.get("change_con_pct"),
                          "eccentric_change_pct": p.get("change_ecc_pct"), "comparable_days": p.get("n"), "span_days": p.get("span_days"),
                          "rate_pct_per_week": p.get("rate_pct_per_week"), "reference_context": p.get("reference_context"),
@@ -416,6 +421,7 @@ HOW TO JUDGE - non-negotiable:
 9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.
 10. The repertoire is the athlete's decision: an exercise in profile.exercises_switched_off is never recommended - not in the rows, not in the text, not as an alternative. reason trained_elsewhere: the athlete trains it outside this machine, so profile.muscles_trained_elsewhere get their stimulus there - do not call them neglected, do not add machine work for them, and keep in mind that this load is invisible here: when such a muscle helps in a planned exercise, say once that soreness from that training belongs into the check-in. reason not_wanted: cover its muscles with the athlete's other exercises where the decision space allows, and say plainly when nothing in the repertoire reaches them. reason health_not_possible: the athlete cannot do it for now for a health reason he has not described to you - never recommend it, never suggest "trying" it, and do not treat the joint behind it as fine just because the other exercises are allowed; the exercises that stay in the plan are the ones he can do. profile.exercises_with_care are exercises he keeps for health reasons ONLY sub-maximally (movement helps a recovering joint, the all-out set does not): they stay in the plan with effort submax and target 0, and you never push them harder or read a lower value there as a regression. readiness_today.exercises_not_today and exercises_with_care_today say the same for TODAY only (from the check-in): the engine has already taken them out of / eased them in today's session - keep it that way, and if it looks lasting, tell him the profile tiles are the place for it. readiness_today.checkin.sore_regions and .pain are the reasons behind those flags - on the check-in screen a sore region or a painful joint is a shortcut that flags the exercises it touches, and the athlete may have kept single exercises anyway (his call) - so never derive a second rule from soreness or pain.
 11. How many exercises a session has is a TIME decision of the athlete - never present it as a training rule or as "the frame". planner.decision_space.rows_in_time_budget is what the stated time holds at the athlete's own pace, bounds.rows_max what a session can hold at all; one more exercise costs minutes_per_extra_exercise. Exercises for unrelated muscles cost no result, and for a size goal more weekly sets per muscle is the best-supported lever - so when the athlete says there is more time, build the fuller session inside the decision space, name its price in minutes and tell him that "Minutes per session" in the profile makes it permanent (profile.exercises_by_minutes_per_session shows what each budget buys). Without that signal stay within rows_in_time_budget unless volume is the lever (size goal AND the effort target is being met). Two exercises that share a TARGET muscle are more volume for it, not "another muscle group": say so, and say which of them keeps the clean measurement. With profile.takes_turns_with_partner the long change-over is the partner's set: never recommend shortening it, never count it as wasted time. readiness_today.minutes_available_today is the athlete's time window for TODAY (an upper limit from the check-in): a session planned for today has to fit - the engine already cut it (planner.proposal.time_window: extra sets first, then the least urgent exercises) and bounds.rows_max is then what fits; never add rows or sets beyond it, keep the effort, say what was left out and that it comes first next time. A moderate or light check-in makes a session planned for TODAY smaller and caps its effort on purpose (planner.proposal.checkin_adjustment / planner.today_instead_adjustment): that is a readiness rule, not a time limit - never promise more exercises for today because there is time; say that the check-in is the reason and that the full session is there on a better day.
+12. A missed effort target is answered, never just noted. history.exercises[].effort_misses_in_a_row counts the exercise's last training days in a row that ended below inroad_target_pct (last_inroad_pct = the latest); a day planned sub-maximal (careful, light, limited) is not a miss. ONE miss: the number holds and the cue is intent - all-out from the first repetition (a start deficit is given away), the set ends when the force breaks down, not when the repetitions are over. TWO misses in a row: the set-up changes and the row's tempo field says so - the engine proposes planner.proposal.rows[].settings_change (seconds per direction +1 up to 5, the pauses at the turnarounds to 0; two repetitions more once those are exhausted): keep it or choose the repetitions instead, but never hold the number a third time without changing something, and say that the comparison basis restarts with new settings.
 
 SCIENCE BASE - curated general evidence; the athlete's own measured data outranks these defaults, and a default must be called a default:
 {science}
@@ -426,7 +432,7 @@ BOARD_RULES = """YOUR TASK: fill the board - one JSON object in the given schema
 last_session: headline (max 90 characters, the one thing that defines the session) - meaning (what it means for this athlete) - consequence (what follows concretely) - verdicts: one per exercise of last_session in the order performed; rating better / same / worse only when vs_previous.same_settings is true, else not_comparable (or first); note max 140 characters with the decisive number (prefer concentric / eccentric strength and the run of the reps over the raw peak) - bullets: 2 to 4 observations a human trainer would have missed (order effects, a phase that gives up early, pacing, rests, settings drift, plan vs actual), each with its number. If there is no last session write that there is no session yet and keep the lists empty.
 
 next_training: readiness (one sentence: check-in verdict or "no check-in", what is recovered) - date and why_date - rows - rest_note - grip_note (helper muscles / aids; empty string when nothing is worth saying) - week_outlook (one or two sentences) - changes_vs_previous (what differs from previous_recommendations and why; empty list when nothing).
-THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
+THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. why of an UNCHANGED row = one sentence why the row stays as it is (what it measures or does now) - never a filler word such as "Platzhalter" or "placeholder". You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
 
 history: four_weeks (what the last weeks show: sessions against the target, hard sets, strength index, effort hit rate - with numbers) - longer_term (quarter / year; empty string while history.availability says these views are not available) - kpi_notes: for the 2 to 5 exercises where it matters, what the progress status means and what follows - anomalies: the findings that deserve attention, each with its ref from history.findings, the meaning and the action.
 
@@ -551,7 +557,19 @@ def validate_board(board: dict, report: dict, cfg: dict) -> tuple[list[dict], li
             problems.append({"code": "change_without_reason", "exercise": r["exercise"], "detail": "why"})
     if any(c["field"] == "date" for c in changes) and len(str(nt.get("why_date") or "").strip()) < WHY_MIN_CHARS:
         problems.append({"code": "change_without_reason", "exercise": None, "detail": "why_date"})
+    for r in rows:                                    # a filler word is not a reason for anything (seen live: "Platzhalter")
+        if is_filler(r["why"]):
+            problems.append({"code": "filler_why", "exercise": r["exercise"], "detail": "why"})
     return problems, changes
+
+
+FILLERS = ("platzhalter", "placeholder", "n/a", "na", "tbd", "todo", "keine angabe", "none")
+
+
+def is_filler(text) -> bool:
+    """True for an empty or filler 'why' (dashes, dots, 'Platzhalter', 'placeholder', 'n/a' ...)."""
+    w = str(text or "").strip().lower().strip("-—–.·*_ ")
+    return not w or w in FILLERS or any(w.startswith(f) for f in ("platzhalter", "placeholder"))
 
 
 def unverified_forces(board: dict, payload_text: str, unit: str) -> list[str]:
@@ -954,7 +972,7 @@ def fake_board(payload: dict, broken: bool = False) -> dict:
                      "effort": x["effort"], "rest_before_min": x["rest_before_min"],
                      "tempo": f"{s.get('reps') or 8} x {round(s.get('seconds_per_direction') or 5)} s, {s.get('pause_end_s') or 0}/{s.get('pause_return_s') or 0} s",
                      "cue": "Volle Kraft ab Wiederholung 1" if de else "Full force from rep 1",
-                     "why": (x.get("why") or [("Plan der Engine übernommen." if de else "Engine plan kept.")])[0][:200]})
+                     "why": "Platzhalter" if broken else (x.get("why") or [("Plan der Engine übernommen." if de else "Engine plan kept.")])[0][:200]})
     verdicts = [{"exercise": x["exercise"], "rating": ("not_comparable" if not (x.get("vs_previous") or {}).get("same_settings") else
                                                        ("better" if ((x["vs_previous"].get("concentric_change_pct") or 0) > 1) else "same")) if x.get("vs_previous") else "first",
                  "note": f"{x.get('concentric_top3')} / {x.get('eccentric_top3')} {unit}, inroad {x.get('inroad_pct')} %"} for x in ls.get("exercises", [])]

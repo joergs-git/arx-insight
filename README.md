@@ -57,6 +57,7 @@ follow-up questions in a chat.
 - 🚩 **What stands out** — ranked findings: effort target missed, new comparable bests, range drift, changed settings, order and repeat effects, plateaus, neglected muscles, a missed weekly target, unsteady force … each with meaning → action.
 - 🧭 **Progress per exercise** — best set per day, "vs last time", trend and a cautious forecast, on two axes (last sessions / last days).
 - 📏 **Range-of-motion validity** — force is only compared between days that used the same ROM (within 10 % of the exercise's reference; on a 30 cm press that is 3 cm — a shift of at most a tenth of the range at one end, and less than the day-to-day scatter of a peak-force measurement itself, see `science.json` → *range_of_motion*). Days with a different ROM are shown but excluded from trend and forecast, and the exercise gets a visible ROM warning instead of a fake trend. A deliberately shortened range on a restricted exercise becomes the new baseline instead of a nag.
+- 🔁 **A missed effort target is acted on** (v0.10.0) — the coach facts do not just note that a set ended too early. Once: the number holds and the cue is intent (all-out from the first repetition, the set ends when the force breaks down, not when the repetitions are over). Twice in a row: the set-up changes — one second slower per direction (never beyond 5 s, i.e. inside the tempo band where results are equal), no pauses at the turnarounds, same repetitions; once those are exhausted, two repetitions more. The row shows the change next to the old settings, and the comparison basis restarts with the new settings. A day planned sub-maximal (careful, light, limited) is not a miss.
 - 🧠 **Muscle-level recovery** — readiness is judged per muscle, not by the calendar or by Push/Pull/Drive: a set loads its target muscles at the effort it reached and its limiters one level lighter; a muscle is ready again when the rest its last hard load required has passed (deep 3 days, moderate 2, sub-max 1). Two sessions on consecutive days are fine when they used different muscles. Per exercise you see *ready*, *limited* (a limiter such as the grip is not fresh — train sub-max) or *not ready*, each with a date.
 - ☀️ **Daily check-in** (20 seconds, skippable) — sleep, energy, resting heart rate against your own baseline, and **restrictions today** (v0.9.0): tap a sore muscle region or a painful joint once for *go easy* (sub-maximal, no target number) or twice for *leave out*, and every exercise it touches lights up right below — change single ones as you like (sore legs, but the belt squat anyway). The exercise tiles are what the plan obeys; the body parts are shortcuts, and soreness still feeds the transparent 0–100 wellness score (in the spirit of the Hooper / McLean questionnaires) that goes to the coach. An elevated resting HR or poor sleep means a light day. Since v0.8.1 you can also say **how much time you have today** (optional): an upper limit for a session planned for today — a plan that does not fit is cut the way a trainer would cut it (extra sets first, then the exercises that can wait best; the big exercise of each movement group and muscles that would otherwise wait too long stay), what was left out is named and comes first next time. More time never makes the plan longer.
 - 🛌 **Load flag on the last 7 days** — *overload* only when a muscle was loaded hard again before its rest was over (or the check-in says so), *underload* when every recent session was light, *detraining* after 10+ days off. Not judged on your first weeks forever.
@@ -361,6 +362,18 @@ takes them out of a session planned for today, and if nothing of the session is 
 moves on to the next possible day and says so. Both answers also lower the wellness score, so a
 clearly sore day is a moderate day. Since v0.9.0 the soreness answer itself no longer blocks a
 region behind your back: what you see on the exercise tiles is exactly what the plan does.
+
+**The set ended too early — what happens next?** *(v0.10.0)*
+A set that ends at a 10 % force drop when your goal asks for 20 % was a strength test, not a
+stimulus — and a trainer would do something about it. The plan does: after **one** such set the
+number holds and the row says what to change in your head (all-out from the first repetition, the
+set ends when the force breaks down). After **two** in a row it changes the parameters: one second
+slower per direction (never beyond 5 s per direction — within 0.5–8 s per repetition the results are
+the same, only "super slow" is worse), no pauses at the turnarounds, same repetitions; when tempo
+and pauses are already used up, two repetitions more. The change is shown with a ⚙ next to the old
+settings, the AI coach may pick the repetitions instead but may never hold the number a third time
+without changing something, and the comparison basis starts anew with the new settings. Days you
+were told to go easy on do not count as misses.
 
 **What does "limited" mean for an exercise?**
 Its target muscles are recovered, but a *limiter* — the grip, the elbow flexors, the triceps on a

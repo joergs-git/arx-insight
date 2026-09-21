@@ -506,8 +506,8 @@
    "de": "Der letzte Satz endete bei {last_pct} Abfall - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
   },
   "action": {
-   "en": "Same force ({target_kg}), but keep pushing until the force really falls: effort before a bigger number.",
-   "de": "Gleiche Kraft ({target_kg}), aber weiterdrücken, bis die Kraft wirklich nachlässt: erst Ausbelastung, dann größere Zahl."
+   "en": "Same force ({target_kg}) - but all-out from the first repetition, and the set ends when the force breaks down, not when the repetitions are over. A second time like this and the set-up changes.",
+   "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Noch einmal so, und die Einstellungen ändern sich."
   }
  },
  "plan_plateau_add_set": {
@@ -1388,6 +1388,36 @@
   "action": {
    "en": "No target number for these today. If it stays, set it to 'go easy for good' under Restrictions.",
    "de": "Für diese heute keine Zielzahl. Bleibt es, setz sie unter Einschränkungen auf 'dauerhaft schonen'."
+  }
+ },
+ "plan_effort_reset": {
+  "meaning": {
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+  },
+  "action": {
+   "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction and no pauses at the turnarounds, same repetitions - or two repetitions more instead. The comparison basis starts anew with the new settings.",
+   "de": "Gleiche Kraft ({target_kg}), neue Einstellung: {tempo_from} → {tempo_to} s je Richtung und keine Pausen an den Umkehrpunkten, gleiche Wiederholungen - oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt mit den neuen Einstellungen neu."
+  }
+ },
+ "plan_effort_pauses": {
+  "meaning": {
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+  },
+  "action": {
+   "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to 0 - or two repetitions more instead. The comparison basis starts anew.",
+   "de": "Gleiche Kraft ({target_kg}) und gleiches Tempo ({tempo_to} s je Richtung ist die Grenze): die Pausen an den Umkehrpunkten fallen weg - oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
+  }
+ },
+ "plan_effort_reps": {
+  "meaning": {
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+  },
+  "action": {
+   "en": "Same force ({target_kg}); tempo and pauses are exhausted, so {reps_from} → {reps_to} repetitions. The comparison basis starts anew.",
+   "de": "Gleiche Kraft ({target_kg}); Tempo und Pausen sind ausgereizt, also {reps_from} → {reps_to} Wiederholungen. Die Vergleichsbasis beginnt neu."
   }
  }
 }
