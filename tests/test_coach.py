@@ -100,10 +100,13 @@ class Payload(unittest.TestCase):
         self.assertIn("training_breaks", prompt)                            # the science line is in the prompt as well
 
     def test_the_coach_knows_what_the_athlete_does_not_do_on_the_machine(self):
-        report, cfg = make(excluded_exercises={"11": "elsewhere", "10": "unwanted"})
+        report, cfg = make(excluded_exercises={"11": "elsewhere", "10": "unwanted", "23": "injury"})
         p = ai.build_payload(report, cfg)
         self.assertEqual(p["profile"]["exercises_switched_off"], [{"exercise": "Biceps Curl", "reason": "trained_elsewhere"},
-                                                                  {"exercise": "Dead Lift", "reason": "not_wanted"}])
+                                                                  {"exercise": "Dead Lift", "reason": "not_wanted"},
+                                                                  {"exercise": "Horizontal Press", "reason": "health_not_possible"}])
+        self.assertIn("health_not_possible", ai.system_prompt("board")[0]["text"])
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 8)
         self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
         offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}
         self.assertFalse(offered & {"Biceps Curl", "Dead Lift"})                       # not in the decision space ...

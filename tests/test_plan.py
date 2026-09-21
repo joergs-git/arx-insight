@@ -901,6 +901,40 @@ class Excluded(unittest.TestCase):
             kept = {e["name"]: e["excluded"] for e in r["exercises"]}
             self.assertEqual((kept["Biceps Curl"], kept["Row"]), (reason, None))   # the history itself stays - it is data
 
+    def test_not_possible_for_health_reasons_rules_out_exactly_that_exercise(self):
+        """Owner (v0.8.7): a shoulder problem forbids the overhead pressing, not every exercise that touches the
+        joint. Reason "injury": planned like "not for me" (identical to a catalog without it), the muscles stay the
+        plan's business, and doing it anyway shows up in the "limits respected?" mirror."""
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT])
+        without = {c: m for c, m in BIG.items() if c != "5"}                       # no Overhead Press at all
+
+        def clean(r):
+            r = json.loads(json.dumps(r, default=str))
+            r.pop("generated", None)
+            r["plan"].pop("excluded", None)
+            r.pop("restriction_checks", None)
+            return r
+        ref = clean(report(rows, "2026-09-18", session_minutes=30, _catalog=without))
+        hurt = report(rows, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"5": "injury"})
+        self.assertEqual(clean(hurt), ref)
+        ex = hurt["plan"]["excluded"]
+        self.assertEqual([(x["name"], x["reason"]) for x in ex["exercises"]], [("Overhead Press", "injury")])
+        self.assertEqual(ex["external_muscles"], [])                             # the shoulders stay the plan's business
+        self.assertEqual([n["code"] for n in ex["notes"]], ["excluded_injury"])
+        for lang in ("en", "de"):
+            n = report(rows, "2026-09-18", session_minutes=30, _catalog=BIG, language=lang, excluded_exercises={"5": "injury"})["plan"]["excluded"]["notes"][0]
+            self.assertNotIn("{", n["text"]["meaning"] + n["text"]["action"])
+        # the body part can go back to "ok": nothing else is eased, the shoulder-joint exercises train at full effort
+        sess = hurt["plan"]["next_session"]
+        self.assertIn("Horizontal Press", names(sess))
+        press = next(it for it in sess["exercises"] if it["name"] == "Horizontal Press")
+        self.assertEqual((press["restriction"], press["effort_target"]["label"]), ("ok", "deep"))
+        # done anyway -> the mirror says so (like an avoided one), with no body-part restriction set at all
+        done = rows + session(datetime(2026, 9, 17, 10), [OHP], first_id=900)
+        mirror = report(done, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"5": "injury"})["restriction_checks"]
+        self.assertEqual([(c["exercise"], c["issue"]) for c in mirror], [("Overhead Press", "trained_avoid")])
+        self.assertEqual(report(done, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"5": "unwanted"})["restriction_checks"], [])
+
     def test_switching_off_known_exercises_is_no_reason_for_a_beginner_session(self):
         rows = history([ROW, PRESS, SQUAT, DEADLIFT])
         plan = report(rows, "2026-09-18", session_minutes=40, excluded_exercises={"19": "elsewhere", "10": "unwanted"})["plan"]
