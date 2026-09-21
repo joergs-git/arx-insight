@@ -935,6 +935,30 @@ class Excluded(unittest.TestCase):
         self.assertEqual([(c["exercise"], c["issue"]) for c in mirror], [("Overhead Press", "trained_avoid")])
         self.assertEqual(report(done, "2026-09-18", session_minutes=30, _catalog=BIG, excluded_exercises={"5": "unwanted"})["restriction_checks"], [])
 
+    def test_with_care_for_health_reasons_keeps_the_exercise_sub_maximal(self):
+        """Owner (v0.8.8): movement helps a recovering joint, the all-out set does not - "with care" keeps the
+        exercise in the plan without a target number, for this exercise alone, with the body part at ok."""
+        rows = history([ROW, PRESS, SQUAT, CURL, DEADLIFT])
+        for lang in ("en", "de"):
+            r = report(rows, "2026-09-18", session_minutes=40, language=lang, excluded_exercises={"23": "careful"})
+            plan = r["plan"]
+            self.assertIsNone(plan["excluded"])                                     # not switched off ...
+            press = next(it for it in plan["next_session"]["exercises"] if it["name"] == "Horizontal Press")   # ... planned
+            self.assertEqual((press["restriction"], press["effort_target"]["label"], press["target_peak_kg"], press["target_rule"]),
+                             ("careful", "submax", None, "sub_max_careful"))
+            self.assertEqual(press["interp"]["code"], "plan_submax_careful_exercise")
+            self.assertNotIn("_", press["interp"]["text"]["meaning"] + press["interp"]["text"]["action"])
+            row = next(it for it in plan["next_session"]["exercises"] if it["name"] == "Row")
+            self.assertEqual((row["restriction"], row["effort_target"]["label"]), ("ok", "deep"))   # the joint itself is not restricted
+            self.assertEqual(next(e for e in r["exercises"] if e["name"] == "Horizontal Press")["restriction"], "careful")
+        # the coach may not plan it harder either, and a hard set on it shows in the mirror
+        space = plan["decision_space"]
+        rows_ = [{"exercise": "Horizontal Press", "sets": 1, "target_kg": 100, "effort": "deep", "rest_before_min": 3}]
+        self.assertIn("needs_submax", [p["code"] for p in planner.check_rows(plan["next_session"]["date"], rows_, space)])
+        mirror = report(rows, "2026-09-18", session_minutes=40, excluded_exercises={"23": "careful"})["restriction_checks"]
+        self.assertIn(("Horizontal Press", "hard_on_careful"), [(c["exercise"], c["issue"]) for c in mirror])  # the history had deep presses
+        self.assertEqual(report(rows, "2026-09-18", session_minutes=40)["restriction_checks"], [])
+
     def test_switching_off_known_exercises_is_no_reason_for_a_beginner_session(self):
         rows = history([ROW, PRESS, SQUAT, DEADLIFT])
         plan = report(rows, "2026-09-18", session_minutes=40, excluded_exercises={"19": "elsewhere", "10": "unwanted"})["plan"]

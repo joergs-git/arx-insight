@@ -111,6 +111,10 @@ URGENT_WEIGHT = {"target": 1.0, "limiter": 0.5}   # how much an exercise does fo
 # it when the exercise is done anyway, and the coach knows why. This is how a shoulder problem rules out exactly the
 # overhead pressing and nothing else, while the body part itself can go back to "ok".
 EXCLUDE_REASONS = ("elsewhere", "unwanted", "injury")
+# ... and a fourth choice on the same tiles that does NOT exclude: "careful" (v0.8.8) = possible for health reasons
+# only with care - the exercise stays in the plan sub-maximal, without a target number (movement is good for a
+# recovering joint, the all-out set is not), exactly like a body part set to "careful", but for this exercise alone.
+EXERCISE_CHOICES = EXCLUDE_REASONS + ("careful",)
 MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
 TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
 TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
@@ -216,6 +220,13 @@ def excluded_of(cfg: dict, catalog: dict) -> dict:
     engine's own guard (CLI, tests, a hand-edited goals.json)."""
     return {str(c): r for c, r in ((cfg or {}).get("excluded_exercises") or {}).items()
             if str(c) in (catalog or {}) and r in EXCLUDE_REASONS}
+
+
+def careful_of(cfg: dict, catalog: dict) -> list[str]:
+    """Codes of the exercises the athlete set to "careful" for health reasons (same profile field as the
+    exclusions, but these stay in the plan - sub-maximal, no target number)."""
+    return sorted(str(c) for c, r in ((cfg or {}).get("excluded_exercises") or {}).items()
+                  if str(c) in (catalog or {}) and r == "careful")
 
 
 def external_muscles(cfg: dict, catalog: dict) -> list[str]:
@@ -804,7 +815,10 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
                              "source": "last_comparable" if comparable else "last"}})
     prog = c["progress"] or {}
     if c["restriction"] == "careful":
-        out["target_rule"], out["interp"] = "sub_max_careful", item("plan_submax_careful", {}, cfg)
+        out["target_rule"] = "sub_max_careful"
+        # the athlete's own choice for THIS exercise (profile tile) - or a body part he marked as careful
+        code = "plan_submax_careful_exercise" if c["name"] in (cfg.get("_careful_names") or ()) else "plan_submax_careful"
+        out["interp"] = item(code, {}, cfg)
         return out
     if c["status"] == "limited":
         out["target_rule"] = "sub_max_limiter"

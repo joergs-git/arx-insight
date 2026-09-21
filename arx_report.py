@@ -379,7 +379,7 @@ def load_catalog(path: str) -> dict:
         return {}
 
 
-def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None) -> list[dict]:
+def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None, careful=()) -> list[dict]:
     """Per-exercise progress, aggregated to the BEST set per training day.
 
     Important: an athlete often does several sets of the same exercise in one
@@ -458,7 +458,7 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             def agree(ref):
                 return sum(1 for r in ref_window if abs(r - ref) / ref <= ROM_TOLERANCE)
             rom_ref = max(reversed(ref_window), key=agree)   # reversed -> latest wins ties
-        restricted = exercise_restriction(meta.get("name", ""), restrictions or {}, meta.get("joints")) != "ok"
+        restricted = exercise_restriction(meta.get("name", ""), restrictions or {}, meta.get("joints"), careful) != "ok"
         if restricted and occ[-1]["rom_cm"]:
             # a limited athlete may deliberately shorten the range: the latest
             # setting is the baseline, not a "fix your positions" nag
@@ -1179,13 +1179,14 @@ BODYPART_EXERCISES = {
 _LEVEL_RANK = {"ok": 0, "careful": 1, "avoid": 2}
 
 
-def exercise_restriction(name: str, restrictions: dict, joints: list | None = None) -> str:
+def exercise_restriction(name: str, restrictions: dict, joints: list | None = None, careful=()) -> str:
     """Worst restriction level that applies to an exercise via the body parts
     it loads. The catalog's optional 'joints' list per exercise is the source
     of truth (users can edit it); an exercise without one falls back to the
     name-based BODYPART_EXERCISES map, which also covers exercises that are
-    not in the catalog yet."""
-    worst = "ok"
+    not in the catalog yet. careful = names of exercises the athlete set to
+    "careful" for health reasons themselves (v0.8.8) - at least that level."""
+    worst = "careful" if name in (careful or ()) else "ok"
     for part, level in (restrictions or {}).items():
         if _LEVEL_RANK.get(level, 0) == 0:
             continue
@@ -1210,7 +1211,8 @@ def _restriction_checks(work: list[dict], exercises: list[dict], restrictions: d
     eccentric runs ~1.6x the concentric, and a jump there is what an irritated
     joint feels first. Empty when nothing is restricted."""
     hurt = {e["name"] for e in exercises if e.get("excluded") == "injury"}     # switched off for health reasons (v0.8.7)
-    if not any(_LEVEL_RANK.get(v, 0) for v in (restrictions or {}).values()) and not hurt:
+    care = {e["name"] for e in exercises if e.get("restriction") == "careful"}  # incl. the athlete's own per-exercise choice (v0.8.8)
+    if not any(_LEVEL_RANK.get(v, 0) for v in (restrictions or {}).values()) and not hurt and not care:
         return []
     level_of = {e["name"]: ("avoid" if e["name"] in hurt else e.get("restriction", "ok")) for e in exercises}
     ecc_by_day: dict = {}                       # (exercise, date) -> eccentric day-best
@@ -1827,8 +1829,11 @@ def build_report(con, cfg: dict) -> dict:
     # exercises the athlete does not do on the ARX (profile): what the "elsewhere" ones are FOR counts as
     # trained outside - read by the planner (no gap, no warning); muscles left without any exercise are
     # nobody's business either - read by the findings (never "neglected")
-    switched_off = planner.excluded_of(cfg, catalog)          # {code: elsewhere | unwanted}
-    cfg = dict(cfg, _external=planner.external_muscles(cfg, catalog), _out_of_plan=planner.muscles_out_of_plan(cfg, catalog))
+    switched_off = planner.excluded_of(cfg, catalog)          # {code: elsewhere | unwanted | injury}
+    # exercises the athlete set to "careful" for health reasons (same tiles): in the plan, but sub-maximal (v0.8.8)
+    careful = tuple(catalog[c].get("name") or f"Exercise {c}" for c in planner.careful_of(cfg, catalog))
+    cfg = dict(cfg, _external=planner.external_muscles(cfg, catalog), _out_of_plan=planner.muscles_out_of_plan(cfg, catalog),
+               _careful_names=list(careful))
     # grip aids per exercise {code: {"aids": ["hooks"], "since": date}}: they take the grip out as a
     # limiter of that exercise - in loads, sequences, evidence and (later) the plan
     aids = cfg.get("aids") or {}
@@ -1862,9 +1867,9 @@ def build_report(con, cfg: dict) -> dict:
     pain_today = [p for p in (checkin.get("pain") or []) if _LEVEL_RANK.get(restrictions.get(p, "ok"), 0) < 1]
     for p in pain_today:                      # pain today = careful today (not persisted)
         restrictions[p] = "careful"
-    exercises = _exercise_series(work, catalog, restrictions)
+    exercises = _exercise_series(work, catalog, restrictions, careful)
     for e in exercises:                       # annotate each exercise with its restriction
-        e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"))
+        e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"), careful)
         # switched off in the profile: its history stays (it is data), but it has no say in anything that looks
         # ahead - readiness lists, whiteboard targets, deload signal, findings, the coach (v0.7.1)
         e["excluded"] = switched_off.get(str(e["ex"]))
@@ -1931,7 +1936,7 @@ def build_report(con, cfg: dict) -> dict:
     profile = user_profile(con, cfg["user_id"], today)       # {sex, age, age_band} - never a name
     plan = planner.build_plan(exercises, work, catalog, cfg, today, readiness, load, ev, hist_report["progress_factors"],
                               sequences_all, profile,
-                              lambda name, joints: exercise_restriction(name, restrictions, joints))
+                              lambda name, joints: exercise_restriction(name, restrictions, joints, careful))
     planner.apply_to_coach(coach, plan)
     # strictly optional: rough body trends and the measurable target from the goal interview
     body = history.body_trends(cfg.get("body_log"), hist_report["progress_factors"], cfg)
@@ -1976,6 +1981,7 @@ def build_report(con, cfg: dict) -> dict:
         "body": body,                            # None unless the athlete entered body values (optional)
         "goal_progress": goal_progress,          # None without a measurable target
         "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
+        "careful_exercises": list(careful),      # set to "careful" for health reasons by the athlete (profile tiles, v0.8.8)
         "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
         "featured": featured,

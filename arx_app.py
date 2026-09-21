@@ -294,7 +294,7 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
     if "excluded_exercises" in data:               # exercises the athlete does not do on the ARX (v0.7.0): {code: elsewhere | unwanted}
         raw = data.get("excluded_exercises") if isinstance(data.get("excluded_exercises"), dict) else {}
         off = {str(code): reason for code, reason in raw.items()
-               if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXCLUDE_REASONS}
+               if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXERCISE_CHOICES}
         out["excluded_exercises"] = off or None
     if "partner" in data:                          # trains in turns with a partner (v0.8.0): the change-over time in the
         out["partner"] = True if data.get("partner") is True else None     # data is the partner's set, not set-up time

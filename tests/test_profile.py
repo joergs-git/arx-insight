@@ -42,8 +42,9 @@ class CleanProfile(unittest.TestCase):
 
     def test_switched_off_exercises_are_catalog_codes_with_a_known_reason(self):
         got = app.clean_profile({"excluded_exercises": {"11": "elsewhere", 19: "unwanted", "3": "too boring", "99": "unwanted",
-                                                        "23": None, "10": ["elsewhere"], "4": "injury"}}, CATALOG, TODAY)
-        self.assertEqual(got["excluded_exercises"], {"11": "elsewhere", "19": "unwanted", "4": "injury"})   # nothing free-text, nothing unknown
+                                                        "23": None, "10": ["elsewhere"], "4": "injury", "26": "careful"}}, CATALOG, TODAY)
+        self.assertEqual(got["excluded_exercises"], {"11": "elsewhere", "19": "unwanted", "4": "injury"})   # nothing free-text, nothing unknown (26 is not in this catalog)
+        self.assertEqual(app.clean_profile({"excluded_exercises": {"23": "careful"}}, CATALOG, TODAY)["excluded_exercises"], {"23": "careful"})
         self.assertIsNone(app.clean_profile({"excluded_exercises": {}}, CATALOG, TODAY)["excluded_exercises"])
         self.assertIsNone(app.clean_profile({"excluded_exercises": "all of them"}, CATALOG, TODAY)["excluded_exercises"])
         self.assertNotIn("excluded_exercises", app.clean_profile({"commitment": "balanced"}, CATALOG, TODAY))   # absent = untouched
