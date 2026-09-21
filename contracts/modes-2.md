@@ -1,8 +1,10 @@
 # Contract `modes-2` - what a set's mode is, and the two figures that come with it
 
-Version 2 (2026-09-21) - supersedes `modes-1`, which arx-free had adopted before its review arrived: the ending
-`fatigue` is added and the Inroad Mode wording is corrected (the machine does not stop an Inroad set, a person does).
-Nothing else changed; `modes-1.md` stays in both folders until arx-free has adopted this version.
+Version 2 (2026-09-21, wording revised 2026-09-22 before adoption) - supersedes `modes-1`, which arx-free had adopted
+before its review arrived: the ending `fatigue` is added and the Inroad Mode wording is made precise - the original's
+software ends an Inroad set AUTOMATICALLY when the force no longer reaches the zone (confirmed by the owner on the
+machine, 2026-09-21; the first draft of v2 had said a person stops it - withdrawn). Nothing else changed; `modes-1.md`
+stays in both folders until arx-free has adopted this version.
 **Owner: ARX Insight** (analysis and planning); arx-free adopts the definitions for its set records, its live view
 and its live coach. Units in data: imperial (lb, inch, seconds) as stored by the original.
 
@@ -12,8 +14,8 @@ and its live coach. Units in data: imperial (lb, inch, seconds) as stored by the
   `StartPosition == EndPosition` in the set configuration; else `dynamic`.
 * **ending** = what stops the set, the original's `ExerciseSet.PROTOCOL`: `3 = reps` (a repetition count),
   `1 = time` (the clock - "Countdown Mode"), `0 = inroad` (the original's Inroad Mode: it shows a work zone derived
-  from the set's maximum; the trainer or the athlete stops the set BY HAND when the force no longer reaches the
-  zone - the machine does not stop it), `4 = fatigue` (arx-free only: the set is ended when the fatigue in the set
+  from the set's maximum, and the ARX software - its on-screen coach - stops the set AUTOMATICALLY when the force no
+  longer reaches the zone; nobody presses Stop), `4 = fatigue` (arx-free only: the set is ended when the fatigue in the set
   - effort-v3 - reaches the target; the original has no such protocol, arx-free's records and its compatibility
   views write 4). Any other code is `unknown` and is shown as unknown - never silently treated as reps. (Time Trial
   Mode's code is not known yet; it will get its own label once seen.)
@@ -40,7 +42,7 @@ is progress ("beat your gray line").
 
 `inroad_machine` = the decline from the best repetition's peak force to the last repetition's peak force, in
 percent of the best peak (Insight's `inroad_legacy`, whole-rep peaks). That is the scale the original's Inroad Mode
-and its display use (30-40 % are usual settings there; the zone is shown, the stop is manual). It is shown NEXT TO the fatigue in the set (effort-v3) and
+and its display use (30-40 % are usual settings there; the zone is shown and the software ends the set when it is missed). It is shown NEXT TO the fatigue in the set (effort-v3) and
 never under the same name (see `vocabulary-1`: "Maschinen-Inroad" / "machine inroad").
 
 ## Field names (payloads, exports, views)

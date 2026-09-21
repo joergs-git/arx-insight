@@ -1496,8 +1496,8 @@
    "de": "Modus-Vorschlag: Static-Halten statt Bewegung - diese Übung steht auf 'schonen', und ein Halten belastet das Gelenk ohne die exzentrische Überlast."
   },
   "action": {
-   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode watch the work zone and stop when the force no longer reaches it - the machine does not stop for you; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew.",
-   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus die Zone im Blick behalten und stoppen, wenn die Kraft sie nicht mehr erreicht - die Maschine stoppt nicht von selbst; bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu."
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode the ARX software ends the set by itself when the force no longer reaches the zone - keep pushing until it does; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus beendet die ARX-Software den Satz von selbst, sobald die Kraft die Zone nicht mehr erreicht - bis dahin dranbleiben; bei Schmerz sofort aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu."
   }
  },
  "mode_static_return": {
@@ -1506,8 +1506,8 @@
    "de": "Modus-Vorschlag für die erste Einheit nach Monaten: Static-Halten - Kraft ohne den Muskelkater, den die ersten exzentrischen Sätze bringen würden."
   },
   "action": {
-   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode watch the work zone and stop when the force no longer reaches it - the machine does not stop for you; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew. Next session: back to your usual mode.",
-   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus die Zone im Blick behalten und stoppen, wenn die Kraft sie nicht mehr erreicht - die Maschine stoppt nicht von selbst; bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu. Nächste Einheit: zurück zu deinem üblichen Modus."
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode the ARX software ends the set by itself when the force no longer reaches the zone - keep pushing until it does; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew. Next session: back to your usual mode.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus beendet die ARX-Software den Satz von selbst, sobald die Kraft die Zone nicht mehr erreicht - bis dahin dranbleiben; bei Schmerz sofort aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu. Nächste Einheit: zurück zu deinem üblichen Modus."
   }
  },
  "mode_countdown_conditioning": {
@@ -1546,8 +1546,8 @@
    "de": "Ein vierter Hebel: in deinen eigenen Sätzen (bisher {n}) entsprach ein Maschinen-Inroad von etwa {machine_pct} % einer Ermüdung im Satz von {target_pct} %."
   },
   "action": {
-   "en": "Set the machine's Inroad Mode to about {machine_pct} %: the zone shows when the set is done - stop when the force no longer reaches it, not before. The number is the machine's scale, not the fatigue figure.",
-   "de": "Stell den Inroad-Modus der Maschine auf etwa {machine_pct} %: die Zone zeigt, wann der Satz fertig ist - stoppen, wenn die Kraft sie nicht mehr erreicht, nicht vorher. Die Zahl ist die Skala der Maschine, nicht die Ermüdungszahl."
+   "en": "Set the machine's Inroad Mode to about {machine_pct} %: the ARX software ends the set by itself when the force no longer reaches the zone - keep going until it does, never stop before. The number is the machine's scale, not the fatigue figure.",
+   "de": "Stell den Inroad-Modus der Maschine auf etwa {machine_pct} %: die ARX-Software beendet den Satz von selbst, sobald die Kraft die Zone nicht mehr erreicht - bis dahin durchziehen, nie vorher aufhören. Die Zahl ist die Skala der Maschine, nicht die Ermüdungszahl."
   }
  },
  "mode_inroad_start": {
@@ -1556,8 +1556,8 @@
    "de": "Erhalten: die geringste Ermüdung, die deine Kraft noch hält, ist das Ziel - der Inroad-Modus macht das sichtbar. Aus deinen Sätzen entsprechen etwa {machine_pct} % Maschinen-Inroad deinem Ziel von {target_pct} %."
   },
   "action": {
-   "en": "Start with Inroad Mode at {machine_pct} %, stop when the zone is missed. While your strength holds, the plan proposes one step lower next time; when it drops, one step up.",
-   "de": "Beginne mit Inroad-Modus {machine_pct} %, stoppe, wenn die Zone verfehlt wird. Solange deine Kraft hält, schlägt der Plan beim nächsten Mal eine Stufe weniger vor; fällt sie, eine Stufe mehr."
+   "en": "Start with Inroad Mode at {machine_pct} % - the software ends the set when the zone is missed. While your strength holds, the plan proposes one step lower next time; when it drops, one step up.",
+   "de": "Beginne mit Inroad-Modus {machine_pct} % - die Software beendet den Satz, sobald die Zone verfehlt wird. Solange deine Kraft hält, schlägt der Plan beim nächsten Mal eine Stufe weniger vor; fällt sie, eine Stufe mehr."
   }
  },
  "mode_inroad_ladder_down": {
@@ -1566,8 +1566,8 @@
    "de": "Deine Kraft hält bei {last_pct} % Maschinen-Inroad - eine Stufe weniger auf der Leiter: {machine_pct} % (Untergrenze {floor_pct} %)."
   },
   "action": {
-   "en": "Inroad Mode {machine_pct} %, stop when the zone is missed. The least fatigue that still holds strength is the point - back up by {step} as soon as the force drops.",
-   "de": "Inroad-Modus {machine_pct} %, stoppen, wenn die Zone verfehlt wird. Die geringste Ermüdung, die die Kraft noch hält, ist der Punkt - wieder {step} hoch, sobald die Kraft fällt."
+   "en": "Inroad Mode {machine_pct} % - the software ends the set when the zone is missed. The least fatigue that still holds strength is the point - back up by {step} as soon as the force drops.",
+   "de": "Inroad-Modus {machine_pct} % - die Software beendet den Satz, sobald die Zone verfehlt wird. Die geringste Ermüdung, die die Kraft noch hält, ist der Punkt - wieder {step} hoch, sobald die Kraft fällt."
   }
  },
  "mode_inroad_ladder_up": {
@@ -1576,8 +1576,8 @@
    "de": "Deine Kraft ist bei {last_pct} % Maschinen-Inroad gefallen - eine Stufe zurück auf der Leiter: {machine_pct} %."
   },
   "action": {
-   "en": "Inroad Mode {machine_pct} %, stop when the zone is missed; hold it there until the strength is back, then try a step down again.",
-   "de": "Inroad-Modus {machine_pct} %, stoppen, wenn die Zone verfehlt wird; dort bleiben, bis die Kraft zurück ist, dann wieder eine Stufe probieren."
+   "en": "Inroad Mode {machine_pct} % - the software ends the set when the zone is missed; stay there until the strength is back, then try a step down again.",
+   "de": "Inroad-Modus {machine_pct} % - die Software beendet den Satz, sobald die Zone verfehlt wird; dort bleiben, bis die Kraft zurück ist, dann wieder eine Stufe probieren."
   }
  }
 }

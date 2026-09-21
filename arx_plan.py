@@ -199,7 +199,7 @@ BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate
 CONDITIONING_SHARE = 0.3       # conditioning share of the goal from which timed (Countdown) sets are suggested
 COUNTDOWN_SECONDS = 90         # length of a suggested Countdown set (inside the 60-120 s the ARX practice uses)
 OUTPUT_STEP_PCT = 2.0          # the Output target of a timed set: last comparable Output + this
-STATIC_HOLD_S = 40             # a suggested static hold (in Inroad Mode the athlete stops when the zone is missed)
+STATIC_HOLD_S = 40             # a suggested static hold (in Inroad Mode the software ends the set when the zone is missed)
 # the machine's Inroad Mode setting calibrated to the fatigue target (v0.16.0): a straight line through the athlete's
 # own sets, fatigue in the set (effort-v3) against the machine's inroad scale (best rep peak -> last rep peak)
 CALIB_MIN_SETS = 6             # sets needed for a fit
@@ -1108,7 +1108,7 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         code = ("plan_effort_reps" if "reps" in change else "plan_effort_pauses" if "tempo_s" not in change
                 else "plan_effort_tempo" if keep_pauses else "plan_effort_reset")
         # the fourth lever (v0.16.0): let the machine's Inroad Mode show when the set is done - at the machine-scale value
-        # the athlete's own calibration maps to the fatigue target; the stop is by hand when the zone is missed
+        # the athlete's own calibration maps to the fatigue target; the software stops the set when the zone is missed
         cal = ((cfg.get("_calibration") or {}).get("exercises") or {}).get(c["name"]) or (cfg.get("_calibration") or {}).get("all")
         machine = machine_setting(cal, effort["inroad_min"])
         if machine is not None:

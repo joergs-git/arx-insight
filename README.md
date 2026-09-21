@@ -195,7 +195,7 @@ The ARX database is never modified — the tool always works on a temporary copy
 ## Modes of the machine
 
 A set has a **mode**: the movement (dynamic, or a *static* hold - `StartPosition == EndPosition`) and what ends it
-(a repetition count, the clock = *Countdown*, the original's *Inroad Mode* - it shows a zone, the stop is by hand -,
+(a repetition count, the clock = *Countdown*, the original's *Inroad Mode* - it shows a zone and its software ends the set automatically when the force no longer reaches it -,
 arx-free's fatigue target, or an unknown code that is shown as unknown, never silently treated as reps), plus the phase that carried the work when only one direction did
 (negative-only / positive-only reps get no fatigue judgement - the rule needs both phases). Since v0.14.0 holds are
 working sets with their own effort method (six time slices) and load the muscles like any set; only the same mode
@@ -210,9 +210,9 @@ are done (v0.15.0 / v0.16.0, see the FAQ).
 your target: your **goal** first, then the situation. A conditioning share of 30 % or more (or the outcome
 *performance*) → **Countdown** 90 s on the big exercises, with an Output target of last time + 2 % at the same
 duration once a timed reference exists; an exercise on *go easy* or the first session after months away → a
-**static hold** of about 40 s at a pain-free, strong position - in Inroad Mode you stop when the force no longer
-reaches the shown zone, the machine never stops a set by itself (holds cost less recovery than the eccentric
-overload); a plateau under a **strength** goal → one session of **negative-only**
+**static hold** of about 40 s at a pain-free, strong position - in Inroad Mode the ARX software ends the set by
+itself when the force no longer reaches the shown zone (holds cost less recovery than the eccentric overload); a
+plateau under a **strength** goal → one session of **negative-only**
 repetitions (judged on the eccentric force only, full rest afterwards). A balanced or size goal keeps Reps; beginners
 get no mode suggestions. Every text says that a mode change restarts the comparison basis, and the plan-vs-actual
 mirror tells whether you followed the suggestion. Evidence: `science.json` → *isometric_training*,
@@ -222,7 +222,7 @@ mirror tells whether you followed the suggestion. Evidence: `science.json` → *
 answer. The machine's Inroad Mode works on its own scale (best rep peak → last rep peak), Insight judges fatigue in
 the set on another; a straight line through your dynamic sets (at least 6, spread over 10 machine points, half the
 scatter explained) maps one to the other, per exercise when possible. Then the escalation row after two misses gets
-a **fourth lever** ("Inroad Mode at about X % — stop when the zone is missed"), static hints carry the machine value,
+a **fourth lever** ("Inroad Mode at about X % — the software ends the set when the zone is missed"), static hints carry the machine value,
 and under a **maintain** goal the plan walks the ARX ladder: start at the calibrated value, one step of 5 down while
 your strength holds, one up when it drops, never below the setting that maps to the moderate line. Without a usable
 fit the plan says nothing about machine values — it never guesses one.
