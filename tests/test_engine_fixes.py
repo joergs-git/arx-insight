@@ -182,15 +182,65 @@ class StaticSetsAndProtocols(unittest.TestCase):
                 fx.make_static_set(2, ROW, datetime(2026, 9, 1, 10, 8), seconds=60),
                 fx.make_static_set(3, ROW, datetime(2026, 9, 1, 10, 12), seconds=8)]      # a short test stays a test
         sets = core.load_sets(fx.FakeDB(rows), 1)
-        self.assertEqual([s["status"] for s in sets], ["working", "static", "short"])
+        # v0.14.0 (contract modes-1): a hold of real length is a working set with its own effort method (time slices)
+        self.assertEqual([s["status"] for s in sets], ["working", "working", "short"])
         self.assertEqual([s["protocol_label"] for s in sets], ["reps", "static", "static"])
+        self.assertEqual([(s["movement"], s["ending"]) for s in sets], [("dynamic", "reps"), ("static", "time"), ("static", "time")])   # the fixture's holds are timed
         report = core.build_report(fx.FakeDB(rows), fx.cfg("2026-09-02"))
-        self.assertEqual(report["sets_excluded"], {"static": 1, "short": 1})
-        self.assertEqual(report["sets_working"], 1)
+        self.assertEqual(report["sets_excluded"], {"short": 1})
+        self.assertEqual(report["sets_working"], 2)
+        ex = report["exercises"][0]
+        self.assertEqual(sorted(ex["modes_seen"]), ["dynamic/reps"])                     # the day's best set is the dynamic one, a hold never outranks it
+        self.assertEqual([s.get("movement") for s in report["last_session"]["exercises"]], ["dynamic"])   # the day's best set carries the card
 
     def test_countdown_and_inroad_protocols_are_named(self):
-        rows = [fx.make_set(1, ROW, datetime(2026, 9, 1, 10, 0), protocol=1), fx.make_set(2, ROW, datetime(2026, 9, 3, 10, 0), protocol=0)]
-        self.assertEqual([s["protocol_label"] for s in core.load_sets(fx.FakeDB(rows), 1)], ["countdown", "inroad"])
+        rows = [fx.make_set(1, ROW, datetime(2026, 9, 1, 10, 0), protocol=1), fx.make_set(2, ROW, datetime(2026, 9, 3, 10, 0), protocol=0),
+                fx.make_set(3, ROW, datetime(2026, 9, 5, 10, 0), protocol=7)]
+        sets = core.load_sets(fx.FakeDB(rows), 1)
+        self.assertEqual([s["protocol_label"] for s in sets], ["countdown", "inroad", "unknown"])
+        self.assertEqual([s["ending"] for s in sets], ["time", "inroad", "unknown"])      # an unknown code is never silently "reps"
+
+
+class Modes(unittest.TestCase):
+    """v0.14.0 (contract modes-1): a set's mode is movement x ending (+ phase); only the same mode is compared; timed
+    sets progress by Output at the same duration; the machine's own inroad scale rides along."""
+    def test_timed_sets_progress_by_output_and_are_kept_apart_from_rep_sets(self):
+        rows = [fx.make_set(1, ROW, datetime(2026, 9, 1, 10, 0), protocol=1, con=(150, 0.03)),
+                fx.make_set(2, ROW, datetime(2026, 9, 4, 10, 0), protocol=1, con=(160, 0.03)),
+                fx.make_set(3, ROW, datetime(2026, 9, 7, 10, 0), protocol=3, con=(170, 0.03))]
+        r = core.build_report(fx.FakeDB(rows), fx.cfg("2026-09-08"))
+        e = r["exercises"][0]
+        self.assertEqual([o["ending"] for o in e["occ"]], ["time", "time", "reps"])
+        self.assertEqual(len(e["output_series"]), 2)
+        self.assertIsNotNone(e["output_delta_pct"]); self.assertGreater(e["output_delta_pct"], 0)     # more force in the same time
+        self.assertEqual(sorted(e["modes_seen"]), ["dynamic/reps", "dynamic/time"])
+        self.assertFalse(e["occ"][-1]["settings_ok"])                          # the rep set does not join the timed reference
+        for o in e["occ"]:
+            self.assertIsNotNone(o["inroad_machine"])                          # the machine's scale rides along
+        last = r["last_session"]["exercises"][0]
+        self.assertEqual((last["movement"], last["ending"], last["phase"]), ("dynamic", "reps", "both"))
+
+    def test_a_single_phase_set_is_recognised_and_gets_no_fatigue_judgement(self):
+        rows = [fx.make_set(1, ROW, datetime(2026, 9, 1, 10, 0), con=(150, 0.03), ecc=(240, 0.03)),
+                fx.make_set(2, ROW, datetime(2026, 9, 4, 10, 0), con=(1.0, 0.0), ecc=(240, 0.03))]      # negative-only: no concentric work
+        r = core.build_report(fx.FakeDB(rows), fx.cfg("2026-09-05"))
+        by = {x["date"]: x for x in r["exercises"][0]["occ"]}
+        self.assertEqual((by["2026-09-01"]["phase"], by["2026-09-04"]["phase"]), ("both", "negative"))
+        self.assertIsNone(by["2026-09-04"]["inroad"])
+        self.assertIn("dynamic/reps/negative", r["exercises"][0]["modes_seen"])
+        last = r["last_session"]["exercises"][0]
+        self.assertEqual((last["phase"], last["inroad"], last["effort"]), ("negative", None, "unknown"))
+
+    def test_a_hold_loads_the_muscles_and_compares_only_with_holds_at_the_same_position(self):
+        rows = [fx.make_static_set(1, ROW, datetime(2026, 9, 1, 10, 0), seconds=60, start_force=300, end_force=180),
+                fx.make_static_set(2, ROW, datetime(2026, 9, 4, 10, 0), seconds=60, start_force=310, end_force=200)]
+        r = core.build_report(fx.FakeDB(rows), fx.cfg("2026-09-05"))
+        e = r["exercises"][0]
+        self.assertEqual([o["movement"] for o in e["occ"]], ["static", "static"])
+        self.assertTrue(all(o["rom_valid"] and o["settings_ok"] for o in e["occ"]))       # same position: comparable holds
+        self.assertEqual(r["sets_working"], 2)
+        self.assertIn("lats", r["load"]["recovery"]["muscles"])                            # the hold loaded its muscles
+        self.assertEqual(r["load"]["recovery"]["muscles"]["lats"]["ready_on"] > "2026-09-04", True)
 
 
 class Adherence(unittest.TestCase):

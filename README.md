@@ -192,6 +192,21 @@ app's CSV export is all it takes to map them (see the FAQ).
 
 The ARX database is never modified — the tool always works on a temporary copy.
 
+## Modes of the machine
+
+A set has a **mode**: the movement (dynamic, or a *static* hold - `StartPosition == EndPosition`) and what ends it
+(a repetition count, the clock = *Countdown*, the machine's *Inroad Mode*, or an unknown code that is shown as
+unknown, never silently treated as reps), plus the phase that carried the work when only one direction did
+(negative-only / positive-only reps get no fatigue judgement - the rule needs both phases). Since v0.14.0 holds are
+working sets with their own effort method (six time slices) and load the muscles like any set; only the same mode
+is ever compared (a hold with holds at the same position, a Countdown set with Countdown sets of the same
+duration), and chapter 3 says which modes an exercise's history contains. Timed sets progress by **Output**
+(force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
+own inroad scale (best rep peak → last rep peak, what its Inroad Mode uses) is shown next to the fatigue in the set
+as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-1.md`; the next steps
+(recommending a mode by goal and situation, calibrating the machine's Inroad setting to your fatigue target) are in
+the roadmap.
+
 ## The sibling project: arx-free
 
 `../arx-free` is the owner's independent control software for the same machine (motion, live coach, set recording).

@@ -43,7 +43,7 @@ from arx_base import data_dir, blob_bytes, _ts, LB_TO_KG, IN_TO_CM
 
 # Bump DETAIL_ALGO_VERSION whenever a formula below changes: the cache is keyed per set and would
 # otherwise serve stale readings forever (a recorded set never changes, our reading of it may).
-DETAIL_ALGO_VERSION = 1
+DETAIL_ALGO_VERSION = 2        # v2: 'phase' (both | positive | negative | hold), single-phase sets get no fatigue judgement
 EFFORT_ALGO_VERSION = 3        # effort v3 (see effort_v3); v2 was the whole-rep-peak inroad
 
 PHASE_SETTLE_S = 1.0           # start of a phase that still carries the previous phase's force
@@ -57,6 +57,7 @@ DROP_MIN_KG = 27.0             # ... at a force level that is more than noise
 WEAK_THIRD_REL = 0.75          # a third below this share of the strongest third ...
 WEAK_THIRD_REPS = 0.75         # ... in at least this share of the reps = the weak range
 STATIC_SLICES = 6              # a static (isometric) set is read as this many equal time slices
+SINGLE_PHASE_SHARE = 0.15      # a phase with less than this share of the other phase's mean force carried no work (modes-1)
 
 INROAD_DEEP = 20               # effort v3 >= this -> the set reached deep fatigue
 INROAD_MODERATE = 10           # ... >= this -> moderate; below -> sub-maximal
@@ -363,7 +364,9 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
     end_cm = end_in * IN_TO_CM if isinstance(end_in, (int, float)) else None
     out["arx_output"] = round(intensity_lb * seconds / 10.0) if (intensity_lb and seconds) else None
 
+    out["phase"] = "both"                          # which phase carried the work (modes-1): both | positive | negative | hold
     if raw.get("static"):                         # isometric set: no reps, no phases - time slices
+        out["phase"] = "hold"
         edges = [last_t * i / STATIC_SLICES for i in range(STATIC_SLICES + 1)]
         slices = [tw_mean(t, f, edges[i], edges[i + 1]) for i in range(STATIC_SLICES)]
         ref = max(slices[:STATIC_SLICES // 2])
@@ -443,6 +446,12 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
 
     top3 = lambda xs: st.mean(sorted(xs, reverse=True)[:3])
     con_avg, ecc_avg = st.mean(con), st.mean(ecc)
+    # negative-only / positive-only (ARX rep schemes): one phase carries almost nothing - the machine moved, the
+    # athlete worked in the other direction only (contract modes-1: below SINGLE_PHASE_SHARE of the other phase)
+    if con_avg < SINGLE_PHASE_SHARE * ecc_avg:
+        out["phase"] = "negative"
+    elif ecc_avg < SINGLE_PHASE_SHARE * con_avg:
+        out["phase"] = "positive"
     holds = [r[k] for r in rows for k in ("hold_end_mean", "hold_start_mean") if r.get(k) is not None]
     # the END-position hold is meant to be held under tension (a programmed squeeze); the pause at
     # the start position is rest between reps by design - so they are reported separately
@@ -463,8 +472,11 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
         "tempo": {"con_s": _r(st.median([r["con_s"] for r in rows]), 2),
                   "ecc_s": _r(st.median([r["ecc_s"] for r in rows]), 2)},
     })
-    out.update(effort_v3(con, ecc))
-    if out.get("inroad_v3") is None and legacy_inroad is not None:      # fewer than 4 clean reps
+    if out["phase"] == "both":
+        out.update(effort_v3(con, ecc))
+    else:                                          # the fatigue rule needs both phases (contract effort-v3): no judgement
+        out.update({"inroad_v3": None, "effort": "unknown", "borderline": False, "output_change_pct": None})
+    if out.get("inroad_v3") is None and legacy_inroad is not None and out["phase"] == "both":      # fewer than 4 clean reps
         out.update({"method": "reps", "inroad_v3": legacy_inroad, "effort": legacy_effort})
     # weak range: the third that is clearly the weakest in most reps, per phase
     for name in ("con", "ecc"):

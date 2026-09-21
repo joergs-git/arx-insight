@@ -1121,6 +1121,14 @@ const MUSCLE_NAMES={grip:["Griff","Grip"],elbow_flexors:["Armbeuger","Elbow flex
 function mname(m){const n=MUSCLE_NAMES[m];return n?(CFG.language==="de"?n[0]:n[1]):m;}
 const pctS=v=>v==null?'—':(v>0?'+':'')+(+v).toFixed(1)+' %';
 const dcol=v=>v==null?'var(--ink3)':v>0.5?'var(--good)':v<-0.5?'var(--accent)':'var(--ink2)';
+// contract modes-1 (v0.14.0): what a person reads about a set's mode - static hold, Countdown, Inroad-Modus, unknown, single phase
+function modeLabel(x){ const de=CFG.language==="de"; if(!x) return ""; const parts=[];
+  if(x.movement==="static") parts.push(de?`Static ${Math.round(x.seconds||0)} s`:`Static ${Math.round(x.seconds||0)} s`);
+  if(x.ending==="time") parts.push(`Countdown ${Math.floor((x.seconds||0)/60)}:${String(Math.round((x.seconds||0)%60)).padStart(2,'0')}`);
+  else if(x.ending==="inroad") parts.push(de?"Inroad-Modus":"Inroad Mode");
+  else if(x.ending==="unknown") parts.push(de?"unbekannter Modus":"unknown mode");
+  if(x.phase==="negative") parts.push(de?"nur negativ":"negative only"); else if(x.phase==="positive") parts.push(de?"nur positiv":"positive only");
+  return parts.join(" · "); }
 // one vocabulary for the measure (v0.12.3): "Ermüdung im Satz" - tief / mittel / leicht (deep / medium / light)
 const effLabel=e=>{const de=CFG.language==="de";return {deep:de?"tief":"deep",moderate:de?"mittel":"medium",submax:de?"leicht":"light",unknown:"—"}[e]||'';};
 
@@ -1133,6 +1141,7 @@ function lastSessionHtml(r){
     const badges=[x.is_pb?`<span class="chip up">🏅 ${de?'Neuer Bestwert':'New PB'}</span>`:'',
       x.effort==='deep'?`<span class="chip up">🔥 ${de?'Tief ermüdet – voller Reiz':'Deep fatigue – full stimulus'}</span>`:'',
       x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'unter dem Ziel - nochmal':'below target - again'}</span>`:'',
+      modeLabel(x)?`<span class="chip" title="${de?'Modus dieses Satzes':'mode of this set'}">${esc(modeLabel(x))}</span>`:'',
       x.sets_today>1?`<span class="chip">${x.sets_today}× ${de?'heute':'today'}</span>`:'',
       x.restriction&&x.restriction!=='ok'?`<span class="grp" style="background:${x.restriction==='avoid'?'var(--accent)':'var(--warn)'}">${rlabel(x.restriction)}</span>`:''].filter(Boolean).join(' ');
     const romCmp=p?(x.delta_comparable?`<span style="color:var(--good)">✓ ROM ${uCm(x.rom_cm)} ${LCm()}</span>`
@@ -1145,7 +1154,8 @@ function lastSessionHtml(r){
       ${kpi(de?'Mittelkraft':'Mean force',`${uKg(x.mean_force_kg)}<small> ${LKg()}</small>`,
             p?`${pctS(x.delta_mean_pct)} ${t.vsprev} (${uKg(p.mean_force_kg)})`:'')}
       ${kpi(de?'Ermüdung im Satz':'Fatigue in the set',`${x.inroad==null?'—':x.inroad+'<small>%</small>'}`,
-            `${effLabel(x.effort)}${p?` · ${t.vsprev} ${p.inroad==null?'—':p.inroad+'%'}`:''}`)}
+            `${x.inroad==null&&x.phase&&x.phase!=='both'&&x.phase!=='hold'?(de?'einphasig - keine Ermüdungswertung':'single phase - no fatigue judgement'):effLabel(x.effort)}${p?` · ${t.vsprev} ${p.inroad==null?'—':p.inroad+'%'}`:''}${x.inroad_machine!=null?` · ${de?'Maschinen-Inroad':'machine inroad'} ${x.inroad_machine} %`:''}`)}
+      ${x.ending==='time'?kpi('Output',`${x.output_kg_s!=null?Math.round(x.output_kg_s*(CFG.units==="imperial"?2.20462:1)):'—'}<small> ${LKg()}·s</small>`,de?'Kraft × Zeit unter Last - die Fortschrittszahl eines Countdown-Satzes':'force × time under load - the progress figure of a Countdown set'):''}
       ${kpi(de?'Satz':'Set',`${x.reps}<small> ${de?'Wdh.':'reps'}</small> · ${Math.round(x.seconds)}<small> s</small>`,
             `${romCmp}${x.rest_before_min!=null?` · ${de?'Pause davor':'rest before'} ${x.rest_before_min} min`:''}`)}
     </div>`;
@@ -1163,7 +1173,7 @@ function lastSessionHtml(r){
   }).join("");
   const rows=ls.exercises.map(x=>{const p=x.prev;
     return `<tr><td class="num">${x.order||''}</td>
-      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'unter dem Ziel - nochmal':'below target - again')+'">↻</span>':''}</td>
+      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'unter dem Ziel - nochmal':'below target - again')+'">↻</span>':''}${modeLabel(x)?` <small style="color:var(--ink3)">${esc(modeLabel(x))}</small>`:''}</td>
       <td class="num">${x.rest_before_min!=null?x.rest_before_min+' min':'—'}</td>
       <td class="num">${uKg(x.max_kg)}</td>
       <td class="num" style="color:${p?(x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'):'var(--ink3)'}">${p?pctS(x.delta_pct):'—'}${p&&!x.delta_comparable?' ⚠':''}</td>
@@ -1441,8 +1451,13 @@ function renderProg(){const t=T();
       chip=`<span class="chip ${stl[0]}">${stl[1]}${pf.change_pct!=null?' '+pctS(pf.change_pct):''}</span>`;
       const split=pf.change_con_pct!=null?`<div class="meta">${de?'konzentrisch':'concentric'} <b style="color:${dcol(pf.change_con_pct)}">${pctS(pf.change_con_pct)}</b> · ${de?'exzentrisch':'eccentric'} <b style="color:${dcol(pf.change_ecc_pct)}">${pctS(pf.change_ecc_pct)}</b>${pf.rate_pct_per_week!=null?` · ${pctS(pf.rate_pct_per_week)}/${de?'Woche':'week'}`:''}${pf.effort_hit_rate!=null?` · ${de?'Ausbelastung erreicht':'effort target hit'} ${Math.round(pf.effort_hit_rate*100)} %`:''}${pf.never_fresh?` · <span style="color:var(--warn)">${de?'nie frisch gemessen':'never measured fresh'}</span>`:''}</div>`:'';
       pfh=split+interpHtml(pf.interp,pf.status==='progressing'?'good':(pf.status==='regressing'?'warn':'')); }
+    // timed sets (Countdown): Output per day, more in the same time = progress (contract modes-1)
+    const os=(e.output_series||[]).slice(-6), unitF=CFG.units==="imperial"?2.20462:1;
+    const outH=os.length?`<div class="meta" style="margin-top:6px">${de?'Countdown-Sätze · Output':'Countdown sets · Output'} (${LKg()}·s): ${os.map(o=>`${o.date.slice(5)} <b>${Math.round((o.output_kg_s||0)*unitF)}</b>${o.seconds?` / ${Math.round(o.seconds)} s`:''}`).join(' · ')}${e.output_delta_pct!=null?` → <b style="color:${dcol(e.output_delta_pct)}">${pctS(e.output_delta_pct)}</b> ${de?'bei gleicher Dauer':'at the same duration'}`:''}</div>`:'';
+    const modes=(e.modes_seen||[]).filter(m=>m!=='dynamic/reps');
+    const modeH=modes.length?`<div class="meta">${de?'Modi in der Historie':'modes in the history'}: ${modes.map(m=>m.replace('dynamic/','').replace('static/',de?'Static ':'static ').replace('time',de?'Countdown':'countdown').replace('inroad',de?'Inroad-Modus':'inroad mode').replace('/negative',de?' · nur negativ':' · negative only').replace('/positive',de?' · nur positiv':' · positive only')).join(', ')} - ${de?'nur gleicher Modus wird verglichen':'only the same mode is compared'}</div>`:'';
     return `<div class="excard"><div class="n"><span class="exname">${e.name}</span><span class="cur">${uKg(e.last)} <small>${LKg()}</small></span></div>
-      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${pfh}${rom}${exChart(e)}</div>`;}).join("");
+      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${pfh}${modeH}${outH}${rom}${exChart(e)}</div>`;}).join("");
 }
 function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22,B=46;
   const X=i=>L+(wb.length<2?0.5:i/(wb.length-1))*(W-L-R),Y=v=>H-B-(v/100)*(H-Tp-B);

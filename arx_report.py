@@ -97,7 +97,13 @@ IDEAL_SETTINGS = {
 # =============================================================================
 # Metrics
 # =============================================================================
-PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTOCOL: what ends the set
+PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTOCOL: what ends the set (legacy label)
+# contract modes-1 (v0.14.0): a set's mode = movement (dynamic | static) x ending (what stops the set). PROTOCOL is
+# the ending only - the owner's data has static holds ended by the clock and by the inroad rule. Any other code is
+# "unknown" and shown as such, never silently "reps".
+ENDINGS = {3: "reps", 1: "time", 0: "inroad"}
+STATIC_POS_TOLERANCE_IN = 1.0  # static holds compare only at the same position (+- this many inches)
+OUTPUT_TIME_TOLERANCE = 0.05   # timed sets compare their Output only at the same duration (+- 5 %)
 STATIC_MIN_SECONDS = 20        # a shorter isometric attempt is a test, like any other short set
 
 
@@ -144,7 +150,7 @@ def flag_false_starts(sets: list[dict]) -> None:
         ss.sort(key=lambda s: s["date"])
         for a, b in zip(ss, ss[1:]):
             ta, tb = _ts(a["date"]), _ts(b["date"])
-            if ta is None or tb is None or a["status"] in ("no_data", "hidden", "static"):
+            if ta is None or tb is None or a["status"] in ("no_data", "hidden") or a.get("movement") == "static":
                 continue
             gap_min = (tb - (ta + a["seconds"])) / 60.0
             if gap_min <= RESTART_GAP_MIN and b["reps"] > a["reps"]:
@@ -185,11 +191,12 @@ def load_sets(con, user_id: int) -> list[dict]:
 
         # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
         # programmed pauses - needed per set for the session-sequence analysis
-        rom_cm = pause_end = pause_return = None
+        rom_cm = pause_end = pause_return = pos_in = None
         static = str(r.get("REPSCHEME") or "").strip() == "StaticModeData"
         try:
             cfg = json.loads(rsd.decode("latin1"))
             static = static or (cfg.get("StartPosition") is not None and cfg.get("StartPosition") == cfg.get("EndPosition"))
+            pos_in = round(float(cfg.get("StartPosition")), 2) if isinstance(cfg.get("StartPosition"), (int, float)) else None
             rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
             pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
             pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
@@ -201,10 +208,10 @@ def load_sets(con, user_id: int) -> list[dict]:
         e = float(r["ECCENTRICMAX"] or 0)
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
         status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
-        if static and status == "short" and sec >= STATIC_MIN_SECONDS:
-            # an isometric hold (ARX "Static" mode) has no reps by design: real work, but not
-            # comparable with dynamic sets - reported under its own name instead of "too short"
-            status, reason = "static", f"isometric hold, {sec:.0f} s - listed, not compared with dynamic sets"
+        if static and status == "short" and sec >= STATIC_MIN_SECONDS and c > 0 and has_events:
+            # an isometric hold (ARX "Static" mode) has no reps by design: real work - a working set with its own
+            # effort method (time slices), compared only with other holds at the same position (v0.14.0)
+            status, reason = "working", f"isometric hold, {sec:.0f} s"
         if status == "working" and r.get("HIDEFROMSTATS"):
             # hidden from the statistics in the ARX app itself: not training in the athlete's
             # own judgement. Sets that are already excluded keep their more specific status.
@@ -216,7 +223,10 @@ def load_sets(con, user_id: int) -> list[dict]:
             "session": r["SESSION"],
             "exercise": r["EXERCISE"],
             "protocol": r["PROTOCOL"],
-            "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "reps"),
+            "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "unknown"),
+            # contract modes-1: movement x ending (+ phase from the curve, attached with the detail)
+            "movement": "static" if static else "dynamic", "ending": ENDINGS.get(r["PROTOCOL"], "unknown"),
+            "pos_in": pos_in,
             "reps": reps,
             "ended_early": ended_early,
             "status": status,                  # working | short | aborted | no_data | hidden | static (| false_start)
@@ -383,6 +393,19 @@ def load_catalog(path: str) -> dict:
         return {}
 
 
+def _output_delta(timed: list[dict]) -> float | None:
+    """Last timed day against the previous one at the same duration (+- OUTPUT_TIME_TOLERANCE): more Output in the
+    same time is the progress figure of Countdown sets ("beat your gray line", contract modes-1)."""
+    if len(timed) < 2:
+        return None
+    last = timed[-1]
+    for prev in reversed(timed[:-1]):
+        if prev.get("seconds") and last.get("seconds") and abs(last["seconds"] - prev["seconds"]) / prev["seconds"] <= OUTPUT_TIME_TOLERANCE \
+                and prev.get("output_kg_s"):
+            return round((last["output_kg_s"] / prev["output_kg_s"] - 1) * 100, 1)
+    return None
+
+
 def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None = None, careful=()) -> list[dict]:
     """Per-exercise progress, aggregated to the BEST set per training day.
 
@@ -421,7 +444,11 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         for s in ss:
             day = s["date"][:10]
             d = by_day.setdefault(day, {"kg": 0, "best": None, "sets": 0, "sessions": set()})
-            if s["max_kg"] >= d["kg"]:
+            # the day's best carries the day; a hold's peak is another thing than a dynamic peak, so a hold is the
+            # day's best only when the day has no dynamic set of this exercise (contract modes-1)
+            cur = d["best"]
+            beats = (s["max_kg"] >= d["kg"]) if (cur is None or cur.get("movement") == s.get("movement")) else (cur.get("movement") == "static")
+            if beats:
                 d["kg"], d["best"] = s["max_kg"], s
             d["sets"] += 1
             d["sessions"].add(s["session"])
@@ -445,6 +472,10 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
                     "pause_end_s": b.get("pause_end_s"), "pause_return_s": b.get("pause_return_s"),
                     "tempo_s": (b.get("tempo") or {}).get("con_s"),   # seconds per direction actually driven
                     "protocol": b.get("protocol"),          # 3 = reps, 1 = countdown, 0 = inroad
+                    # contract modes-1: movement x ending x phase; Output (impulse) for timed sets; the machine's own
+                    # inroad scale (best rep peak -> last rep peak) next to the fatigue judgement
+                    "movement": b.get("movement", "dynamic"), "ending": b.get("ending", "reps"), "phase": b.get("phase") or "both",
+                    "pos_in": b.get("pos_in"), "output_kg_s": b.get("impulse_kg_s"), "inroad_machine": b.get("inroad_legacy"),
                     "aid_on": bool(b.get("aid_on")),        # a grip aid in use: not comparable with days without
                     "context": b.get("context"),            # fresh | preloaded | repeat (arx_evidence)
                     "position": b.get("position"),
@@ -467,7 +498,13 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             # a limited athlete may deliberately shorten the range: the latest
             # setting is the baseline, not a "fix your positions" nag
             rom_ref = occ[-1]["rom_cm"]
+        # static holds: the "range" is a position - valid when it matches the holds' reference position
+        static_pos = [o["pos_in"] for o in occ[-ROM_REF_DAYS:] if o["movement"] == "static" and o["pos_in"] is not None]
+        pos_ref = static_pos[-1] if static_pos else None
         for o in occ:
+            if o["movement"] == "static":
+                o["rom_valid"] = bool(pos_ref is not None and o["pos_in"] is not None and abs(o["pos_in"] - pos_ref) <= STATIC_POS_TOLERANCE_IN)
+                continue
             o["rom_valid"] = bool(rom_ref and o["rom_cm"]
                                   and abs(o["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
         # Settings validity: reference tempo = the tempo most ROM-valid days of the window agree on
@@ -479,17 +516,24 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             tempo_ref = max(reversed(tempos), key=lambda ref: sum(1 for x in tempos if abs(x - ref) / ref <= TEMPO_TOLERANCE))
         protos = [o["protocol"] for o in win if o["protocol"] is not None]
         proto_ref = max(reversed(protos), key=protos.count) if protos else None
+        # the mode of the reference days: another movement or another phase scheme is another exercise for comparison
+        moves = [o["movement"] for o in win]
+        move_ref = max(reversed(moves), key=moves.count) if moves else "dynamic"
+        phases = [o["phase"] for o in win]
+        phase_ref = max(reversed(phases), key=phases.count) if phases else "both"
 
         aid_ref = occ[-1]["aid_on"]                     # what the athlete does NOW is the reference
 
-        def settings_ok(tempo, proto, aid_on=None) -> bool:
+        def settings_ok(tempo, proto, aid_on=None, movement="dynamic", phase="both") -> bool:
+            if movement != move_ref or phase != phase_ref:
+                return False                            # a hold vs a dynamic set, negative-only vs both phases
             if proto_ref is not None and proto is not None and proto != proto_ref:
                 return False
             if aid_on is not None and bool(aid_on) != aid_ref:
                 return False                            # with hooks the hands no longer end the set: another exercise
             return not (tempo_ref and tempo and abs(tempo - tempo_ref) / tempo_ref > TEMPO_TOLERANCE)
         for o in occ:
-            o["settings_ok"] = settings_ok(o["tempo_s"], o["protocol"], o["aid_on"])
+            o["settings_ok"] = settings_ok(o["tempo_s"], o["protocol"], o["aid_on"], o["movement"], o["phase"])
         # Familiarisation walk over the days that share the reference settings, oldest first
         cluster = [o for o in occ if o["rom_valid"] and o["settings_ok"]]
         strength_of = lambda o: o["mov_kg"] if all(x["mov_kg"] for x in cluster) else o["kg"]
@@ -506,7 +550,8 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
         for x in ss:                                    # every SET gets the flags (evidence, planner)
             day = x["date"][:10]
             x["rom_ok"] = bool(rom_ref and x.get("rom_cm") and abs(x["rom_cm"] - rom_ref) / rom_ref <= ROM_TOLERANCE)
-            x["settings_ok"] = settings_ok((x.get("tempo") or {}).get("con_s"), x.get("protocol"), x.get("aid_on", False))
+            x["settings_ok"] = settings_ok((x.get("tempo") or {}).get("con_s"), x.get("protocol"), x.get("aid_on", False),
+                                           x.get("movement", "dynamic"), x.get("phase") or "both")
             x["fam"] = day in fam_days
             if x["fam"] and x.get("effort") in ("deep", "moderate"):
                 x["effort_uncapped"], x["effort"], x["effort_capped"] = x["effort"], "submax", "familiarisation"
@@ -577,6 +622,11 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             "rom_cm_latest": rom_latest,
             "rom_drift_pct": rom_drift,                 # latest vs reference
             "rom_stable": rom_stable,                   # all days in the reference window comparable
+            # timed sets (ending "time", contract modes-1): Output = impulse, compared at the same duration only
+            "output_series": [{"date": o["date"], "output_kg_s": o["output_kg_s"], "seconds": o["seconds"],
+                               "comparable": bool(o["settings_ok"] and o["rom_valid"])} for o in occ if o["ending"] == "time"],
+            "output_delta_pct": _output_delta([o for o in occ if o["ending"] == "time" and o["settings_ok"] and o["rom_valid"]]),
+            "modes_seen": sorted({f"{o['movement']}/{o['ending']}" + (f"/{o['phase']}" if o["phase"] in ("negative", "positive") else "") for o in occ}),
             "days_excluded_for_rom": len(occ) - len(rom_only),
             "days_excluded_other": len(rom_only) - len(valid),   # other tempo / protocol, familiarisation, low force
             "days_familiarisation": len(fam_days),
@@ -1568,7 +1618,7 @@ def set_effort(con, set_id: int, cache: dict) -> dict:
 
 
 # set-level detail fields copied onto each working set (the per-rep rows stay in s["detail"])
-DETAIL_FIELDS = ("con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_kg", "mov_kg", "ecc_con_ratio",
+DETAIL_FIELDS = ("phase", "con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_kg", "mov_kg", "ecc_con_ratio",
                  "fatigue_con_pct", "fatigue_ecc_pct", "output_change_pct", "pacing_deficit_pct", "best_rep",
                  "hold_kg", "hold_rel", "hold_end_kg", "hold_end_rel", "hold_start_kg", "drops_mid", "tut", "tempo",
                  "arx_output", "borderline",
@@ -1750,6 +1800,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "reps": s["reps"], "seconds": s["seconds"], "rom_cm": s.get("rom_cm"),
             "inroad": s.get("inroad"), "effort": s.get("effort"),
             # no stimulus (below the goal's target, not repeated properly in this visit): once more - now or tomorrow
+            # contract modes-1: how the set was done, its Output and the machine's own inroad scale
+            "movement": s.get("movement", "dynamic"), "ending": s.get("ending", "reps"), "phase": s.get("phase") or "both",
+            "pos_in": s.get("pos_in"), "output_kg_s": s.get("impulse_kg_s"), "inroad_machine": s.get("inroad_legacy"),
             "repeat_now": repeat_now, "inroad_target": goal_min,
             "repeat_interp": history.item("repeat_now", {"last_pct": s.get("inroad"), "target_pct": goal_min}, cfg or {}) if repeat_now else None,
             "inroad_legacy": s.get("inroad_legacy"), "effort_capped": s.get("effort_capped"),
