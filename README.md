@@ -374,7 +374,8 @@ the same, only "super slow" is worse), no pauses at the turnarounds, same repeti
 and pauses are already used up, two repetitions more. The change is shown with a ⚙ next to the old
 settings, the AI coach may pick the repetitions instead but may never hold the number a third time
 without changing something, and the comparison basis starts anew with the new settings. Days you
-were told to go easy on do not count as misses. And a set without fatigue costs no rest *(v0.11.0)*:
+were told to go easy on do not count as misses. A set below the target is a real load, just not the
+stimulus a size goal needs — and it costs only a day of rest *(v0.11.0)*:
 while you are still on the machine (last set less than an hour ago) chapter 1 says *once more, now,
 properly* for exactly those exercises; afterwards their muscles are free again the next day — the
 plan re-plans the same exercises and says so, instead of making you wait for a rhythm. For a

@@ -1131,7 +1131,7 @@ function lastSessionHtml(r){
     const p=x.prev;
     const badges=[x.is_pb?`<span class="chip up">🏅 ${de?'Neuer Bestwert':'New PB'}</span>`:'',
       x.effort==='deep'?`<span class="chip up">🔥 ${de?'Tiefe Ausbelastung':'Deep fatigue'}</span>`:'',
-      x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'kein Reiz - nochmal':'no stimulus - again'}</span>`:'',
+      x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'unter dem Ziel - nochmal':'below target - again'}</span>`:'',
       x.sets_today>1?`<span class="chip">${x.sets_today}× ${de?'heute':'today'}</span>`:'',
       x.restriction&&x.restriction!=='ok'?`<span class="grp" style="background:${x.restriction==='avoid'?'var(--accent)':'var(--warn)'}">${rlabel(x.restriction)}</span>`:''].filter(Boolean).join(' ');
     const romCmp=p?(x.delta_comparable?`<span style="color:var(--good)">✓ ROM ${uCm(x.rom_cm)} ${LCm()}</span>`
@@ -1162,7 +1162,7 @@ function lastSessionHtml(r){
   }).join("");
   const rows=ls.exercises.map(x=>{const p=x.prev;
     return `<tr><td class="num">${x.order||''}</td>
-      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'kein Reiz - nochmal':'no stimulus - again')+'">↻</span>':''}</td>
+      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'unter dem Ziel - nochmal':'below target - again')+'">↻</span>':''}</td>
       <td class="num">${x.rest_before_min!=null?x.rest_before_min+' min':'—'}</td>
       <td class="num">${uKg(x.max_kg)}</td>
       <td class="num" style="color:${p?(x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'):'var(--ink3)'}">${p?pctS(x.delta_pct):'—'}${p&&!x.delta_comparable?' ⚠':''}</td>

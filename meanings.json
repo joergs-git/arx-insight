@@ -1392,8 +1392,8 @@
  },
  "plan_effort_reset": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction and no pauses at the turnarounds, same repetitions - or two repetitions more instead. The comparison basis starts anew with the new settings.",
@@ -1402,8 +1402,8 @@
  },
  "plan_effort_pauses": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to 0 - or two repetitions more instead. The comparison basis starts anew.",
@@ -1412,8 +1412,8 @@
  },
  "plan_effort_reps": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}); tempo and pauses are exhausted, so {reps_from} → {reps_to} repetitions. The comparison basis starts anew.",
@@ -1422,22 +1422,22 @@
  },
  "repeat_now_panel": {
   "meaning": {
-   "en": "Still on the machine? That was a strength test, not a stimulus - {exercises}: below the {target_pct} force drop your goal asks for.",
-   "de": "Noch am Gerät? Das war ein Krafttest, kein Reiz - {exercises}: unter den {target_pct} Kraftabfall, die dein Ziel verlangt."
+   "en": "Still on the machine? {exercises}: below the {target_pct} force drop your goal asks for - a real load, but half the stimulus.",
+   "de": "Noch am Gerät? {exercises}: unter den {target_pct} Kraftabfall, die dein Ziel verlangt - eine echte Belastung, aber nur der halbe Reiz."
   },
   "action": {
-   "en": "Once more, now, properly: all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. A set without fatigue costs no rest, so nothing is lost by repeating it.",
-   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz ohne Ermüdung kostet keine Erholung, wiederholen kostet also nichts."
+   "en": "Once more, now, properly: all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. A set that stayed below the target cost little, so a second one is in.",
+   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz unter dem Ziel hat wenig gekostet, ein zweiter ist drin."
   }
  },
  "repeat_now": {
   "meaning": {
-   "en": "{last_pct} force drop - below the {target_pct} your goal asks for: no stimulus yet.",
-   "de": "{last_pct} Kraftabfall - unter den {target_pct}, die dein Ziel verlangt: noch kein Reiz."
+   "en": "{last_pct} force drop - below the {target_pct} your goal asks for: a real load, but half the stimulus.",
+   "de": "{last_pct} Kraftabfall - unter den {target_pct}, die dein Ziel verlangt: eine echte Belastung, aber nur der halbe Reiz."
   },
   "action": {
-   "en": "Once more, properly - now if you are still on the machine, otherwise tomorrow: a set without fatigue needs no rest day.",
-   "de": "Nochmal, richtig - jetzt, wenn du noch am Gerät bist, sonst morgen: ein Satz ohne Ermüdung braucht keinen Ruhetag."
+   "en": "Once more, properly - now if you are still on the machine, otherwise tomorrow: a set below the target costs only a day of rest.",
+   "de": "Nochmal, richtig - jetzt, wenn du noch am Gerät bist, sonst morgen: ein Satz unter dem Ziel kostet nur einen Tag Erholung."
   }
  },
  "plan_repeat_after_miss": {
@@ -1446,8 +1446,8 @@
    "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Kraftabfall, den dein Ziel verlangt."
   },
   "action": {
-   "en": "A set without fatigue costs no rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down.",
-   "de": "Ein Satz ohne Ermüdung kostet keine Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen (das Tempo macht die Maschine), der Satz endet, wenn die Kraft einbricht."
+   "en": "A set below the target costs only a day of rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down.",
+   "de": "Ein Satz unter dem Ziel kostet nur einen Tag Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen (das Tempo macht die Maschine), der Satz endet, wenn die Kraft einbricht."
   }
  },
  "plan_beginner": {
@@ -1472,8 +1472,8 @@
  },
  "plan_effort_tempo": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a strength test, not a stimulus.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - ein Krafttest, kein Reiz."
+   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction; your pauses at the turnarounds stay - they serve the tension a strength goal wants. Or two repetitions more instead. The comparison basis starts anew.",
