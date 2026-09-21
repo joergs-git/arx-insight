@@ -1489,5 +1489,55 @@
    "en": "Your goal asks for {level} - at least {target_pct} in every set that counts.",
    "de": "Dein Ziel verlangt {level} - mindestens {target_pct} in jedem Satz, der zählt."
   }
+ },
+ "mode_static_careful": {
+  "meaning": {
+   "en": "Mode suggestion: a static hold instead of the movement - this exercise is on 'go easy', and a hold loads the joint without the eccentric overload.",
+   "de": "Modus-Vorschlag: Static-Halten statt Bewegung - diese Übung steht auf 'schonen', und ein Halten belastet das Gelenk ohne die exzentrische Überlast."
+  },
+  "action": {
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; the machine's Inroad Mode may end the set, stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; der Inroad-Modus der Maschine darf den Satz beenden, bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu."
+  }
+ },
+ "mode_static_return": {
+  "meaning": {
+   "en": "Mode suggestion for the first session after months away: a static hold - strength without the soreness the first eccentric sets would bring.",
+   "de": "Modus-Vorschlag für die erste Einheit nach Monaten: Static-Halten - Kraft ohne den Muskelkater, den die ersten exzentrischen Sätze bringen würden."
+  },
+  "action": {
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; the machine's Inroad Mode may end the set, stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew. Next session: back to your usual mode.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; der Inroad-Modus der Maschine darf den Satz beenden, bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu. Nächste Einheit: zurück zu deinem üblichen Modus."
+  }
+ },
+ "mode_countdown_conditioning": {
+  "meaning": {
+   "en": "Your goal carries an endurance share: this big exercise fits Countdown mode - {seconds} s, as much Output (force × time) as you can.",
+   "de": "Dein Ziel enthält einen Ausdauer-Anteil: diese große Übung passt in den Countdown-Modus - {seconds} s, so viel Output (Kraft × Zeit) wie möglich."
+  },
+  "action": {
+   "en": "First timed set: your Output becomes the reference; from then on the target is {step_pct} more in the same time ('beat your gray line'). Timed sets are compared only with timed sets of the same length - the comparison basis for this exercise starts anew.",
+   "de": "Erster Countdown-Satz: dein Output wird die Referenz; danach sind {step_pct} mehr in derselben Zeit das Ziel („beat your gray line“). Countdown-Sätze werden nur mit Countdown-Sätzen gleicher Länge verglichen - die Vergleichsbasis dieser Übung beginnt neu."
+  }
+ },
+ "mode_countdown_output": {
+  "meaning": {
+   "en": "Countdown {seconds} s: last time {output} {unit} Output - the target is {step_pct} more in the same time.",
+   "de": "Countdown {seconds} s: zuletzt {output} {unit} Output - Ziel sind {step_pct} mehr in derselben Zeit."
+  },
+  "action": {
+   "en": "Beat your gray line: full force from the first second, no coasting at the end. Timed sets are compared only with timed sets of the same length.",
+   "de": "Schlag deine graue Linie: volle Kraft ab der ersten Sekunde, kein Ausrollen am Ende. Countdown-Sätze werden nur mit Countdown-Sätzen gleicher Länge verglichen."
+  }
+ },
+ "mode_negative_plateau": {
+  "meaning": {
+   "en": "Plateau under a strength goal: one session of negative-only repetitions is a lever - the eccentric is where the strength is.",
+   "de": "Plateau bei Kraftziel: eine Einheit nur negative Wiederholungen ist ein Hebel - in der Exzentrik steckt die Kraft."
+  },
+  "action": {
+   "en": "Once, for this exercise: set the machine to negative-only, resist all the way, let the machine bring the handle back. Judged on the eccentric force only (no fatigue judgement), full rest afterwards - eccentric-only work needs it -, then back to your usual mode. The comparison basis starts anew.",
+   "de": "Einmal, für diese Übung: Maschine auf negative-only, den ganzen Weg bremsen, den Griff von der Maschine zurückführen lassen. Bewertet wird nur die exzentrische Kraft (keine Ermüdungswertung), danach volle Erholung - reine Exzentrik braucht sie -, dann zurück zu deinem üblichen Modus. Die Vergleichsbasis beginnt neu."
+  }
  }
 }

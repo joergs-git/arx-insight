@@ -625,9 +625,11 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
             "rom_drift_pct": rom_drift,                 # latest vs reference
             "rom_stable": rom_stable,                   # all days in the reference window comparable
             # timed sets (ending "time", contract modes-1): Output = impulse, compared at the same duration only
+            # timed days compare among themselves (same range / position and grip-aid state; the duration is checked
+            # pairwise) - the exercise's reference settings may follow the reps majority, that is no reason to drop them
             "output_series": [{"date": o["date"], "output_kg_s": o["output_kg_s"], "seconds": o["seconds"],
-                               "comparable": bool(o["settings_ok"] and o["rom_valid"])} for o in occ if o["ending"] == "time"],
-            "output_delta_pct": _output_delta([o for o in occ if o["ending"] == "time" and o["settings_ok"] and o["rom_valid"]]),
+                               "comparable": bool(o["rom_valid"] and o["aid_on"] == aid_ref and o["phase"] == "both")} for o in occ if o["ending"] == "time"],
+            "output_delta_pct": _output_delta([o for o in occ if o["ending"] == "time" and o["rom_valid"] and o["aid_on"] == aid_ref and o["phase"] == "both"]),
             "modes_seen": sorted({f"{o['movement']}/{o['ending']}" + (f"/{o['phase']}" if o["phase"] in ("negative", "positive") else "") for o in occ}),
             "days_excluded_for_rom": len(occ) - len(rom_only),
             "days_excluded_other": len(rom_only) - len(valid),   # other tempo / protocol, familiarisation, low force
@@ -755,6 +757,10 @@ def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
     unknown exercise never silently drops out of the model."""
     meta = catalog.get(str(s["exercise"]), {})
     rank = EFFORT_RANK.get(s.get("effort"), 2)
+    if s.get("phase") == "negative":             # eccentric-only work is the most damaging kind (science.json: eccentric): full rest
+        rank = 3
+    elif s.get("movement") == "static":          # a hold damages less than the eccentric overload (science.json: isometric_training)
+        rank = max(1, rank - 1)
     targets = list(meta.get("targets") or []) or [s.get("group") or "?"]
     # limiters_eff: the catalog limiters minus what an aid (hooks / straps) took out on that day
     limiters = [l for l in s.get("limiters_eff", meta.get("limiters") or []) if l not in targets]

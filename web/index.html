@@ -1130,6 +1130,11 @@ function modeLabel(x){ const de=CFG.language==="de"; if(!x) return ""; const par
   else if(x.ending==="unknown") parts.push(de?"unbekannter Modus":"unknown mode");
   if(x.phase==="negative") parts.push(de?"nur negativ":"negative only"); else if(x.phase==="positive") parts.push(de?"nur positiv":"positive only");
   return parts.join(" · "); }
+function modeHintLabel(h){ const de=CFG.language==="de"; if(!h) return ""; const s=h.settings||{};
+  if(h.mode==="static/inroad") return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'}`;
+  if(h.mode==="dynamic/time") return `Countdown ${s.seconds||''} s`+(s.output_target_kg_s?` · Output ≥ ${Math.round(s.output_target_kg_s*(CFG.units==="imperial"?2.20462:1))} ${LKg()}·s`:'');
+  if(h.mode==="dynamic/reps/negative") return de?"nur negative Wiederholungen (1 Einheit)":"negative-only repetitions (1 session)";
+  return h.mode; }
 // one vocabulary for the measure (v0.12.3): "Ermüdung im Satz" - tief / mittel / leicht (deep / medium / light)
 const effLabel=e=>{const de=CFG.language==="de";return {deep:de?"tief":"deep",moderate:de?"mittel":"medium",submax:de?"leicht":"light",unknown:"—"}[e]||'';};
 
@@ -1492,13 +1497,14 @@ function sessionRowsHtml(sess){ const de=CFG.language==="de";
     const eff=sub?`<span>${pen('effort')}${de?'leicht, ohne Zielzahl':'light, no target number'}</span>`:`<span>${pen('effort')}${de?'Ermüdungsziel':'fatigue target'} <b>≥ ${x.effort_target.inroad_min} %</b> (${effLabel(x.effort_target.label)})</span>`;
     // after two fruitless sessions the engine changes the set-up (v0.10.0): say what changes, next to the old settings
     const sc=x.settings_change||null, chg=sc?[sc.tempo_s?`${de?'Tempo':'tempo'} ${sc.tempo_s.from} → <b>${sc.tempo_s.to} s</b>`:'',(sc.pause_end_s||sc.pause_return_s)?`${de?'Halt':'hold'} → <b>0/0 s</b>`:'',sc.reps?`<b>${sc.reps.to} ${de?'Wdh.':'reps'}</b> (${de?'statt':'instead of'} ${sc.reps.from})`:''].filter(Boolean).join(' · '):'';
-    const st=x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>${chg?`<span style="color:var(--warn);font-weight:600">⚙ ${chg}</span>`:''}`:(c&&c.tempo?`<span>${esc(c.tempo)}</span>`:'');
+    const mh=x.mode_hint?`<span style="color:var(--fc);font-weight:600" title="${de?'Modus-Vorschlag - dein Ziel bleibt':'mode suggestion - your target stays'}">◎ ${esc(modeHintLabel(x.mode_hint))}</span>`:'';
+    const st=(x.settings?`<span>${x.settings.reps||'–'} ${de?'Wdh.':'reps'} · ${x.settings.tempo_s?Math.round(x.settings.tempo_s)+' s':'–'} · ${de?'Halt':'hold'} ${x.settings.pause_end_s??'–'}/${x.settings.pause_return_s??'–'} s</span>${chg?`<span style="color:var(--warn);font-weight:600">⚙ ${chg}</span>`:''}`:(c&&c.tempo?`<span>${esc(c.tempo)}</span>`:''))+mh;
     const why=[...(x.why_selected||[]),x.interp,x.context_note,...(x.order_rules||[])].filter(Boolean);
     const evid=(x.evidence||[]).map(e=>`<div class="foot">${de?'nach':'after'} ${esc(e.before)}: −${e.expected_loss_pct} % · ${e.source==="measured"?`${de?'bei dir gemessen':'measured on you'}, n = ${e.n} (${e.confidence})`:(de?'allgemeine Schätzung':'general estimate')}</div>`).join("");
     return `<li class="v4"><div><div class="row1"><span class="ex"><span class="grp ${x.group}">${x.group}</span> ${esc(x.name)}</span>${badges}</div>
       <div class="nums">${tgt}${eff}<span>${pen('sets')}${x.sets} ${de?(x.sets>1?'Sätze':'Satz'):(x.sets>1?'sets':'set')}</span>${x.rest_before_min?`<span>${pen('rest')}${de?'Pause davor':'rest before'} <b>${x.rest_before_min}</b> min</span>`:''}${st}</div>
       ${c&&c.cue?`<div class="interp good">🎯 ${esc(c.cue)}</div>`:''}
-      ${c&&(c.pen.target||c.pen.sets||c.pen.rest||c.pen.effort||c.pen.added)?`<div class="interp warn"><span class="pen">✎</span> Coach: ${esc(c.why)}</div>`:interpHtml(x.interp,x.target_rule==="effort_reset"?"warn":undefined)}${x.context_note?interpHtml(x.context_note,'warn'):''}
+      ${c&&(c.pen.target||c.pen.sets||c.pen.rest||c.pen.effort||c.pen.added)?`<div class="interp warn"><span class="pen">✎</span> Coach: ${esc(c.why)}</div>`:interpHtml(x.interp,x.target_rule==="effort_reset"?"warn":undefined)}${x.mode_hint?interpHtml(x.mode_hint.interp):''}${x.context_note?interpHtml(x.context_note,'warn'):''}
       <details><summary>${de?'Warum diese Übung, warum hier':'Why this exercise, why here'}</summary>${c&&c.why?`<div class="interp">Coach: ${esc(c.why)}</div>`:''}${c?interpHtml(x.interp):''}${why.filter(w=>w!==x.interp&&w!==x.context_note).map(w=>interpHtml(w)).join("")}${evid}</details></div></li>`;}).join("")+`</ol>`;
 }
 function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) return "";

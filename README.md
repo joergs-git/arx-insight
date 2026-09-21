@@ -204,8 +204,18 @@ duration), and chapter 3 says which modes an exercise's history contains. Timed 
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
 own inroad scale (best rep peak → last rep peak, what its Inroad Mode uses) is shown next to the fatigue in the set
 as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-1.md`; the next steps
-(recommending a mode by goal and situation, calibrating the machine's Inroad setting to your fatigue target) are in
-the roadmap.
+(calibrating the machine's Inroad setting to your fatigue target) are in the roadmap.
+
+**Which mode does the plan suggest, and when?** *(v0.15.0)* — a suggestion on the row (◎), never a silent change of
+your target: your **goal** first, then the situation. A conditioning share of 30 % or more (or the outcome
+*performance*) → **Countdown** 90 s on the big exercises, with an Output target of last time + 2 % at the same
+duration once a timed reference exists; an exercise on *go easy* or the first session after months away → a
+**static hold** of about 40 s at a pain-free, strong position, ended by the machine's Inroad Mode (holds cost less
+recovery than the eccentric overload); a plateau under a **strength** goal → one session of **negative-only**
+repetitions (judged on the eccentric force only, full rest afterwards). A balanced or size goal keeps Reps; beginners
+get no mode suggestions. Every text says that a mode change restarts the comparison basis, and the plan-vs-actual
+mirror tells whether you followed the suggestion. Evidence: `science.json` → *isometric_training*,
+*timed_sets_conditioning*, *eccentric*.
 
 ## The sibling project: arx-free
 

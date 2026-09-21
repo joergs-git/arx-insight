@@ -426,6 +426,67 @@ class BeginnerRamp(unittest.TestCase):
         self.assertEqual((sess["effort_target"]["label"], sess.get("beginner_note")), ("deep", None))
 
 
+class ModeHints(unittest.TestCase):
+    """v0.15.0 (owner): a mode suggestion on the row - the goal first, then the situation; never a silent change of
+    the row's target; nothing for beginners; the recovery model knows what a hold and a negative-only set cost."""
+    def test_a_conditioning_share_suggests_countdown_on_the_big_exercises(self):
+        rows = history([ROW, PRESS, SQUAT, CURL], factors=[1.0, 1.02, 1.04, 1.06, 1.08], decline=0.05)
+        goal = {"muscle": 0.4, "strength": 0.2, "conditioning": 0.4}
+        sess = report(rows, "2026-09-19", goal=goal)["plan"]["next_session"]
+        hints = {it["name"]: it.get("mode_hint") for it in sess["exercises"]}
+        for name, h in hints.items():
+            if name == "Biceps Curl":
+                self.assertIsNone(h)                                            # isolation: no timed suggestion
+            else:
+                self.assertEqual((h["mode"], h["settings"]["seconds"], h["interp"]["code"]), ("dynamic/time", planner.COUNTDOWN_SECONDS, "mode_countdown_conditioning"))
+                self.assertNotIn("{", h["interp"]["text"]["meaning"] + h["interp"]["text"]["action"])
+        for it in sess["exercises"]:
+            self.assertIsNotNone(it["target_peak_kg"] if it["restriction"] == "ok" else 0)   # the row's own target stays
+        # two comparable timed days -> the Output target = last + 2 %
+        timed = [fx.make_set(90 + i, ROW, datetime(2026, 9, 10 + 4 * i, 10, 0), protocol=1, con=(150 + 10 * i, 0.03)) for i in range(2)]
+        sess = report(rows + timed, "2026-09-19", goal=goal)["plan"]["next_session"]
+        h = next(it["mode_hint"] for it in sess["exercises"] if it["name"] == "Row")
+        r = report(rows + timed, "2026-09-19", goal=goal)
+        last_out = r["exercises"][[e["name"] for e in r["exercises"]].index("Row")]["output_series"][-1]["output_kg_s"]
+        self.assertEqual((h["interp"]["code"], h["settings"]["output_target_kg_s"]), ("mode_countdown_output", round(last_out * 1.02)))
+
+    def test_go_easy_and_a_long_break_suggest_a_hold_and_a_strength_plateau_suggests_negative_only(self):
+        rows = history([ROW, PRESS, SQUAT], factors=[1.0, 1.02, 1.04, 1.06, 1.08], decline=0.05)
+        sess = report(rows, "2026-09-19", excluded_exercises={"23": "careful"})["plan"]["next_session"]
+        press = next(it for it in sess["exercises"] if it["name"] == "Horizontal Press")
+        self.assertEqual((press["mode_hint"]["mode"], press["mode_hint"]["interp"]["code"], press["mode_hint"]["settings"]["hold_s"]),
+                         ("static/inroad", "mode_static_careful", planner.STATIC_HOLD_S))
+        self.assertTrue(all(it.get("mode_hint") is None for it in sess["exercises"] if it["name"] != "Horizontal Press"))   # balanced goal: reps
+        # months away: the first session back
+        far = report(rows, "2027-04-01")["plan"]["next_session"]
+        self.assertTrue(all((it.get("mode_hint") or {}).get("interp", {}).get("code") == "mode_static_return" for it in far["exercises"]))
+        # a plateau under a strength goal: negative-only as the lever; the same plateau under a size goal: not
+        flat = history([ROW, PRESS, SQUAT], days=(1, 8, 15, 22, 29), factors=[1.0, 1.0, 1.0, 1.0, 1.0], decline=0.05)
+        strength = {"muscle": 0.3, "strength": 0.6, "conditioning": 0.1}
+        sess = report(flat, "2026-10-01", goal=strength)["plan"]["next_session"]
+        codes = {it["name"]: (it.get("mode_hint") or {}).get("mode") for it in sess["exercises"] if it["progress_status"] == "plateau"}
+        self.assertTrue(codes and all(m == "dynamic/reps/negative" for m in codes.values()), codes)
+        sess = report(flat, "2026-10-01")["plan"]["next_session"]
+        self.assertTrue(all(it.get("mode_hint") is None for it in sess["exercises"]))
+        # a beginner gets no mode suggestions
+        sess = report(rows[:2], "2026-09-19", experience="new", excluded_exercises={"23": "careful"})["plan"]["next_session"]
+        self.assertTrue(all(it.get("mode_hint") is None for it in sess["exercises"]))
+
+    def test_recovery_knows_a_hold_and_a_negative_only_set(self):
+        hold = fx.make_static_set(1, ROW, datetime(2026, 9, 20, 10, 0), seconds=60, start_force=300, end_force=180)   # a deep hold
+        r = report([hold], "2026-09-21")
+        self.assertEqual(r["load"]["recovery"]["muscles"]["lats"]["ready_on"], "2026-09-21")             # deep -> one rank lower -> a day
+        neg = fx.make_set(2, ROW, datetime(2026, 9, 20, 10, 0), con=(1.0, 0.0), ecc=(240, 0.01))          # negative-only, hardly any decline
+        r = report([neg], "2026-09-21")
+        self.assertEqual(r["load"]["recovery"]["muscles"]["lats"]["ready_on"], "2026-09-23")             # eccentric-only: full rest
+        # the plan-vs-actual ledger knows whether a suggested mode was used
+        ledger = [{"created": "2026-09-19", "date": "2026-09-20", "session_type": "full_body", "est_minutes": 20, "benchmark": None, "commitment": "balanced",
+                   "exercises": [{"name": "Row", "order": 1, "sets": 1, "target_peak_kg": None, "target_rule": "hold", "effort": "deep", "inroad_min": 20,
+                                  "rest_before_min": 0, "aid_hint": None, "settings": None, "mode_hint": "dynamic/reps/negative"}]}]
+        pva = report([neg], "2026-09-21", _plan_ledger=ledger)["plan_vs_actual"]
+        self.assertEqual((pva["modes_hinted"], pva["modes_followed"], pva["exercises"][0]["mode_actual"]), (1, 1, "dynamic/reps/negative"))
+
+
 class EffortEscalation(unittest.TestCase):
     """v0.10.0 (owner): a missed effort target is acted on - once the cue is intent (the number holds), twice in
     a row the set-up changes (slower per direction, no turnaround pauses; two reps more once those are exhausted).
