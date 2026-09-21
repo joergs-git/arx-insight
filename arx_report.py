@@ -65,8 +65,11 @@ LOW_FORCE_DAYS = 28            # ... (within this many days) cannot count as a h
 # yields a higher peak. So a day's best is only comparable with other days when
 # the ROM matches. Reference = the ROM that most of the last ROM_REF_DAYS
 # training days of that exercise agree on; a day within +-ROM_TOLERANCE of it
-# counts as comparable.
-ROM_TOLERANCE = 0.05           # 5 % relative deviation
+# counts as comparable. 10 % (owner, v0.9.2; 5 % before): on a 30 cm press that
+# is 3 cm - a shift of at most a tenth of the range at one end, which touches the
+# peak only if the peak lies at that very end, and well below the day-to-day
+# scatter of a peak-force measurement itself (science.json: range_of_motion).
+ROM_TOLERANCE = 0.10           # 10 % relative deviation
 ROM_REF_DAYS = 5               # days that form the reference window
 MIN_TREND_POINTS = 3           # fewer comparable days -> no trend / forecast (None)
 # Comparable = same ROM AND same tempo AND same protocol class, not a familiarisation day, not a

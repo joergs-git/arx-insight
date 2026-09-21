@@ -53,6 +53,13 @@ class RomGatedPersonalBests(unittest.TestCase):
         self.assertTrue(r["last_session"]["exercises"][0]["is_pb"])
         self.assertEqual(r["coach"]["milestones"]["pbs_last_14_days"], ["Horizontal Press"])
 
+    def test_a_range_within_ten_percent_is_the_same_set_up(self):
+        """v0.9.2 (owner): 3 cm on a 30 cm press is no reason to call two days incomparable - 10 % is the line."""
+        for end_pos, comparable in ((20.8, True), (19.2, True), (21.2, False), (18.7, False)):     # +8 / -8 / +12 / -13 %
+            r = report(self.rows(end_pos), "2026-09-13")
+            e = r["exercises"][0]
+            self.assertEqual((e["occ"][-1]["rom_valid"], e["last_is_pb"]), (comparable, comparable), end_pos)
+
     def test_record_on_a_shorter_range_does_not_count(self):
         r = report(self.rows(16), "2026-09-13")            # 40 % shorter ROM -> not comparable
         e = r["exercises"][0]

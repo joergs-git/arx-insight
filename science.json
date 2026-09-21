@@ -1,7 +1,7 @@
 {
  "_comment": "ARX Insight science base: the evidence behind the planner's defaults. Curated and versioned with the code - the app never searches the web. Every entry: what the evidence says (statement), a cautious rule of thumb (practical_rule), how THIS app applies it (applied_as), what does not transfer to a motor-driven machine (arx_caveat), the constants it backs (parameters), the evidence level and the references. The athlete's own measured data always outranks a default from this file.",
  "version": 2,
- "reviewed": "2026-09-18",
+ "reviewed": "2026-09-21",
  "review_policy": "Re-check at every release against new meta-analyses and position stands; a default that the evidence no longer supports is changed in the code, not only here.",
  "method": "References were retrieved live from the official PubMed record (NCBI E-utilities) and cross-checked against the Crossref record of their DOI (title, first author, year); bibliographic fields were written by script, not retyped. Key findings are taken from the abstracts - no full texts were read. A sample was re-checked independently before this file was written.",
  "evidence_levels": {
@@ -1476,6 +1476,51 @@
      "pmid": "23064871",
      "type": "cohort",
      "key_finding": "26 healthy men aged about 66: low-intensity eccentric knee-extensor contractions (10 % of isometric strength) caused no measurable change and, performed 7 days before maximal eccentric exercise, led to smaller strength loss, faster recovery and less soreness than without them."
+    }
+   ]
+  },
+  "range_of_motion": {
+   "title": "Range of motion: when force values are comparable, and what a shorter range trains",
+   "statement": "Muscle force depends on the position in the range (length-tension and leverage), and adaptations are specific to the muscle length trained: isometric training at long muscle lengths produced more hypertrophy than equal volumes at short lengths (systematic review of 26 studies), and full-ROM resistance training produced greater strength (ES 0.56) and lower-limb hypertrophy (ES 0.88) than partial ROM (meta-analysis of 16 studies). A peak-force measurement itself scatters from day to day: on an isokinetic dynamometer with identical positioning the typical error of peak torque was 8-17 % (averaged measures 8-10 %) despite good relative reliability (ICC 0.84-0.94).",
+   "practical_rule": "Compare force only between sets performed over the same range. A range difference far below the day-to-day scatter of the measurement is the same set-up; a clearly shorter range is a different exercise for comparison purposes - and less stimulus at the stretched end, so it should be a deliberate choice, not drift.",
+   "applied_as": "A training day is comparable when its range of motion lies within ROM_TOLERANCE (10 %) of the exercise's reference range (the range most of the last ROM_REF_DAYS days agree on). On a 30 cm press that is 3 cm: a shift of at most a tenth of the range at one end, which touches the peak only if the peak lies at that very end, and below the scatter of a peak measurement itself. Days outside the band stay in the charts (hollow markers, a warning) but feed neither trend, personal best, delta nor targets; the same band decides last-vs-previous comparisons and the pair / order effects.",
+   "arx_caveat": "No study measured force-position behaviour on a motor-driven adaptive machine; the reliability figures come from an isokinetic dynamometer in older men and the ROM studies concern training adaptations with conventional loads. The 10 % band is a measurement convention (v0.9.2; 5 % before), not a tested value - in the owner's own data the range between days is either identical (0 %) or clearly different (17 % and more), so both bands have always separated the same days.",
+   "parameters": [
+    "arx_report.ROM_TOLERANCE",
+    "arx_report.ROM_REF_DAYS"
+   ],
+   "evidence_level": "indirect",
+   "reviewed": "2026-09-21",
+   "references": [
+    {
+     "authors": "Pallarés JG, Hernández-Belmonte A, Martínez-Cava A, et al.",
+     "year": 2021,
+     "title": "Effects of range of motion on resistance training adaptations: A systematic review and meta-analysis",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.14006",
+     "pmid": "34170576",
+     "type": "meta-analysis",
+     "key_finding": "16 studies. Full-ROM training produced greater muscle strength (ES 0.56) and lower-limb hypertrophy (ES 0.88) than partial ROM; functional performance favoured full ROM without reaching significance; no difference for muscle thickness, pennation angle or fascicle length."
+    },
+    {
+     "authors": "Oranchuk DJ, Storey AG, Nelson AR, Cronin JB",
+     "year": 2019,
+     "title": "Isometric training and long-term adaptations: Effects of muscle length, intensity, and intent: A systematic review",
+     "journal": "Scand J Med Sci Sports",
+     "doi": "10.1111/sms.13375",
+     "pmid": "30580468",
+     "type": "systematic review",
+     "key_finding": "26 research outputs. Isometric training at longer muscle lengths produced greater hypertrophy (0.86-1.69 %/week) than equal volumes at shorter lengths (0.08-0.83 %/week); adaptations are specific to the trained muscle length, i.e. force capacity is position-dependent."
+    },
+    {
+     "authors": "Symons TB, Vandervoort AA, Rice CL, et al.",
+     "year": 2005,
+     "title": "Reliability of a single-session isokinetic and isometric strength measurement protocol in older men",
+     "journal": "J Gerontol A Biol Sci Med Sci",
+     "doi": "10.1093/gerona/60.1.114",
+     "pmid": "15741293",
+     "type": "reliability study",
+     "key_finding": "19 men (72 +/- 5 y), Biodex, two test days, identical positioning. ICC 0.84-0.94 (good relative reliability), but the typical error as a coefficient of variation was 8-10 % for averaged torque and 8-17 % for single peak torque - the day-to-day scatter of a peak-force number even without any change of range."
     }
    ]
   }
