@@ -1539,5 +1539,45 @@
    "en": "Once, for this exercise: set the machine to negative-only, resist all the way, let the machine bring the handle back. Judged on the eccentric force only (no fatigue judgement), full rest afterwards - eccentric-only work needs it -, then back to your usual mode. The comparison basis starts anew.",
    "de": "Einmal, für diese Übung: Maschine auf negative-only, den ganzen Weg bremsen, den Griff von der Maschine zurückführen lassen. Bewertet wird nur die exzentrische Kraft (keine Ermüdungswertung), danach volle Erholung - reine Exzentrik braucht sie -, dann zurück zu deinem üblichen Modus. Die Vergleichsbasis beginnt neu."
   }
+ },
+ "plan_effort_inroad_mode": {
+  "meaning": {
+   "en": "A fourth lever: in your own sets ({n} so far) a machine inroad of about {machine_pct} % corresponded to {target_pct} % fatigue in the set.",
+   "de": "Ein vierter Hebel: in deinen eigenen Sätzen (bisher {n}) entsprach ein Maschinen-Inroad von etwa {machine_pct} % einer Ermüdung im Satz von {target_pct} %."
+  },
+  "action": {
+   "en": "Set the machine's Inroad Mode to about {machine_pct} %: the zone shows when the set is done - stop when the force no longer reaches it, not before. The number is the machine's scale, not the fatigue figure.",
+   "de": "Stell den Inroad-Modus der Maschine auf etwa {machine_pct} %: die Zone zeigt, wann der Satz fertig ist - stoppen, wenn die Kraft sie nicht mehr erreicht, nicht vorher. Die Zahl ist die Skala der Maschine, nicht die Ermüdungszahl."
+  }
+ },
+ "mode_inroad_start": {
+  "meaning": {
+   "en": "Maintain: the least fatigue that still holds your strength is the goal - Inroad Mode makes that visible. From your sets, about {machine_pct} % machine inroad matches your target of {target_pct} %.",
+   "de": "Erhalten: die geringste Ermüdung, die deine Kraft noch hält, ist das Ziel - der Inroad-Modus macht das sichtbar. Aus deinen Sätzen entsprechen etwa {machine_pct} % Maschinen-Inroad deinem Ziel von {target_pct} %."
+  },
+  "action": {
+   "en": "Start with Inroad Mode at {machine_pct} %, stop when the zone is missed. While your strength holds, the plan proposes one step lower next time; when it drops, one step up.",
+   "de": "Beginne mit Inroad-Modus {machine_pct} %, stoppe, wenn die Zone verfehlt wird. Solange deine Kraft hält, schlägt der Plan beim nächsten Mal eine Stufe weniger vor; fällt sie, eine Stufe mehr."
+  }
+ },
+ "mode_inroad_ladder_down": {
+  "meaning": {
+   "en": "Your strength holds at {last_pct} % machine inroad - one step down the ladder: {machine_pct} % (floor {floor_pct} %).",
+   "de": "Deine Kraft hält bei {last_pct} % Maschinen-Inroad - eine Stufe weniger auf der Leiter: {machine_pct} % (Untergrenze {floor_pct} %)."
+  },
+  "action": {
+   "en": "Inroad Mode {machine_pct} %, stop when the zone is missed. The least fatigue that still holds strength is the point - back up by {step} as soon as the force drops.",
+   "de": "Inroad-Modus {machine_pct} %, stoppen, wenn die Zone verfehlt wird. Die geringste Ermüdung, die die Kraft noch hält, ist der Punkt - wieder {step} hoch, sobald die Kraft fällt."
+  }
+ },
+ "mode_inroad_ladder_up": {
+  "meaning": {
+   "en": "Your strength dropped at {last_pct} % machine inroad - one step back up the ladder: {machine_pct} %.",
+   "de": "Deine Kraft ist bei {last_pct} % Maschinen-Inroad gefallen - eine Stufe zurück auf der Leiter: {machine_pct} %."
+  },
+  "action": {
+   "en": "Inroad Mode {machine_pct} %, stop when the zone is missed; hold it there until the strength is back, then try a step down again.",
+   "de": "Inroad-Modus {machine_pct} %, stoppen, wenn die Zone verfehlt wird; dort bleiben, bis die Kraft zurück ist, dann wieder eine Stufe probieren."
+  }
  }
 }

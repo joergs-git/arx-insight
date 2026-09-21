@@ -1135,6 +1135,8 @@ function modeHintLabel(h){ const de=CFG.language==="de"; if(!h) return ""; const
   if(h.mode==="static/inroad") return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'}`;
   if(h.mode==="dynamic/time") return `Countdown ${s.seconds||''} s`+(s.output_target_kg_s?` · Output ≥ ${Math.round(s.output_target_kg_s*(CFG.units==="imperial"?2.20462:1))} ${LKg()}·s`:'');
   if(h.mode==="dynamic/reps/negative") return de?"nur negative Wiederholungen (1 Einheit)":"negative-only repetitions (1 session)";
+  if(h.mode==="dynamic/inroad") return `${de?'Inroad-Modus':'Inroad Mode'} ${s.inroad_machine_pct!=null?s.inroad_machine_pct+' %':''}`;
+  if(h.mode==="static/inroad"&&s.inroad_machine_pct!=null) return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'} ${s.inroad_machine_pct} %`;
   return h.mode; }
 // one vocabulary for the measure (v0.12.3): "Ermüdung im Satz" - tief / mittel / leicht (deep / medium / light)
 const effLabel=e=>{const de=CFG.language==="de";return {deep:de?"tief":"deep",moderate:de?"mittel":"medium",submax:de?"leicht":"light",unknown:"—"}[e]||'';};
@@ -1462,9 +1464,11 @@ function renderProg(){const t=T();
     const os=(e.output_series||[]).slice(-6), unitF=CFG.units==="imperial"?2.20462:1;
     const outH=os.length?`<div class="meta" style="margin-top:6px">${de?'Countdown-Sätze · Output':'Countdown sets · Output'} (${LKg()}·s): ${os.map(o=>`${o.date.slice(5)} <b>${Math.round((o.output_kg_s||0)*unitF)}</b>${o.seconds?` / ${Math.round(o.seconds)} s`:''}`).join(' · ')}${e.output_delta_pct!=null?` → <b style="color:${dcol(e.output_delta_pct)}">${pctS(e.output_delta_pct)}</b> ${de?'bei gleicher Dauer':'at the same duration'}`:''}</div>`:'';
     const modes=(e.modes_seen||[]).filter(m=>m!=='dynamic/reps');
+    const cal=e.inroad_calibration||((REPORT.inroad_calibration||{}).exercises||{})[e.name];
+    const calH=cal?`<div class="meta">${de?'Maschinen-Inroad ↔ Ermüdung im Satz':'machine inroad ↔ fatigue in the set'}: ${de?'Steigung':'slope'} ${cal.slope} · R² ${cal.r2} · n = ${cal.n}</div>`:'';
     const modeH=modes.length?`<div class="meta">${de?'Modi in der Historie':'modes in the history'}: ${modes.map(m=>m.replace('dynamic/','').replace('static/',de?'Static ':'static ').replace('time',de?'Countdown':'countdown').replace('inroad',de?'Inroad-Modus':'inroad mode').replace('/negative',de?' · nur negativ':' · negative only').replace('/positive',de?' · nur positiv':' · positive only')).join(', ')} - ${de?'nur gleicher Modus wird verglichen':'only the same mode is compared'}</div>`:'';
     return `<div class="excard"><div class="n"><span class="exname">${e.name}</span><span class="cur">${uKg(e.last)} <small>${LKg()}</small></span></div>
-      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${pfh}${modeH}${outH}${rom}${exChart(e)}</div>`;}).join("");
+      <div class="meta"><span class="grp ${e.group}">${e.group}</span> ${rb}${e.n} ${t.sessions} · PB ${uKg(e.pb)} ${LKg()} ${chip}</div>${lastLine}${pfh}${modeH}${outH}${calH}${rom}${exChart(e)}</div>`;}).join("");
 }
 function drawWB(){const wb=REPORT.whole_body.series,W=1000,H=300,L=54,R=20,Tp=22,B=46;
   const X=i=>L+(wb.length<2?0.5:i/(wb.length-1))*(W-L-R),Y=v=>H-B-(v/100)*(H-Tp-B);
@@ -1505,7 +1509,7 @@ function sessionRowsHtml(sess){ const de=CFG.language==="de";
     return `<li class="v4"><div><div class="row1"><span class="ex"><span class="grp ${x.group}">${x.group}</span> ${esc(x.name)}</span>${badges}</div>
       <div class="nums">${tgt}${eff}<span>${pen('sets')}${x.sets} ${de?(x.sets>1?'Sätze':'Satz'):(x.sets>1?'sets':'set')}</span>${x.rest_before_min?`<span>${pen('rest')}${de?'Pause davor':'rest before'} <b>${x.rest_before_min}</b> min</span>`:''}${st}</div>
       ${c&&c.cue?`<div class="interp good">🎯 ${esc(c.cue)}</div>`:''}
-      ${c&&(c.pen.target||c.pen.sets||c.pen.rest||c.pen.effort||c.pen.added)?`<div class="interp warn"><span class="pen">✎</span> Coach: ${esc(c.why)}</div>`:interpHtml(x.interp,x.target_rule==="effort_reset"?"warn":undefined)}${x.mode_hint?interpHtml(x.mode_hint.interp):''}${x.context_note?interpHtml(x.context_note,'warn'):''}
+      ${c&&(c.pen.target||c.pen.sets||c.pen.rest||c.pen.effort||c.pen.added)?`<div class="interp warn"><span class="pen">✎</span> Coach: ${esc(c.why)}</div>`:interpHtml(x.interp,x.target_rule==="effort_reset"?"warn":undefined)}${x.mode_hint?interpHtml(x.mode_hint.interp):''}${x.lever_note?interpHtml(x.lever_note,'warn'):''}${x.context_note?interpHtml(x.context_note,'warn'):''}
       <details><summary>${de?'Warum diese Übung, warum hier':'Why this exercise, why here'}</summary>${c&&c.why?`<div class="interp">Coach: ${esc(c.why)}</div>`:''}${c?interpHtml(x.interp):''}${why.filter(w=>w!==x.interp&&w!==x.context_note).map(w=>interpHtml(w)).join("")}${evid}</details></div></li>`;}).join("")+`</ol>`;
 }
 function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) return "";
