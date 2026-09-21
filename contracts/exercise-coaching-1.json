@@ -52,8 +52,8 @@
   "4": {
    "name": "Pull Down",
    "start": {
-    "en": "Seat belt closed. The set begins at the bottom: upper arms almost in line with the torso, elbows near the stomach.",
-    "de": "Gurt geschlossen. Der Satz beginnt unten: Oberarme fast in Linie mit dem Rumpf, Ellbogen nahe am Bauch."
+    "en": "Belt closed. The set begins at the bottom: upper arms almost in line with the torso, elbows near the stomach.",
+    "de": "Gurt zu. Der Satz beginnt unten: Oberarme fast in Linie mit dem Rumpf, Ellbogen nahe am Bauch."
    },
    "path": {
     "en": "Let the bar rise under control, then pull the elbows down and slightly out. Broad chest, shoulders down, head off the pad.",
@@ -331,8 +331,8 @@
   "19": {
    "name": "Belt Squat",
    "start": {
-    "en": "Belt on the hip bones, not on the lower back. Standing tall, arms long on the stability bar, knees slightly bent.",
-    "de": "Gurt auf den Hüftknochen, nicht auf dem unteren Rücken. Aufrecht, Arme lang an der Haltestange, Knie leicht gebeugt."
+    "en": "Belt on the hip bones, not on the lower back. Standing tall, arms long on the bar, knees slightly bent.",
+    "de": "Gurt auf den Hüftknochen, nicht im Kreuz. Aufrecht, Arme lang an der Stange, Knie leicht gebeugt."
    },
    "path": {
     "en": "Down first: hips back and down as if sitting on a chair, chest up, shins as vertical as possible. Up: through the heels.",
@@ -366,8 +366,8 @@
      "level": "warning"
     },
     {
-     "en": "Set the top position while pressing hard - pads and body give way, and a safe-looking top can end in locked knees.",
-     "de": "Die obere Position unter vollem Druck einstellen - Polster und Körper geben nach, und ein sicher wirkendes Oben kann in durchgestreckten Knien enden.",
+     "en": "Set the top position while pressing hard - pads and body give way.",
+     "de": "Obere Position unter vollem Druck einstellen - Polster und Körper geben nach.",
      "level": "warning"
     }
    ]
@@ -380,7 +380,7 @@
    },
    "path": {
     "en": "Down first: push the hips back, the torso tips forward with a flat back, handles close to the legs. Up: hips forward.",
-    "de": "Zuerst nach unten: Hüfte nach hinten schieben, der Oberkörper kippt mit geradem Rücken nach vorn, Griffe nah an den Beinen. Nach oben: Hüfte nach vorn."
+    "de": "Zuerst nach unten: Hüfte nach hinten, der Oberkörper kippt mit geradem Rücken nach vorn, Griffe nah an den Beinen. Nach oben: Hüfte nach vorn."
    },
    "end": {
     "en": "As deep as the back stays flat.",
@@ -459,8 +459,8 @@
   "25": {
    "name": "Incline Press",
    "start": {
-    "en": "Elbows level with or slightly behind the torso, upper arms about 45 degrees down from the shoulder, hands at chest height.",
-    "de": "Ellbogen auf Höhe des Rumpfes oder leicht dahinter, Oberarme etwa 45 Grad unter der Schulter, Hände auf Brusthöhe."
+    "en": "Elbows level with or slightly behind the torso, upper arms about 45 degrees below the shoulder, hands at chest height.",
+    "de": "Ellbogen auf Rumpfhöhe oder leicht dahinter, Oberarme etwa 45 Grad unter der Schulter, Hände auf Brusthöhe."
    },
    "path": {
     "en": "Press forward, up and together. The back stays on the seat.",
@@ -535,8 +535,8 @@
   "31": {
    "name": "Pull Over",
    "start": {
-    "en": "Leaning back, upper arms in the straps, shoulders back and down. The set begins at the bottom: elbows almost level with the torso.",
-    "de": "Zurückgelehnt, Oberarme in den Schlaufen, Schultern hinten-unten. Der Satz beginnt unten: Ellbogen fast auf Höhe des Rumpfes."
+    "en": "Leaning back, upper arms in the straps, shoulders down. The set begins at the bottom: elbows almost level with the torso.",
+    "de": "Zurückgelehnt, Oberarme in den Schlaufen, Schultern tief. Der Satz beginnt unten: Ellbogen fast auf Höhe des Rumpfes."
    },
    "path": {
     "en": "Let the upper arms rise in an arc over the head under control, then pull them back down in the same arc.",
@@ -649,8 +649,8 @@
   "43": {
    "name": "Hamstring Curl",
    "start": {
-    "en": "One leg at a time. Facing the seat back: knee and hip of the working leg pressed into the pad, hands on the cross arms, leg almost straight.",
-    "de": "Ein Bein nach dem anderen. Blick zur Rückenlehne: Knie und Hüfte des Arbeitsbeins ins Polster gedrückt, Hände an den Armen der Maschine, Bein fast gestreckt."
+    "en": "One leg at a time, facing the seat back: knee and hip pressed into the pad, hands on the cross arms, leg almost straight.",
+    "de": "Ein Bein nach dem anderen, Blick zur Lehne: Knie und Hüfte ins Polster gedrückt, Hände an den Maschinenarmen, Bein fast gestreckt."
    },
    "path": {
     "en": "Curl the heel towards the glutes. The knee stays on the pad.",

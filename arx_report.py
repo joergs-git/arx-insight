@@ -1739,7 +1739,8 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             best[s["name"]] = {"set": s, "n": 0}
         b = best[s["name"]]
         b["n"] += 1
-        if s["max_kg"] >= b["set"]["max_kg"]:
+        cur = b["set"]                                  # a hold never outranks a dynamic set as the day's card (modes-1)
+        if (s["max_kg"] >= cur["max_kg"]) if cur.get("movement") == s.get("movement") else (cur.get("movement") == "static"):
             b["set"] = s
 
     # a set below the goal's effort target is no stimulus (v0.11.0): while the session is still open the report says
