@@ -104,6 +104,22 @@ class ShippedCatalog(unittest.TestCase):
         listed = {m.group(1): m.group(2) for m in rows if m}                # the table rows end with the DB code
         self.assertEqual(listed, {m["name"]: c for c, m in self.mapped.items()})
 
+    def test_body_map_reaches_what_a_region_or_joint_touches(self):
+        """v0.9.0: the check-in's shortcuts flag exercises through this map - a region through a target muscle
+        (or, one step weaker, a limiter), a joint through the catalog's joints. Pinned per exercise."""
+        bm = planner.body_map(self.mapped)
+        self.assertEqual(set(bm["regions"]), set(planner.CHECKIN_REGIONS))
+        for code, m in self.mapped.items():
+            for region, muscles_ in planner.CHECKIN_REGIONS.items():
+                expect = ("target" if any(t in muscles_ for t in m["targets"])
+                          else "helper" if any(l in muscles_ for l in m.get("limiters") or []) else None)
+                self.assertEqual(bm["regions"][region].get(code), expect, (m["name"], region))
+            for j in m["joints"]:
+                self.assertIn(code, bm["joints"][j])
+        self.assertEqual(bm["regions"]["legs"]["19"], "target")               # Belt Squat
+        self.assertEqual(bm["regions"]["arms"]["10"], "helper")               # Dead Lift hangs on the grip
+        self.assertIn("5", bm["joints"]["shoulder"])                          # Overhead Press
+
     def test_the_name_fallback_agrees_with_the_catalog(self):
         """BODYPART_EXERCISES only serves entries without 'joints' - it must never say something else."""
         for part in app.BODY_PARTS:

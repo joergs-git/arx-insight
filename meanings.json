@@ -1340,64 +1340,54 @@
    "de": "Das ist eine Regel für deine Tagesform, keine Zeitfrage - mehr Minuten bringen die Übung nicht zurück. An einem besseren Tag ist die volle Einheit wieder da."
   }
  },
- "plan_submax_sore": {
-  "meaning": {
-   "en": "{muscle}: mild soreness today (your check-in) - the muscle works, but it is not fully recovered.",
-   "de": "{muscle}: leichter Muskelkater heute (dein Check-in) - der Muskel arbeitet, ist aber nicht ganz erholt."
-  },
-  "action": {
-   "en": "Today sub-maximal, by feel - no target number. Strong soreness would have blocked the exercise for the day; mild only takes the all-out set away.",
-   "de": "Heute submaximal, nach Gefühl - keine Zielzahl. Starker Muskelkater hätte die Übung für heute gesperrt; leichter nimmt nur den Satz bis ans Limit."
-  }
- },
  "excluded_injury": {
   "meaning": {
-   "en": "Not planned for health reasons (your profile): {exercises}.",
-   "de": "Aus gesundheitlichen Gründen nicht geplant (dein Profil): {exercises}."
+   "en": "Left out for good for health reasons (your restrictions): {exercises}.",
+   "de": "Aus gesundheitlichen Gründen dauerhaft ausgelassen (deine Einschränkungen): {exercises}."
   },
   "action": {
-   "en": "Nothing pushes you into it; the other exercises cover the muscles where they can. Switch it back on in the profile once it is possible again - and if the exercise appears in your sets anyway, the report says so.",
-   "de": "Nichts drängt dich dorthin; die anderen Übungen decken die Muskeln ab, wo sie es können. Schalte sie im Profil wieder ein, sobald es wieder geht - und taucht die Übung trotzdem in deinen Sätzen auf, sagt der Report das."
+   "en": "Nothing pushes you into it; the other exercises cover the muscles where they can. Put it back under Restrictions once it is possible again - and if the exercise appears in your sets anyway, the report says so.",
+   "de": "Nichts drängt dich hinein; die anderen Übungen decken die Muskeln ab, wo sie es können. Nimm sie unter Einschränkungen wieder herein, sobald es geht - und taucht die Übung trotzdem in deinen Sätzen auf, sagt es der Bericht."
   }
  },
  "plan_submax_careful_exercise": {
   "meaning": {
-   "en": "You set this exercise to 'careful' for health reasons - it stays in the plan, but not at the limit.",
-   "de": "Diese Übung hast du aus gesundheitlichen Gründen auf 'vorsichtig' gesetzt - sie bleibt im Plan, aber nicht bis ans Limit."
+   "en": "You set this exercise to 'go easy for good' (your restrictions) - it stays in the plan, but not at the limit.",
+   "de": "Diese Übung hast du auf 'dauerhaft schonen' gesetzt (deine Einschränkungen) - sie bleibt im Plan, aber nicht bis ans Limit."
   },
   "action": {
-   "en": "Sub-maximal and smooth, no target number, no all-out eccentric - movement helps a recovering joint, the maximal set does not. Stop at any pain; back to 'in the plan' in the profile once it is fully possible again.",
-   "de": "Submaximal und ruhig, keine Zielzahl, keine Exzentrik bis ans Limit - Bewegung hilft einem Gelenk in Erholung, der Maximalsatz nicht. Bei Schmerz aufhören; im Profil zurück auf 'im Plan', sobald es wieder voll geht."
+   "en": "Sub-maximal and smooth, no target number, no all-out eccentric - movement helps a recovering joint, the maximal set does not. Stop at any pain; back to 'in the plan' in the restrictions once it is fully possible again.",
+   "de": "Submaximal und ruhig, keine Zielzahl, keine Exzentrik bis ans Limit - Bewegung hilft einem Gelenk in Erholung, der Maximalsatz nicht. Bei Schmerz aufhören; unter Einschränkungen zurück auf 'im Plan', sobald es wieder voll geht."
   }
  },
  "plan_submax_careful_today": {
   "meaning": {
-   "en": "Your check-in: only with care today - the exercise stays, but not at the limit.",
-   "de": "Dein Check-in: heute nur mit Vorsicht - die Übung bleibt, aber nicht bis ans Limit."
+   "en": "Your check-in ({why}): go easy today - the exercise stays, but not at the limit.",
+   "de": "Dein Check-in ({why}): heute schonen - die Übung bleibt, aber nicht bis ans Limit."
   },
   "action": {
-   "en": "Sub-maximal and smooth, no target number, stop at any pain. Tomorrow it is planned normally again - if it stays, set the exercise to 'with care' in the profile.",
-   "de": "Submaximal und ruhig, keine Zielzahl, bei Schmerz aufhören. Morgen wird sie wieder normal geplant - bleibt es, setz die Übung im Profil auf 'nur mit Vorsicht'."
+   "en": "Sub-maximal and smooth, no target number, stop at any pain. Tomorrow it is planned normally again - if it stays, set it to 'go easy for good' under Restrictions.",
+   "de": "Submaximal und ruhig, keine Zielzahl, bei Schmerz aufhören. Morgen wird sie wieder normal geplant - bleibt es, setz sie unter Einschränkungen auf 'dauerhaft schonen'."
   }
  },
  "checkin_off_today": {
   "meaning": {
    "en": "Left out today because your check-in says so: {exercises}.",
-   "de": "Heute weggelassen, weil dein Check-in es sagt: {exercises}."
+   "de": "Heute ausgelassen, weil dein Check-in es sagt: {exercises}."
   },
   "action": {
-   "en": "Only for today - tomorrow it is planned again. If it stays, switch the exercise off in the profile ('not possible for health reasons').",
-   "de": "Nur für heute - morgen wird sie wieder geplant. Bleibt es, schalte die Übung im Profil ab ('gesundheitlich nicht möglich')."
+   "en": "Today only - tomorrow it is planned again. If it stays, set it to 'leave out for good' under Restrictions.",
+   "de": "Nur für heute - morgen wird sie wieder geplant. Bleibt es, setz sie unter Einschränkungen auf 'dauerhaft auslassen'."
   }
  },
  "checkin_careful_today": {
   "meaning": {
-   "en": "Sub-maximal today because your check-in says so: {exercises}.",
-   "de": "Heute submaximal, weil dein Check-in es sagt: {exercises}."
+   "en": "Eased today because your check-in says so: {exercises}.",
+   "de": "Heute geschont, weil dein Check-in es sagt: {exercises}."
   },
   "action": {
-   "en": "No target number for these today. If it stays, set the exercise to 'with care' in the profile.",
-   "de": "Für diese heute keine Zielzahl. Bleibt es, setz die Übung im Profil auf 'nur mit Vorsicht'."
+   "en": "No target number for these today. If it stays, set it to 'go easy for good' under Restrictions.",
+   "de": "Für diese heute keine Zielzahl. Bleibt es, setz sie unter Einschränkungen auf 'dauerhaft schonen'."
   }
  }
 }

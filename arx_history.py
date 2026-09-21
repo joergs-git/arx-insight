@@ -110,6 +110,9 @@ def _fmt(key: str, val, imperial: bool, lang: str):
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")
     if key == "muscles" and isinstance(val, (list, tuple)):         # several muscles, spelled out (never a raw identifier)
         return ", ".join(_fmt("muscle", m, imperial, lang) for m in val)
+    if key == "why":                                                # the reason behind a check-in flag (v0.9.0)
+        names = {"soreness": ("muscle soreness", "Muskelkater"), "pain": ("pain", "Schmerz"), "checkin": ("check-in", "Check-in")}.get(str(val))
+        return names[1 if lang == "de" else 0] if names else str(val)
     if key in ("region", "aid", "metric"):
         names = {"region": REGION_NAMES, "aid": AID_NAMES, "metric": BODY_NAMES}[key].get(str(val))
         return names[1 if lang == "de" else 0] if names else str(val).replace("_", " ")

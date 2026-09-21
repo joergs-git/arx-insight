@@ -722,29 +722,70 @@ class SplitRhythm(unittest.TestCase):
 
 
 class Soreness(unittest.TestCase):
-    """Mild soreness takes the all-out set away for the day; strong soreness takes the exercise away."""
-    def test_mild_is_a_sub_maximal_day_and_strong_is_a_day_off_for_that_muscle(self):
-        rows, hooks = SplitRhythm().rows(), SplitRhythm.HOOKS
-        free = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks)["plan"]
-        self.assertIn(free["next_session"]["date"], ("2026-09-21", "2026-09-22"))
-        self.assertEqual([o["date"] for o in free["date_options"]][:1], ["2026-09-21"])   # today is a possible day
-        mild = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks,
-                      checkin={"date": "2026-09-21", "sleep": "good", "energy": "high", "soreness": {"legs": "mild"}})["plan"]
-        strong = report(rows, "2026-09-21", sessions_per_week=3, session_minutes=60, aids=hooks,
-                        checkin={"date": "2026-09-21", "sleep": "good", "energy": "high", "soreness": {"legs": "strong"}})["plan"]
-        # mild: the legs may work today, sub-maximal, and the plan says why - the full session is recommended later
-        today = mild["next_session"] if mild["next_session"]["date"] == "2026-09-21" else mild["today_session"]
-        self.assertIsNotNone(today)                                            # "training today anyway": yes, sub-maximal
-        legs = [it for it in today["exercises"] if it["group"] == "Drive"]
-        self.assertTrue(legs)
-        for it in legs:
-            self.assertEqual((it["status"], it["effort_target"]["label"], it["target_peak_kg"], it["interp"]["code"]), ("limited", "submax", None, "plan_submax_sore"))
-            self.assertNotIn("_", it["interp"]["text"]["meaning"] + it["interp"]["text"]["action"])
-        # strong: no leg exercise today at all
-        self.assertFalse(strong["today"]["train_today"])
-        blocked = strong["today_session"]
-        self.assertTrue(blocked is None or not [it for it in blocked["exercises"] if it["group"] == "Drive"])
-        self.assertNotEqual([o["date"] for o in mild["date_options"]][:1], [o["date"] for o in strong["date_options"]][:1])
+    """v0.9.0 (owner): soreness and pain are what the athlete TAPS; the screen turns a sore region or a painful
+    joint into flags on the exercises it touches (planner.body_map) and the plan obeys the flags only - so
+    "Belt Squat anyway, despite sore legs" is his call. Mild = go easy (careful), strong = leave out (injury),
+    exactly as the page sends them; the row names the reason."""
+    def test_flags_from_a_sore_region_ease_or_remove_its_exercises_and_name_the_reason(self):
+        rows, hooks, day = SplitRhythm().rows(), SplitRhythm.HOOKS, "2026-09-22"
+        kw = dict(sessions_per_week=3, session_minutes=60, aids=hooks)
+        free = report(rows, day, **kw)["plan"]
+        self.assertEqual(free["next_session"]["date"], day)                    # the legs are on today (SplitRhythm)
+        legs = set(planner.body_map(CATALOG)["regions"]["legs"])
+        squat, deadlift = CATALOG[str(SQUAT)]["name"], CATALOG[str(DEADLIFT)]["name"]
+        self.assertLessEqual({str(SQUAT), str(DEADLIFT)}, legs)
+        # mild soreness in the legs as the page sends it: every leg exercise "go easy" - except the squat, which the
+        # athlete put back to "as planned" on the screen (his call)
+        mild = {"date": day, "sleep": "good", "energy": "high", "soreness": {"legs": "mild"},
+                "exercises": {c: "careful" for c in legs if c != str(SQUAT)}}
+        for lang in ("en", "de"):
+            p = report(rows, day, language=lang, checkin=mild, **kw)["plan"]
+            sess = p["next_session"]
+            self.assertEqual(sess["date"], day)
+            by = {it["name"]: it for it in sess["exercises"]}
+            self.assertIn(squat, by); self.assertIn(deadlift, by)
+            self.assertEqual((by[deadlift]["restriction"], by[deadlift]["effort_target"]["label"], by[deadlift]["target_peak_kg"],
+                              by[deadlift]["interp"]["code"]), ("careful", "submax", None, "plan_submax_careful_today"))
+            self.assertIn("Muskelkater" if lang == "de" else "soreness", by[deadlift]["interp"]["text"]["meaning"])
+            self.assertEqual(by[squat]["restriction"], "ok")                    # anyway: planned with a target
+            self.assertIsNotNone(by[squat]["target_peak_kg"])
+        # strong soreness, but "Belt Squat anyway": what he left in is his session for today, even one eased
+        # exercise - and the fuller day later is named
+        # (a clearly sore day is a moderate day - the readiness rule may recommend the fuller day later, but today
+        # stays a possible day and "training today anyway" is exactly what he left in)
+        kept = dict(mild, soreness={"legs": "strong"}, exercises={**{c: "injury" for c in legs}, str(SQUAT): "careful"})
+        p = report(rows, day, checkin=kept, **kw)["plan"]
+        self.assertIn(day, [o["date"] for o in p["date_options"]])
+        sess = p["next_session"] if p["next_session"]["date"] == day else p["today_session"]
+        self.assertIsNotNone(sess)
+        self.assertEqual(names(sess), [squat])
+        self.assertEqual(sess["exercises"][0]["interp"]["code"], "plan_submax_careful_today")
+        # strong soreness: every leg exercise left out - no leg exercise today, whatever else is rested (the upper
+        # body two days after its session may well train: a rested group trains now)
+        strong = dict(mild, soreness={"legs": "strong"}, exercises={c: "injury" for c in legs})
+        p = report(rows, day, checkin=strong, **kw)["plan"]
+        for o in p["date_options"]:
+            if o["date"] == day:
+                self.assertFalse({squat, deadlift} & set(o["exercises"]), o["exercises"])
+        for sess in (p["next_session"], p["today_session"]):
+            if sess and sess["date"] == day:
+                self.assertFalse({squat, deadlift} & set(names(sess)))
+        # a painful joint gives the reason "pain"; a flag without any body part behind it is a plain check-in flag
+        knee = {"date": day, "sleep": "good", "energy": "high", "soreness": {}, "pain": ["knee"],
+                "exercises": {str(SQUAT): "careful", str(ROW): "careful"}}
+        p = report(rows, day, checkin=knee, **kw)["plan"]
+        by = {it["name"]: it for it in p["next_session"]["exercises"]}
+        self.assertIn("pain", by[squat]["interp"]["text"]["meaning"])
+        why = planner.today_exercise_why(fx.cfg(day, checkin=knee), CATALOG)
+        self.assertEqual(why, {str(SQUAT): "pain", str(ROW): "checkin"})
+        # soreness alone (an API client that skipped the screen) is a wellness answer, no longer a region block:
+        # the legs are still planned today
+        # (the lower wellness score still makes it a moderate day - that is the readiness rule, not a block)
+        r = report(rows, day, checkin={"date": day, "sleep": "good", "energy": "high", "soreness": {"legs": "strong"}}, **kw)
+        opts = {o["date"]: o for o in r["plan"]["date_options"]}
+        self.assertIn(day, opts)
+        self.assertLessEqual({squat, deadlift}, set(opts[day]["exercises"]))
+        self.assertEqual(r["readiness"]["components"]["soreness"], "strong")
 
 
 class ExercisesToday(unittest.TestCase):

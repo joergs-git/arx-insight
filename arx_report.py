@@ -688,14 +688,8 @@ RECOVERY_LOOKBACK_DAYS = 14            # older loads cannot still be limiting
 RECENT_WINDOW_DAYS = 7                 # the load flag is judged on this window before today
 DETRAINING_GAP_DAYS = 10               # longer without training -> the weekly stimulus is missing (flag detraining_risk)
 DETRAINING_LOSS_DAYS = 21              # ... and only from about here strength / size really decline (science.json: training_breaks)
-# daily check-in: soreness regions -> the muscle vocabulary of exercises.json
-SORENESS_REGIONS = {
-    "legs": ["quads", "glutes", "hamstrings", "calves"],
-    "back": ["lats", "upper_back", "lower_back"],
-    "chest": ["chest"],
-    "arms": ["elbow_flexors", "triceps", "grip"],
-    "shoulders": ["shoulders"],
-}
+# daily check-in: soreness regions -> the muscle vocabulary of exercises.json (owned by arx_plan since v0.9.0)
+SORENESS_REGIONS = planner.CHECKIN_REGIONS
 
 
 def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
@@ -711,17 +705,16 @@ def _set_loads(s: dict, catalog: dict) -> list[tuple[str, int, str]]:
     return [(m, rank, "target") for m in targets] + [(m, max(rank - 1, 1), "limiter") for m in limiters]
 
 
-def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: date,
-              checkin: dict | None = None) -> dict:
+def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: date) -> dict:
     """Muscle-level readiness for TODAY, per muscle, per exercise and per group.
 
     Per muscle the binding load is the recent load whose rest requirement ends
-    last: ready_on = that day + REQUIRED_REST[rank]. The daily check-in can
-    override the calendar: strong soreness in a region keeps its muscles not
-    ready today, mild soreness marks them 'limited' (train, but sub-max).
-    Per exercise: ready (all targets ready) | limited (targets ready, but a
-    limiter is not fresh or a target is mildly sore) | not_ready (a target
-    is not ready). Groups get a compatibility rollup for the UI / planner."""
+    last: ready_on = that day + REQUIRED_REST[rank]. Per exercise: ready (all
+    targets ready) | limited (targets ready, but a limiter is not fresh) |
+    not_ready (a target is not ready). Groups get a compatibility rollup for
+    the UI / planner. Soreness from the check-in no longer touches this model
+    (v0.9.0): on the check-in screen a sore region is a shortcut that flags the
+    exercises it works, and the plan obeys those flags (planner.today_exercise_levels)."""
     today_ord = today.toordinal()
     per_muscle_day: dict = {}          # muscle -> {ordinal: (rank, exercise, role)}
     for s in work:
@@ -749,22 +742,7 @@ def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: dat
             "needed_days": REQUIRED_REST[rank_b],
             "reason": f"{RANK_LABEL[rank_b]} {ex_b} {date.fromordinal(binding).isoformat()}"
                       + (" (as limiter)" if role_b == "limiter" else ""),
-            "sore": None,
         }
-    # the check-in beats the calendar: sore muscles are not recovered, whatever the dates say
-    for region, level in ((checkin or {}).get("soreness") or {}).items():
-        if level not in ("mild", "strong"):
-            continue
-        for m in SORENESS_REGIONS.get(region, []):
-            cell = muscles.setdefault(m, {"ready_on": today.isoformat(), "ready": True, "days_since": None,
-                                          "last_date": None, "last_effort": None, "last_exercise": None,
-                                          "needed_days": 0, "reason": "", "sore": None})
-            cell["sore"] = level
-            if level == "strong":
-                tomorrow = (today + timedelta(days=1)).isoformat()
-                cell["ready_on"] = max(cell["ready_on"], tomorrow)
-                cell["ready"] = False
-                cell["reason"] = "strong soreness (check-in)" + (f" · {cell['reason']}" if cell["reason"] else "")
 
     ex_rows = []
     for e in exercises:
@@ -774,20 +752,18 @@ def _recovery(work: list[dict], catalog: dict, exercises: list[dict], today: dat
         limiters = [l for l in e.get("limiters_eff", e.get("limiters") or []) if l not in targets]
         t_block = [m for m in targets if m in muscles and not muscles[m]["ready"]]
         l_block = [m for m in limiters if m in muscles and not muscles[m]["ready"]]
-        t_mild = [m for m in targets if muscles.get(m, {}).get("sore") == "mild"]
         if t_block:
             status, ready_on, fresh_on = "not_ready", max(muscles[m]["ready_on"] for m in t_block), None
             why = "; ".join(f"{m}: {muscles[m]['reason']}" for m in t_block)
-        elif l_block or t_mild:
+        elif l_block:
             status, ready_on = "limited", today.isoformat()
-            fresh_on = max([muscles[m]["ready_on"] for m in l_block] + [today.isoformat()])
-            why = "; ".join([f"{m}: {muscles[m]['reason']} (fresh {muscles[m]['ready_on']})" for m in l_block]
-                            + [f"{m}: mild soreness (check-in)" for m in t_mild])
+            fresh_on = max(muscles[m]["ready_on"] for m in l_block)
+            why = "; ".join(f"{m}: {muscles[m]['reason']} (fresh {muscles[m]['ready_on']})" for m in l_block)
         else:
             status, ready_on, fresh_on, why = "ready", today.isoformat(), today.isoformat(), ""
         ex_rows.append({"name": e["name"], "group": e["group"], "ex": e["ex"], "status": status,
                         "ready_on": ready_on, "fresh_on": fresh_on,
-                        "limited_by": sorted(set(l_block + t_mild)), "blocked_by": t_block, "reason": why})
+                        "limited_by": sorted(set(l_block)), "blocked_by": t_block, "reason": why})
 
     # group rollup (compatibility for the UI and the planner)
     per_group = {}
@@ -916,7 +892,7 @@ def _load_analysis(work: list[dict], catalog: dict, exercises: list[dict], today
     hard_days = sum(1 for d in days if day_rank[d] >= 2)
     submax_days = sum(1 for d in days if day_rank[d] < 2)
 
-    recovery = _recovery(work, catalog, exercises, today, checkin)
+    recovery = _recovery(work, catalog, exercises, today)
     transitions = _session_transitions(work, catalog)
     all_conflicts = [c for t in transitions for c in t["conflicts"]]
 
@@ -1864,9 +1840,9 @@ def build_report(con, cfg: dict) -> dict:
     checkin = cfg.get("checkin") or {}       # today's check-in (sleep, soreness, RHR, pain), see arx_app
     restrictions_saved = cfg.get("restrictions", {}) or {}
     restrictions = dict(restrictions_saved)
+    # pain today (v0.9.0): on the check-in screen a shortcut that flags the exercises loading that joint - the plan
+    # obeys those flags (planner.today_exercise_levels); listed here for the chips and the coach, no rule of its own
     pain_today = [p for p in (checkin.get("pain") or []) if _LEVEL_RANK.get(restrictions.get(p, "ok"), 0) < 1]
-    for p in pain_today:                      # pain today = careful today (not persisted)
-        restrictions[p] = "careful"
     exercises = _exercise_series(work, catalog, restrictions, careful)
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"), careful)
@@ -1965,7 +1941,7 @@ def build_report(con, cfg: dict) -> dict:
         "totals": totals,
         "coach": coach,                          # whiteboard facts: targets, adherence, milestones, deload
         "ideal_settings": IDEAL_SETTINGS,
-        "restrictions": restrictions,            # effective today (saved + pain from the check-in)
+        "restrictions": restrictions,            # saved body-part restrictions (legacy since v0.9.0: the page migrates them into exercise choices)
         "restrictions_saved": restrictions_saved,
         "restriction_checks": _restriction_checks(work, exercises, restrictions_saved, today),
         "pain_today": pain_today,

@@ -85,6 +85,9 @@ def clean_checkin(data: dict) -> dict:
         entry["soreness"] = {r: l for r, l in sore.items() if r in core.SORENESS_REGIONS and l in SORENESS_LEVELS}
     if "pain" in data:
         entry["pain"] = [p for p in (data.get("pain") if isinstance(data.get("pain"), list) else []) if p in BODY_PARTS]
+    if "pain_levels" in data:                      # how hard a painful joint was tapped on the screen (v0.9.0): schonen | auslassen
+        raw = data.get("pain_levels") if isinstance(data.get("pain_levels"), dict) else {}
+        entry["pain_levels"] = {str(j): l for j, l in raw.items() if str(j) in BODY_PARTS and isinstance(l, str) and l in core.planner.TODAY_CHOICES}
     if "exercises" in data:                        # single exercises today (v0.8.9): not today / only with care - today only
         raw = data.get("exercises") if isinstance(data.get("exercises"), dict) else {}
         entry["exercises"] = {str(c): lvl for c, lvl in raw.items()
@@ -228,8 +231,10 @@ def checkin_payload(urec: dict, day: str) -> dict:
     scored = core._readiness({"date": day}, history)     # only for the baseline figure
     return {"date": day, "checkin": ci, "history": history,
             "rhr_baseline": scored["rhr_baseline"] if scored else None,
-            # what the profile switched off for good: the check-in screen does not ask about those again (v0.8.9)
-            "excluded_exercises": {c: r for c, r in (urec.get("excluded_exercises") or {}).items() if r != "careful"}}
+            # the profile's lasting choices (the screen hides "elsewhere" / "not for me" and starts the health ones in
+            # their state) and the legacy body-part restrictions the page migrates into exercise choices (v0.9.0)
+            "excluded_exercises": dict(urec.get("excluded_exercises") or {}),
+            "restrictions": dict(urec.get("restrictions") or {})}
 
 
 # ---- profile (goal interview), body log --------------------------------------------------------------------
@@ -255,6 +260,14 @@ def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) ->
     if day.isoformat() < earliest or (latest and day > latest):
         return None
     return day.isoformat()
+
+
+def clean_exclusions(raw, catalog: dict) -> dict:
+    """The lasting choices per exercise, reduced to the vocabulary {code: elsewhere | unwanted | injury | careful}
+    (v0.7.0 .. v0.8.8; since v0.9.0 the check-in screen can set the two health choices "for good" as well)."""
+    raw = raw if isinstance(raw, dict) else {}
+    return {str(code): reason for code, reason in raw.items()
+            if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXERCISE_CHOICES}
 
 
 def clean_profile(data: dict, catalog: dict, today: date) -> dict:
@@ -297,11 +310,8 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
             if kinds:
                 aids[str(code)] = {"aids": kinds[:1], "since": _iso_day((a or {}).get("since"), latest=today) or today.isoformat()}
         out["aids"] = aids or None
-    if "excluded_exercises" in data:               # exercises the athlete does not do on the ARX (v0.7.0): {code: elsewhere | unwanted}
-        raw = data.get("excluded_exercises") if isinstance(data.get("excluded_exercises"), dict) else {}
-        off = {str(code): reason for code, reason in raw.items()
-               if str(code) in catalog and isinstance(reason, str) and reason in core.planner.EXERCISE_CHOICES}
-        out["excluded_exercises"] = off or None
+    if "excluded_exercises" in data:               # the lasting choices per exercise (v0.7.0 .. v0.9.0), see clean_exclusions
+        out["excluded_exercises"] = clean_exclusions(data.get("excluded_exercises"), catalog) or None
     if "partner" in data:                          # trains in turns with a partner (v0.8.0): the change-over time in the
         out["partner"] = True if data.get("partner") is True else None     # data is the partner's set, not set-up time
     return out
@@ -740,6 +750,7 @@ def r_bootstrap(h, q, who, uid):
         "ai_share_profile": bool(cfg.get("ai_share_profile", True)),   # age band + sex (never a name)
         "ai_share_body": bool(cfg.get("ai_share_body", False)),        # relative body changes only
         "catalog": STATE["catalog"],
+        "body_map": core.planner.body_map(STATE["catalog"]),      # what a region / joint touches (check-in + profile shortcuts, v0.9.0)
         "version": STATE["version"],
         "update": STATE["update"] if who.role != "athlete" else {},
         "access": {"role": who.role},               # what this device may do (the page hides the rest)
@@ -904,15 +915,24 @@ def p_body(h, data, who, uid):                          # OPTIONAL body log: one
 
 
 @route("POST", "/api/restrictions", "athlete", own_user=True)
-def p_restrictions(h, data, who, uid):                  # injury / limitation screen
-    levels = {k: v for k, v in (data.get("restrictions") or {}).items() if k in BODY_PARTS and v in ("ok", "careful", "avoid")}
+def p_restrictions(h, data, who, uid):
+    """The "Einschränkungen" endpoint (v0.9.0): every field that is sent replaces its stored one, a field left out
+    stays. `excluded_exercises` = the lasting choices per exercise (the check-in screen writes its "for good"
+    states here); `restrictions` = the legacy body-part levels - the page moves them into exercise choices and
+    clears them in the same call."""
+    fields = {}
+    if "restrictions" in data:
+        fields["restrictions"] = {k: v for k, v in (data.get("restrictions") or {}).items()
+                                  if k in BODY_PARTS and v in ("ok", "careful", "avoid")}     # {part: ok|careful|avoid}
+    if "excluded_exercises" in data:
+        fields["excluded_exercises"] = clean_exclusions(data.get("excluded_exercises"), STATE["catalog"])
 
     def change(goals):
         rec = goals.get(str(uid), {})
-        rec["restrictions"] = levels                    # {part: ok|careful|avoid}
+        rec.update(fields)
         goals[str(uid)] = rec
     update_json(GOALS, change)
-    h._send({"ok": True})
+    h._send({"ok": True, "saved": sorted(fields)})
 
 
 @route("POST", "/api/checkin", "athlete", own_user=True)

@@ -257,6 +257,22 @@ class Hardening(TwoListeners):
         self.assertEqual(self.lan_call("/api/restrictions", self.athlete, method="POST",
                                        body={"user_id": 1, "restrictions": {"knee": "avoid", "ego": "careful", "hip": "maybe"}})[0], 200)
         self.assertEqual(app.read_json(app.GOALS, {})["1"]["restrictions"], {"knee": "avoid"})
+        # v0.9.0: the same endpoint takes the lasting choices per exercise; a field that is not sent stays as it is
+        app.STATE["catalog"] = {"23": {"name": "Horizontal Press"}, "5": {"name": "Overhead Press"}}
+        try:
+            body = {"user_id": 1, "excluded_exercises": {"5": "injury", "23": "careful", "999": "injury", "5x": "elsewhere", "23x": 7}}
+            self.assertEqual(self.lan_call("/api/restrictions", self.athlete, method="POST", body=body)[0], 200)
+            rec = app.read_json(app.GOALS, {})["1"]
+            self.assertEqual((rec["excluded_exercises"], rec["restrictions"]), ({"5": "injury", "23": "careful"}, {"knee": "avoid"}))
+            body = {"user_id": 1, "restrictions": {}, "excluded_exercises": {"5": "injury"}}     # the page's migration call
+            self.assertEqual(self.lan_call("/api/restrictions", self.athlete, method="POST", body=body)[0], 200)
+            rec = app.read_json(app.GOALS, {})["1"]
+            self.assertEqual((rec["excluded_exercises"], rec["restrictions"]), ({"5": "injury"}, {}))
+            status, ck = self.lan_call("/api/checkin?user_id=1", self.athlete)[:2]
+            self.assertEqual(status, 200)
+            self.assertEqual((ck["excluded_exercises"], ck["restrictions"]), ({"5": "injury"}, {}))
+        finally:
+            app.STATE["catalog"] = {}
 
     def test_only_private_addresses_get_a_listener(self):
         for ip in ("8.8.8.8", "127.0.0.1", "0.0.0.0", "169.254.1.1"):

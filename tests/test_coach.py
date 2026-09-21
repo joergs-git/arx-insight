@@ -118,7 +118,8 @@ class Payload(unittest.TestCase):
                          (["Horizontal Press"], ["Row"]))
         self.assertEqual(ai.lint_payload(today), [])
         self.assertIn("exercises_not_today", ai.system_prompt("board")[0]["text"])
-        self.assertGreaterEqual(ai.PROMPT_VERSION, 10)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 11)
+        self.assertIn("sore_regions", ai.system_prompt("board")[0]["text"])     # soreness / pain = reasons behind the flags (v0.9.0)
         self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
         offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}
         self.assertFalse(offered & {"Biceps Curl", "Dead Lift"})                       # not in the decision space ...
