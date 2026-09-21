@@ -1109,6 +1109,7 @@ function lastSessionHtml(r){
     const p=x.prev;
     const badges=[x.is_pb?`<span class="chip up">🏅 ${de?'Neuer Bestwert':'New PB'}</span>`:'',
       x.effort==='deep'?`<span class="chip up">🔥 ${de?'Tiefe Ausbelastung':'Deep fatigue'}</span>`:'',
+      x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'kein Reiz - nochmal':'no stimulus - again'}</span>`:'',
       x.sets_today>1?`<span class="chip">${x.sets_today}× ${de?'heute':'today'}</span>`:'',
       x.restriction&&x.restriction!=='ok'?`<span class="grp" style="background:${x.restriction==='avoid'?'var(--accent)':'var(--warn)'}">${rlabel(x.restriction)}</span>`:''].filter(Boolean).join(' ');
     const romCmp=p?(x.delta_comparable?`<span style="color:var(--good)">✓ ROM ${uCm(x.rom_cm)} ${LCm()}</span>`
@@ -1139,7 +1140,7 @@ function lastSessionHtml(r){
   }).join("");
   const rows=ls.exercises.map(x=>{const p=x.prev;
     return `<tr><td class="num">${x.order||''}</td>
-      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}</td>
+      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'kein Reiz - nochmal':'no stimulus - again')+'">↻</span>':''}</td>
       <td class="num">${x.rest_before_min!=null?x.rest_before_min+' min':'—'}</td>
       <td class="num">${uKg(x.max_kg)}</td>
       <td class="num" style="color:${p?(x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'):'var(--ink3)'}">${p?pctS(x.delta_pct):'—'}${p&&!x.delta_comparable?' ⚠':''}</td>
@@ -1158,6 +1159,7 @@ function lastSessionHtml(r){
   return `<section style="padding-top:8px"><h2 class="sec" style="font-size:22px;color:var(--ink2)">${ls.date} · ${ls.working_sets} ${de?'Sätze':'sets'} · ${ls.wall_minutes} min</h2>
     <div id="coach_last"></div>
     <p class="lead">${de?'Deine Übungen in Ausführungsreihenfolge, jede gegen das letzte Mal.':'Your exercises in the order performed, each against the last time you did them.'} ${de?'Gestrichelt = die vorige Kurve.':'Dashed = the previous curve.'}</p>
+    ${ls.open&&ls.repeat_panel?interpHtml(ls.repeat_panel,'warn'):''}
     ${cards}
     <div class="panel" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:17px;white-space:nowrap">
       <tr class="foot"><td>#</td><td>${de?'Übung':'Exercise'}</td><td class="num">${de?'Pause davor':'Rest before'}</td><td class="num">${de?'Spitze':'Peak'} ${LKg()}</td><td class="num">${t.vsprev}</td><td class="num">Inroad</td><td class="num">ROM ${LCm()}</td></tr>
@@ -1497,9 +1499,9 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
   const chooser=(pr.groups||[]).length>1?`<div class="field" style="margin:16px 0 0"><div class="foot" style="margin-bottom:8px">${de?'Nächste Einheit gezielt wählen (gilt einmal):':'Pick the next session yourself (applies once):'}</div>
     <div class="segbig" id="ngSeg"><button data-g="" aria-pressed="${!act.length}" style="min-height:48px;font-size:16px">${de?'Automatisch':'Automatic'}</button>${pr.groups.map(gp=>`<button data-g="${esc(gp)}" aria-pressed="${act.includes(gp)}" style="min-height:48px;font-size:16px">${esc(GN[gp]||gp)}</button>`).join("")}</div></div>`:'';
   const ts=plan.today_session;
-  const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${ts.time_window?interpHtml(ts.time_window.interp,'warn'):''}${ts.checkin_cut?interpHtml(ts.checkin_cut,'warn'):''}${(ts.checkin_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${sessionRowsHtml(ts)}</details>`:'';
+  const todayAlt=ts?`<details class="more"><summary>${de?'Heute trotzdem trainieren?':'Training today anyway?'}</summary>${interpHtml(ts.note,'warn')}${ts.time_window?interpHtml(ts.time_window.interp,'warn'):''}${ts.checkin_cut?interpHtml(ts.checkin_cut,'warn'):''}${(ts.checkin_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${ts.repeat_note?interpHtml(ts.repeat_note,'warn'):''}${sessionRowsHtml(ts)}</details>`:'';
   return `<section id="plan4" style="padding-top:8px">
-    ${hero}<div id="coach_next"></div>${ns.time_window?interpHtml(ns.time_window.interp,'warn'):''}${ns.checkin_cut?interpHtml(ns.checkin_cut,'warn'):''}${(ns.checkin_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.training_break?interpHtml(plan.training_break.interp,'warn'):''}${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
+    ${hero}<div id="coach_next"></div>${ns.time_window?interpHtml(ns.time_window.interp,'warn'):''}${ns.checkin_cut?interpHtml(ns.checkin_cut,'warn'):''}${(ns.checkin_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${ns.repeat_note?interpHtml(ns.repeat_note,'warn'):''}${plan.training_break?interpHtml(plan.training_break.interp,'warn'):''}${plan.structure_note?interpHtml(plan.structure_note,'warn'):''}${(plan.frequency_notes||[]).map(n=>interpHtml(n,'warn')).join("")}${plan.dose_note?interpHtml(plan.dose_note):''}${why}${guard}${fuller}${chooser}
     <div id="planRows">${sessionRowsHtml(ns)}</div>
     ${notes?`<div style="margin-top:14px">${notes}</div>`:''}${ns.time_note?interpHtml(ns.time_note):''}
     ${budget?`<details class="more" ${Object.values(ns.limiter_budget).some(b=>b.status==='high')||hints?'open':''}><summary>${de?'Helfer-Muskeln in dieser Einheit (Griff & Co.)':'Helper muscles in this session (grip & co.)'}</summary>${hints}${budget}</details>`:''}

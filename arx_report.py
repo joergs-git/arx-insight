@@ -27,7 +27,7 @@ import os, sys, json, gzip, time, shutil, tempfile, argparse, statistics as st
 from datetime import datetime, date, timedelta
 
 # shared base (moved out in v0.4.0; re-exported here so callers of arx_report keep working)
-from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS,
+from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS, _now,
                       open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
                       EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile,
                       shared_connection, drop_snapshots, write_json_atomic)
@@ -1691,9 +1691,25 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         if s["max_kg"] >= b["set"]["max_kg"]:
             b["set"] = s
 
+    # a set below the goal's effort target is no stimulus (v0.11.0): while the session is still open the report says
+    # "once more, now"; an exercise counts only when no later set of it in this visit reached the target
+    goal_min = planner.EFFORT_TARGETS[planner.goal_effort((cfg or {}).get("goal") or {})]["inroad_min"]
+    todays = sorted((x for x in work if x["date"][:10] == day["date"]), key=lambda x: x["date"])
+    reached = {x["name"] for x in todays if x.get("inroad") is not None and not x.get("effort_capped")
+               and x["inroad"] >= goal_min - planner.BORDERLINE}
+    last_end = max((datetime.fromisoformat(x["date"][:19]) + timedelta(seconds=x.get("seconds") or 0) for x in todays), default=None)
+    minutes_ago = (_now(cfg or {}) - last_end).total_seconds() / 60.0 if last_end else None
+    open_session = minutes_ago is not None and 0 <= minutes_ago < VISIT_GAP_MIN
+
     rows = []
     for name in order:
         s, n_today = best[name]["set"], best[name]["n"]
+        # ... but not for an exercise that was MEANT to stay sub-maximal: "go easy" in the restrictions, or a day the
+        # plan ledger had asked for sub-max (a careful / light / limited row)
+        meant_easy = ((ex_by_name.get(name) or {}).get("restriction") in ("careful", "avoid")
+                      or planner.planned_minima((cfg or {}).get("_plan_ledger"), name).get(day["date"]) == 0)
+        repeat_now = bool(not meant_easy and s.get("inroad") is not None and not s.get("effort_capped")
+                          and s["inroad"] < goal_min - planner.BORDERLINE and name not in reached)
         e = ex_by_name.get(name, {})
         occ = e.get("occ") or []
         prev = occ[-2] if (len(occ) >= 2 and occ[-1]["date"] == day["date"]) else None
@@ -1732,6 +1748,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "concentric_kg": s["concentric_kg"], "eccentric_kg": s["eccentric_kg"],
             "reps": s["reps"], "seconds": s["seconds"], "rom_cm": s.get("rom_cm"),
             "inroad": s.get("inroad"), "effort": s.get("effort"),
+            # no stimulus (below the goal's target, not repeated properly in this visit): once more - now or tomorrow
+            "repeat_now": repeat_now, "inroad_target": goal_min,
+            "repeat_interp": history.item("repeat_now", {"last_pct": s.get("inroad"), "target_pct": goal_min}, cfg or {}) if repeat_now else None,
             "inroad_legacy": s.get("inroad_legacy"), "effort_capped": s.get("effort_capped"),
             # inside the set: fatigue per phase, robust strength, pacing, time under tension
             "fatigue_con_pct": s.get("fatigue_con_pct"), "fatigue_ecc_pct": s.get("fatigue_ecc_pct"),
@@ -1792,6 +1811,11 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         "prev_date": transition["prev_date"] if transition else None,
         "gap_days": transition["gap_days"] if transition else None,
         "transition": transition,
+        # still on the machine? (the last set ended less than VISIT_GAP_MIN minutes ago) - then "once more, now"
+        "open": open_session, "minutes_since_last_set": round(minutes_ago) if minutes_ago is not None else None,
+        "inroad_target": goal_min, "repeat_now": [r["name"] for r in rows if r["repeat_now"]],
+        "repeat_panel": (history.item("repeat_now_panel", {"exercises": [r["name"] for r in rows if r["repeat_now"]], "target_pct": goal_min}, cfg or {})
+                         if open_session and any(r["repeat_now"] for r in rows) else None),
         "working_sets": day["working_sets"], "false_starts": day.get("false_starts", 0),
         "visits": day["visits"], "wall_minutes": day["wall_minutes"],
         "time_under_load_min": day["time_under_load_min"],

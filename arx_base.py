@@ -250,6 +250,20 @@ def _ts(s: str):
         return None
 
 
+def _now(cfg: dict) -> datetime:
+    """The clock - overridable via cfg['_now'] (ISO datetime) for tests; with a fixed 'today' (cfg / ARX_TODAY)
+    it is the end of that day, so an "open session" never depends on the real clock in a replay."""
+    t = (cfg or {}).get("_now") or os.environ.get("ARX_NOW")     # ARX_NOW: screenshots of an "open session"
+    try:
+        if t:
+            return datetime.fromisoformat(str(t))
+    except Exception:
+        pass
+    if (cfg or {}).get("_today") or os.environ.get("ARX_TODAY"):
+        return datetime.combine(_today(cfg), datetime.max.time().replace(microsecond=0))
+    return datetime.now()
+
+
 def _today(cfg: dict) -> date:
     """Today - overridable via cfg['_today'] or the ARX_TODAY environment
     variable (ISO date) for reproducible tests and screenshots."""
@@ -279,7 +293,10 @@ def _linfit(xs, ys):
 # is ready again when the rest its hardest recent load required has elapsed.
 EFFORT_RANK = {"deep": 3, "moderate": 2, "submax": 1, "unknown": 2}
 RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
-REQUIRED_REST = {3: 3, 2: 2, 1: 1}     # days a muscle needs after a load of that rank
+# days a muscle needs after a load of that rank (v0.11.0: rest follows the fatigue that was produced - a set below
+# the deep line is not failure-like and recovers in about a day; only a deep set keeps its three days, because of
+# the eccentric overload; science.json: recovery_between_sessions)
+REQUIRED_REST = {3: 3, 2: 1, 1: 1}
 
 
 def age_band(age: int | None) -> str | None:

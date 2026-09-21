@@ -190,13 +190,14 @@ EFFORT_TEMPO_STEP_S = 1.0      # seconds per direction added per change
 EFFORT_TEMPO_MAX_S = 5.0       # ... never beyond this (10 s per repetition)
 EFFORT_REPS_STEP = 2           # the alternative lever once tempo and pauses are exhausted
 EFFORT_STREAK_DAYS = 42        # lookback for the streak, from the exercise's last training day
+REPEAT_SOON_DAYS = 2           # a fruitless session's exercises back in the plan within this many days -> "again, properly" (v0.11.0)
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
 SCIENCE = {
     "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
     "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",
-    "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo",
+    "EFFORT_TEMPO_STEP_S": "tempo", "EFFORT_TEMPO_MAX_S": "tempo", "REPEAT_SOON_DAYS": "recovery_between_sessions",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
@@ -1528,6 +1529,21 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         today_session["limiter_budget"] = limiter_budget(today_session, work, catalog, ev, cfg)
         today_session["order_notes"] = order_notes(today_session, cfg)
         today_session["note"] = item("today_anyway", {"k": len(today_session["exercises"]), "next_date": d1.isoformat()}, cfg)
+
+    # "again, properly" (v0.11.0): the last training day left exercises without a stimulus (below the goal's force
+    # drop) and they are back in a session within REPEAT_SOON_DAYS - a set without fatigue costs no rest
+    goal_min = EFFORT_TARGETS[goal_effort(cfg.get("goal") or {})]["inroad_min"]
+    last_occ = {e["name"]: (e.get("occ") or [None])[-1] for e in exercises}
+    for sess in (session, today_session):
+        if not sess or not last_day or (date.fromisoformat(sess["date"]) - last_day).days > REPEAT_SOON_DAYS:
+            continue
+        missed = [it["name"] for it in sess["exercises"]
+                  if it["effort_target"]["label"] != "submax"                                    # meant to go easy: no miss
+                  and planned_minima(cfg.get("_plan_ledger"), it["name"]).get(last_day.isoformat()) != 0
+                  and (o := last_occ.get(it["name"])) and o["date"][:10] == last_day.isoformat() and o.get("inroad") is not None
+                  and not o.get("effort_capped") and o["inroad"] < goal_min - BORDERLINE]
+        if missed:
+            sess["repeat_note"] = item("plan_repeat_after_miss", {"last_date": last_day.isoformat(), "k": len(missed), "exercises": missed}, cfg)
 
     return {
         "algo": PLAN_ALGO_VERSION,
