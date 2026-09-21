@@ -30,8 +30,9 @@
 
   /* ---- SETUP + GOAL centered cards ---- */
   .center{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:40px 22px}
-  .card{background:var(--panel);border:2px solid var(--rule);border-radius:14px;padding:30px;width:min(680px,94vw)}
-  .card h2{font-size:32px;margin-bottom:6px}
+  .card{position:relative;background:var(--panel);border:2px solid var(--rule);border-radius:14px;padding:30px;width:min(680px,94vw)}
+  .card h2{font-size:32px;margin-bottom:6px;padding-right:56px}
+  .card .xclose{position:absolute;top:16px;right:16px;min-height:44px;padding:0 14px;font-size:20px}   /* back without saving (v0.9.0) */
   .card .sub{color:var(--ink2);margin-bottom:22px}
   .field{margin-bottom:22px}
   .field label{display:block;font-family:var(--disp);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px}
@@ -276,6 +277,7 @@
 <div class="screen" id="setup"><div class="center">
   <div class="logo">ARX Insight</div>
   <div class="card">
+    <button class="btn ghost xclose" id="setClose" type="button" aria-label="close">✕</button>
     <h2 id="s_setup_h">Setup</h2>
     <div class="sub" id="s_setup_sub">One time. Saved permanently.</div>
     <div class="field"><label id="s_lang">Language</label>
@@ -324,6 +326,7 @@
 <!-- GOAL (v0.4.0: a short interview - what for, how much time, how hard; everything else is optional) -->
 <div class="screen" id="goal"><div class="center">
   <div class="card">
+    <button class="btn ghost xclose" id="goalClose" type="button" aria-label="close">✕</button>
     <h2 id="g_h">Trainingsziel</h2>
     <div class="sub" id="g_sub"></div>
     <div class="field"><label id="g_out_l">1 · What do you want most?</label>
@@ -368,8 +371,11 @@
     <details class="more" id="gAidsBox"><summary id="g_aids_l">Grip aids (hooks / straps)</summary>
       <div class="foot" id="g_aids_sub" style="margin:12px 0"></div>
       <div id="gAids" style="display:grid;gap:10px"></div></details>
-    <details class="more" id="gExclBox"><summary id="g_excl_l">Exercises I do not do on the ARX (optional)</summary>
+    <details class="more" id="gExclBox"><summary id="g_excl_l">Restrictions (for good)</summary>
       <div class="foot" id="g_excl_sub" style="margin:12px 0"></div>
+      <div class="foot" id="gLegacy" style="margin:0 0 12px;color:var(--warn)"></div>
+      <div class="foot" id="g_body_sh_l" style="margin-bottom:6px"></div>
+      <div class="grid-prog" id="gBodySh" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;margin-bottom:14px"></div>
       <div id="gExcl" style="display:grid;gap:14px"></div></details>
     <details class="more" id="gBodyBox"><summary id="g_body_l">Body values (optional)</summary>
       <div class="foot" id="g_body_sub" style="margin:12px 0"></div>
@@ -387,37 +393,29 @@
   </div>
 </div></div>
 
-<!-- RESTRICTIONS -->
-<div class="screen" id="limits"><div class="center">
-  <div class="card">
-    <h2 id="lim_h">Any restrictions right now?</h2>
-    <div class="sub" id="lim_sub">Tap a body part if it is limited. The plan will not push it hard.</div>
-    <div class="grid-prog" id="limTiles" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))"></div>
-    <div style="display:flex;gap:12px;margin-top:22px">
-      <button class="btn ghost" id="limNone" style="flex:1">No restrictions</button>
-      <button class="btn" id="limSave" style="flex:1">Save & report</button>
-    </div>
-  </div>
-</div></div>
-
 <!-- CHECK-IN (daily readiness, ~20 seconds, skippable) -->
 <div class="screen" id="checkin"><div class="center">
   <div class="card">
+    <button class="btn ghost xclose" id="ckClose" type="button" aria-label="close">✕</button>
     <h2 id="ck_h">How do you feel today?</h2>
     <div class="sub" id="ck_sub">20 seconds. The coach adjusts today's intensity and selection to it.</div>
     <div class="field"><label id="ck_sleep_l">Sleep</label><div class="segbig" id="ckSleep"></div></div>
     <div class="field"><label id="ck_energy_l">Energy</label><div class="segbig" id="ckEnergy"></div></div>
-    <div class="field"><label id="ck_sore_l">Muscle soreness</label>
-      <div class="grid-prog" id="ckSore" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px"></div></div>
     <div class="field"><label id="ck_rhr_l">Resting heart rate (optional)</label>
       <input type="number" id="ckRhr" min="30" max="150" placeholder="bpm"><div class="foot" id="ck_rhr_hint" style="margin-top:6px"></div></div>
     <div class="field"><label id="ck_min_l">Time today (optional)</label><div class="segbig" id="ckMinutes"></div>
       <div class="foot" id="ck_min_hint" style="margin-top:6px"></div></div>
-    <details class="more" id="ckExBox"><summary id="ck_ex_l">Single exercises today (optional)</summary>
-      <div class="foot" id="ck_ex_sub" style="margin:12px 0"></div>
-      <div id="ckEx" style="display:grid;gap:14px"></div></details>
-    <div class="field"><label id="ck_pain_l">Pain today?</label>
-      <div class="grid-prog" id="ckPain" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px"></div></div>
+    <!-- restrictions today (v0.9.0): body parts are shortcuts, the exercise tiles are what counts -->
+    <div class="field" id="ckRestrict"><label id="ck_rs_l">Restrictions today</label>
+      <div class="foot" id="ck_rs_sub" style="margin:6px 0 12px"></div>
+      <div class="foot" id="ck_legacy" style="margin:0 0 12px;color:var(--warn)"></div>
+      <div class="foot" id="ck_sore_l" style="margin-bottom:6px">Muscle soreness</div>
+      <div class="grid-prog" id="ckSore" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;margin-bottom:14px"></div>
+      <div class="foot" id="ck_pain_l" style="margin-bottom:6px">Pain</div>
+      <div class="grid-prog" id="ckPain" style="grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px"></div>
+      <details class="more" id="ckExBox"><summary id="ck_ex_l">Single exercises</summary>
+        <div class="foot" id="ck_ex_sub" style="margin:12px 0"></div>
+        <div id="ckEx" style="display:grid;gap:14px"></div></details></div>
     <div style="display:flex;gap:12px;margin-top:10px">
       <button class="btn ghost" id="ckSkip" style="flex:1">Skip today</button>
       <button class="btn" id="ckSave" style="flex:1">Save & report</button>
@@ -434,7 +432,6 @@
     <div class="spacer"></div>
     <button class="btn ghost localonly" id="r_link" title="Phone access for this athlete">📱</button>
     <button class="btn ghost notathlete" id="r_settings">⚙</button>
-    <button class="btn ghost" id="r_limits">⚠</button>
     <button class="btn ghost" id="r_checkin">☀</button>
     <button class="btn ghost" id="r_pdf">PDF</button>
     <button class="btn ghost" id="r_html" title="Download the report as one file">⬇</button>
@@ -477,8 +474,8 @@ let GLOBAL_LANG="en", PLANG="";   // device default language, and the current pr
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
 let PARTNER=false;                             // v0.8.0: trains in turns with a partner (the change-over time is the partner's set)
 let EXCL={};                                   // v0.7.0: exercises the athlete does not do on the ARX {code: "elsewhere" | "unwanted" | "injury" | "careful"}
-const XCYCLE=["","elsewhere","unwanted","injury","careful"];   // a tap cycles: in the plan -> elsewhere -> not for me -> not possible (health) -> with care (health)
-function xlabel(s){const de=CFG.language==="de";return {"":de?"im Plan":"in the plan",elsewhere:de?"trainiere ich woanders":"I train it elsewhere",unwanted:de?"nichts für mich":"not for me",injury:de?"gesundheitlich nicht möglich":"not possible (health)",careful:de?"gesundheitlich nur mit Vorsicht":"with care only (health)"}[s||""];}
+const XCYCLE=["","elsewhere","unwanted","injury","careful"];   // a tap cycles: in the plan -> elsewhere -> not for me -> leave out for good (health) -> go easy for good (health)
+function xlabel(s){const de=CFG.language==="de";return {"":de?"im Plan":"in the plan",elsewhere:de?"trainiere ich woanders":"I train it elsewhere",unwanted:de?"nichts für mich":"not for me",injury:de?"dauerhaft auslassen (gesundheitlich)":"leave out for good (health)",careful:de?"dauerhaft schonen (gesundheitlich)":"go easy for good (health)"}[s||""];}
 const KEY_URL="https://console.anthropic.com/settings/keys";
 const REPO="https://github.com/joergs-git/arx-insight";
 const REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["shoulders","Schultern","Shoulders"],["arms","Arme","Arms"],["grip","Griff","Grip"]];
@@ -539,6 +536,7 @@ api("/api/bootstrap").then(b=>{
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
   SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI;
+  BODY_MAP=b.body_map||{}; CONFIGURED=!!b.configured;
   $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned); renderPhoneStart();
   if(ACCESS.role==="athlete"){ startAthlete(); return; }
   if(!b.configured){openSettings("search");return;}
@@ -569,6 +567,7 @@ function openSettings(origin){
   $("#s_freq").textContent=de?"Trainings pro Woche (Standard)":"Sessions per week (default)";
   $("#s_key").innerHTML=(de?"Anthropic API-Schlüssel (für KI-Analyse) ":"Anthropic API key (for AI analysis) ")+`<a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent);text-transform:none;letter-spacing:0">${de?'Schlüssel holen ↗':'get a key ↗'}</a>`;
   $("#setupSave").textContent=de?"Speichern":"Save";
+  $("#setClose").style.display=CONFIGURED?"":"none"; $("#setClose").title=de?"Schließen ohne zu speichern":"Close without saving";
   [...$("#setLang").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.language));
   [...$("#setUnits").children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.v===CFG.units));
   $("#setFreq").value=CFG.sessions_per_week||2;
@@ -704,14 +703,11 @@ function renderInterview(){
     const b=(v,l)=>`<button data-c="${c}" data-v="${v}" aria-pressed="${cur===v}" style="min-width:90px;min-height:50px">${l}</button>`;
     return `<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center"><div>${esc(m.name)}${cur&&AIDS[c].since?` <small class="foot">${de?'seit':'since'} ${AIDS[c].since}</small>`:''}</div>
       <div class="segbig" style="gap:6px">${b("",de?"ohne":"none")}${(m.aids||[]).map(a=>b(a,a==="hooks"?(de?"Haken":"hooks"):(de?"Schlaufen":"straps"))).join("")}</div></div>`;}).join("");
-  // exercises the athlete does not do on the ARX: every catalog exercise as a tile, grouped Push / Pull / Drive
-  const XG={Push:de?"Drücken":"Push",Pull:de?"Ziehen":"Pull",Drive:de?"Beine":"Legs"};
-  $("#gExcl").innerHTML=Object.keys(XG).map(grp=>{
-    const rows=Object.entries(CATALOG).filter(([c,m])=>m.group===grp&&!m.library).sort((a,b)=>a[1].name.localeCompare(b[1].name));
-    if(!rows.length) return "";
-    return `<div><div class="foot" style="margin-bottom:6px">${XG[grp]}</div><div class="segbig">${rows.map(([c,m])=>{
-      const st=EXCL[c]||"", col=st==="unwanted"?"var(--accent)":(st==="injury"||st==="careful")?"var(--fc)":"var(--warn)";
-      return `<button data-c="${esc(c)}" aria-pressed="${!!st}" style="min-width:150px;padding:0 6px;${st?`border-color:${col};color:${col};background:var(--panel)`:''}">${esc(m.name)}<br><small style="font-weight:400">${xlabel(st)}</small></button>`;}).join("")}</div></div>`;}).join("");
+  // restrictions for good (v0.9.0): body parts as shortcuts, every catalog exercise as a tile (Push / Pull / Drive)
+  $("#g_body_sh_l").textContent=de?"Abkürzung: Körperregion oder Gelenk antippen (einmal = schonen, zweimal = auslassen) - setzt die betroffenen Übungen":"Shortcut: tap a body region or joint (once = go easy, twice = leave out) - sets the exercises it touches";
+  $("#gBodySh").innerHTML=bodyTiles(BODY_ALL,(k,kind)=>derivedLevel(touched(kind,k),c=>EXCL[c],gVisible));
+  $("#gExcl").innerHTML=exTiles(c=>EXCL[c]||"",xlabel,st=>st==="unwanted"?"var(--accent)":(st==="injury"||st==="careful")?"var(--fc)":"var(--warn)",null,G_AUTO);
+  $("#gLegacy").textContent=legacyNote(G_LEGACY);
   $("#gBody").innerHTML=BODYF.map(f=>`<div><div class="foot" style="margin-bottom:6px">${de?f[1]:f[2]} (${bUnit(f[3])})</div>
     <input type="number" step="0.1" min="0" data-k="${f[0]}" data-u="${f[3]}" placeholder="${BODY_LAST&&BODY_LAST[f[0]]!=null?toUser(BODY_LAST[f[0]],f[3]):'–'}"></div>`).join("");
 }
@@ -721,8 +717,12 @@ seg("#gPartner",v=>{PARTNER=v==="1";}); seg("#gStruct",v=>{STRUCT=v;}); seg("#gC
 $("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c,v=b.dataset.v;
   if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
 $("#gExcl").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-  const c=b.dataset.c, nxt=XCYCLE[(XCYCLE.indexOf(EXCL[c]||"")+1)%XCYCLE.length];
-  if(nxt) EXCL[c]=nxt; else delete EXCL[c]; const cur=$("#gTEx").value; renderInterview(); fillTargetNames(cur);});
+  const c=b.dataset.c, nxt=G_AUTO[c]?"":XCYCLE[(XCYCLE.indexOf(EXCL[c]||"")+1)%XCYCLE.length];   // set by a body part: one tap = "not this one"
+  delete G_AUTO[c]; if(nxt) EXCL[c]=nxt; else delete EXCL[c]; const cur=$("#gTEx").value; renderInterview(); fillTargetNames(cur);});
+const gVisible=c=>!(EXCL[c]==="elsewhere"||EXCL[c]==="unwanted");
+$("#gBodySh").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;        // a body part sets its exercises for good
+  const k=b.dataset.k, kind=b.dataset.kind, cur=derivedLevel(touched(kind,k),c=>EXCL[c],gVisible), nxt=LEVELS[(LEVELS.indexOf(cur)+1)%3];
+  applyBody(EXCL,kind,k,nxt,gVisible,G_AUTO); const cur2=$("#gTEx").value; renderInterview(); fillTargetNames(cur2);});
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Dein Ziel":"Your goal");
@@ -744,8 +744,8 @@ function goalLabels(edit){
   $("#g_tdate_l").textContent=de?"Bis wann (freiwillig)":"Until (optional)";
   $("#g_aids_l").textContent=de?"Griffhilfen (Zughaken / Schlaufen)":"Grip aids (hooks / straps)";
   $("#g_aids_sub").textContent=de?"Mit einer Griffhilfe begrenzt der Griff die Übung nicht mehr. Hier eintragen, was du wirklich benutzt - Tage mit und ohne Hilfe werden nie miteinander verglichen.":"With a grip aid the hands no longer limit the exercise. Enter what you really use - days with and without an aid are never compared with each other.";
-  $("#g_excl_l").textContent=de?"Übungen, die ich nicht an der ARX mache (freiwillig)":"Exercises I do not do on the ARX (optional)";
-  $("#g_excl_sub").textContent=de?"Antippen: im Plan → trainiere ich woanders → nichts für mich → gesundheitlich nicht möglich → gesundheitlich nur mit Vorsicht. Abgeschaltete Übungen werden nie geplant oder vorgeschlagen. Bei „woanders“ gelten ihre Zielmuskeln als dort trainiert: keine Lücken-Vorschläge und keine Warnungen dafür - diese Belastung sieht die App aber nicht, Muskelkater gehört deshalb in den Check-in. Bei „nichts für mich“ und „gesundheitlich nicht möglich“ übernehmen deine anderen Übungen die Muskeln, wo es geht. „Nur mit Vorsicht“ lässt die Übung im Plan, aber submaximal ohne Zielzahl - Bewegung tut einem Gelenk in Erholung gut, der Maximalsatz nicht. So kannst du bei einem Schulterproblem genau festlegen, was gar nicht geht und was nur ruhig, und die Körperpartie selbst auf „ok“ lassen.":"Tap: in the plan → I train it elsewhere → not for me → not possible (health) → with care only (health). Exercises that are switched off are never planned or suggested. With “elsewhere” their target muscles count as trained there: no gap suggestions and no warnings for them - but the app cannot see that load, so soreness belongs into the check-in. With “not for me” and “not possible (health)” your other exercises take over the muscles where they can. “With care only” keeps the exercise in the plan, sub-maximal and without a target number - movement helps a recovering joint, the all-out set does not. That is how a shoulder problem rules out exactly what hurts and eases what only needs care, while the body part itself stays at “ok”.";
+  $("#g_excl_l").textContent=de?"Einschränkungen (dauerhaft) & Übungen, die ich nicht mache":"Restrictions (for good) & exercises I do not do";
+  $("#g_excl_sub").textContent=de?"Antippen: im Plan → trainiere ich woanders → nichts für mich → dauerhaft auslassen (gesundheitlich) → dauerhaft schonen (gesundheitlich). Woanders: die Muskeln zählen als dort trainiert. Nichts für mich: die anderen Übungen übernehmen. Auslassen: nie geplant, der Bericht sagt es, wenn du sie doch machst. Schonen: im Plan, aber submaximal ohne Zielzahl. Was nur heute gilt, gehört in den Check-in.":"Tap: in the plan → I train it elsewhere → not for me → leave out for good (health) → go easy for good (health). Elsewhere: the muscles count as trained there. Not for me: the other exercises take over. Leave out: never planned, and the report says so if you do it anyway. Go easy: in the plan, but sub-maximal without a target number. What holds for today only belongs in the check-in.";
   $("#g_body_l").textContent=de?"Körperwerte (völlig freiwillig)":"Body values (entirely optional)";
   $("#g_body_sub").textContent=de?"Nur ein grober Trend: gleiche Tageszeit, gleiche Bedingungen, alle paar Wochen reicht. Leere Felder bleiben leer.":"A rough trend only: same time of day, same conditions, every few weeks is enough. Empty fields stay empty.";
   $("#g_lang_l").textContent=de?"Sprache dieses Profils":"Language for this profile";
@@ -768,9 +768,10 @@ function fillTargetBox(t){
   $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
 }
 function openGoal(){                       // new user: the interview for the first time
-  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; EXCL={}; PARTNER=false; BODY_LAST=null; STRUCT=""; PLANG=""; goalLabels(false);
+  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; EXCL={}; G_LEGACY={}; G_AUTO={}; PARTNER=false; BODY_LAST=null; STRUCT=""; PLANG=""; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";
+  $("#goalClose").style.display=ACCESS.role==="athlete"?"none":"";      // a phone without a profile has nothing to go back to
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(null); setLangSeg(); show("goal");
 }
 async function openProfile(section){       // edit an existing person's profile/goal
@@ -784,6 +785,8 @@ async function openProfile(section){       // edit an existing person's profile/
   if(!g.focus_regions&&g.focus) Object.entries(g.focus).forEach(([grp,l])=>{if(l&&l!=="normal")(LEGACY_FOCUS[grp]||[]).forEach(r=>{if(!FOCUS_R[r])FOCUS_R[r]=l;});});
   STRUCT=g.structure||""; OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
   TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); EXCL={...(g.excluded_exercises||{})}; PARTNER=!!g.partner; PLANG=g.language||"";
+  G_LEGACY=g.restrictions||{}; G_AUTO={}; Object.entries(legacyChoices(G_LEGACY)).forEach(([c,r])=>{ if(!EXCL[c]) EXCL[c]=r; });   // the old body-part levels, once
+  $("#goalClose").style.display="";
   BODY_LAST=(g.body_log||[]).slice(-1)[0]||null;
   renderMix(); renderFocusTiles(); renderInterview(); fillTargetBox(g.target||null); setLangSeg(); show("goal");
   if(section){const el=$("#"+section); if(el){el.open=true; el.scrollIntoView({block:"center"});}}
@@ -795,66 +798,86 @@ $("#goalSave").addEventListener("click",async()=>{
     value:toMetric(+$("#gTVal").value,TKIND==="waist"?"cm":"kg"),date:$("#gTDate").value||null};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;
   await post("/api/goal",body);
+  if(Object.values(G_LEGACY||{}).some(l=>l==="careful"||l==="avoid")){ await post("/api/restrictions",{user_id:CUR.id,restrictions:{}}); CUR.restrictions={}; G_LEGACY={}; }   // migrated into the tiles above
   const vals={}; $$("#gBody input").forEach(i=>{if(i.value!=="")vals[i.dataset.k]=toMetric(+i.value,i.dataset.u);});
   if(Object.keys(vals).length) await post("/api/body",{user_id:CUR.id,...vals});     // optional - only when something was typed
-  if(GOAL_MODE==="new"){ openLimits(); }        // new users set restrictions once
+  if(GOAL_MODE==="new"){ gateCheckin(); }        // the profile block asked for restrictions already (v0.9.0)
   else { CUR.language=PLANG||null; loadReport(); }
 });
 
-// ---------- restrictions (injury-aware) ----------
+// ---------- restrictions: ONE concept (v0.9.0) ----------
+// Two words everywhere: "schonen" (go easy: sub-maximal, no target number) and "auslassen" (leave out); two scopes:
+// today (the check-in) and for good (the profile). Body parts are SHORTCUTS: a tapped region / joint flags the
+// exercises it touches (BODY_MAP = the engine's own mapping, from the bootstrap), the exercise tiles light up live
+// and can be changed one by one - the exercise map is what is saved and what the plan obeys. The legacy body-part
+// levels (restrictions {part: careful|avoid}) are translated into lasting exercise choices once and cleared on save.
 const BODYPARTS=[["shoulder","Schulter","Shoulder"],["elbow","Ellbogen","Elbow"],["wrist","Handgelenk","Wrist"],
   ["knee","Knie","Knee"],["hip","Hüfte","Hip"],["lower_back","Unterer Rücken","Lower back"],["neck","Nacken","Neck"]];
-const RLEVELS=["ok","careful","avoid"];
-let RESTR={};
-function rlabel(l){const de=CFG.language==="de";return l==="careful"?(de?"vorsichtig":"careful"):l==="avoid"?(de?"meiden":"avoid"):(de?"ok":"ok");}
-function openLimits(){
-  const de=CFG.language==="de";
-  $("#lim_h").textContent=de?"Aktuelle Einschränkungen?":"Any restrictions right now?";
-  $("#lim_sub").textContent=de?"Körperpartie antippen, wenn sie geschont werden soll. Der Plan belastet sie dann nicht voll.":"Tap a body part if it is limited. The plan will not push it hard.";
-  $("#limNone").textContent=de?"Keine Einschränkungen":"No restrictions";
-  $("#limSave").textContent=de?"Speichern & Report":"Save & report";
-  RESTR=Object.assign({},CUR.restrictions||{});
-  renderLimTiles();show("limits");
-}
-function renderLimTiles(){
-  const de=CFG.language==="de";
-  $("#limTiles").innerHTML=BODYPARTS.map(([k,d,e])=>{
-    const lvl=RESTR[k]||"ok";
-    const col=lvl==="avoid"?"var(--accent)":lvl==="careful"?"var(--warn)":"var(--rule2)";
-    const bg=lvl==="ok"?"var(--panel)":lvl==="careful"?"var(--warn-bg)":"rgba(255,106,82,.12)";
-    return `<button class="excard" data-k="${k}" style="text-align:center;border-color:${col};background:${bg};min-height:96px">
-      <div class="exname" style="font-size:19px">${de?d:e}</div>
-      <div class="meta" style="color:${col};font-weight:600;margin-top:6px">${lvl==="ok"?"—":rlabel(lvl).toUpperCase()}</div></button>`;
-  }).join("");
-}
-$("#limTiles").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-  const k=b.dataset.k, cur=RESTR[k]||"ok"; RESTR[k]=RLEVELS[(RLEVELS.indexOf(cur)+1)%3];
-  if(RESTR[k]==="ok")delete RESTR[k]; renderLimTiles();});
-$("#limSave").addEventListener("click",async()=>{await post("/api/restrictions",{user_id:CUR.id,restrictions:RESTR});CUR.restrictions=RESTR;gateCheckin();});
-$("#limNone").addEventListener("click",async()=>{RESTR={};await post("/api/restrictions",{user_id:CUR.id,restrictions:{}});CUR.restrictions={};gateCheckin();});
-$("#r_limits").addEventListener("click",openLimits);
-
-// ---------- daily check-in (readiness: sleep, energy, soreness, resting HR, pain) ----------
-// Asked once per day before the report (skippable); editable from the report via "☀ Check-in".
-// The engine scores it (Hooper/McLean-style wellness), overrides the recovery calendar with
-// soreness, and hands it to the coach. Stored per person in goals.json (local, git-ignored).
 const CK_REGIONS=[["legs","Beine","Legs"],["back","Rücken","Back"],["chest","Brust","Chest"],["arms","Arme","Arms"],["shoulders","Schultern","Shoulders"]];
-const CK_LEVELS=["none","mild","strong"];
-let CK={sleep:null,energy:null,soreness:{},rhr:"",pain:[],minutes:null,exercises:{}}, CK_BASE=null, CK_DATE=null, CK_ORIGIN="gate", CK_OFF={};
-const CKCYCLE=["","careful","injury"];        // a tap cycles: as planned -> only with care today -> not today
-function cklabel(s){const de=CFG.language==="de";return {"":de?"wie geplant":"as planned",careful:de?"heute nur mit Vorsicht":"with care today",injury:de?"heute nicht":"not today"}[s||""];}
+const BODY_ALL=[...CK_REGIONS.map(x=>[...x,"region"]),...BODYPARTS.map(x=>[...x,"joint"])];
+const LEVELS=["","careful","injury"];                       // a tap cycles: — -> schonen -> auslassen -> —
+let BODY_MAP={}, CONFIGURED=true, G_LEGACY={}, G_AUTO={};
+function lvWord(l){const de=CFG.language==="de";return l==="injury"?(de?"auslassen":"leave out"):l==="careful"?(de?"schonen":"go easy"):"—";}
+function rlabel(l){const de=CFG.language==="de";return l==="careful"?(de?"vorsichtig":"careful"):l==="avoid"?(de?"meiden":"avoid"):"ok";}   // legacy body-part levels
+function partName(k){const de=CFG.language==="de", b=BODY_ALL.find(x=>x[0]===k);return b?(de?b[1]:b[2]):k;}
+// which exercise codes a body part touches: a region through a target muscle (or, one step weaker, a limiter), a joint through the catalog
+function touched(kind,key){ const bm=BODY_MAP||{}; return kind==="joint"?((bm.joints||{})[key]||[]):Object.keys(((bm.regions||{})[key])||{}); }
+function applyBody(map,kind,key,level,visible,auto){ const bm=BODY_MAP||{};  // level "" clears what the body part touches
+  const rank={"":0,careful:1,injury:2};
+  touched(kind,key).forEach(c=>{ if(!visible(c)) return; if(!level){ delete map[c]; if(auto) delete auto[c]; return; }
+    const helper=kind==="region"&&bm.regions[key][c]==="helper", want=(helper&&level==="injury")?"careful":level;   // a helper only: go easy, never left out
+    if(rank[map[c]||""]>=rank[want]) return;                                   // a body part raises a tile to at least its level, never lowers what another one set
+    map[c]=want; if(auto) auto[c]=partName(key); }); }                          // auto: "set by this body part" - one tap on the tile says "not this one"
+function derivedLevel(codes,stateOf,visible){ const st=codes.filter(visible).map(c=>stateOf(c)||"");  // what a body part's tiles say right now
+  if(!st.length) return ""; if(st.every(x=>x==="injury")) return "injury"; if(st.every(x=>x==="injury"||x==="careful")) return "careful"; return ""; }
+// body-part tiles with the level word; the exercise tiles per movement group (both screens use these two)
+function bodyTiles(list,levelOf){ const de=CFG.language==="de";
+  return list.map(([k,d,e,kind])=>{const lvl=levelOf(k,kind)||"";
+    const col=lvl==="injury"?"var(--accent)":lvl==="careful"?"var(--warn)":"var(--rule2)";
+    const bg=!lvl?"var(--panel)":lvl==="careful"?"var(--warn-bg)":"rgba(255,106,82,.12)";
+    return `<button class="excard" data-k="${k}" data-kind="${kind||''}" style="text-align:center;border-color:${col};background:${bg};min-height:78px;padding:10px"><div class="exname" style="font-size:17px">${de?d:e}</div><div class="meta" style="color:${lvl?col:'var(--ink3)'};font-weight:600;margin-top:4px">${lvWord(lvl)}</div></button>`;}).join(""); }
+function exTiles(stateOf,labelOf,colorOf,hidden,auto){ const de=CFG.language==="de";
+  const XG={Push:de?"Drücken":"Push",Pull:de?"Ziehen":"Pull",Drive:de?"Beine":"Legs"};
+  return Object.keys(XG).map(grp=>{
+    const rows=Object.entries(CATALOG).filter(([c,m])=>m.group===grp&&!m.library&&!(hidden&&hidden(c))).sort((a,b)=>a[1].name.localeCompare(b[1].name));
+    if(!rows.length) return "";
+    return `<div><div class="foot" style="margin-bottom:6px">${XG[grp]}</div><div class="segbig">${rows.map(([c,m])=>{
+      const st=stateOf(c)||"", col=colorOf(st), src=st&&auto&&auto[c]?` · ${esc(auto[c])}`:"";
+      return `<button data-c="${esc(c)}" aria-pressed="${!!st}" style="min-width:150px;padding:0 6px;${st?`border-color:${col};color:${col};background:var(--panel)`:''}">${esc(m.name)}<br><small style="font-weight:400">${labelOf(st)}${src}</small></button>`;}).join("")}</div></div>`;}).join(""); }
+// legacy {part: careful|avoid} -> lasting exercise choices, the engine's own rule: any joint "avoid" -> leave out, else careful -> go easy
+function legacyChoices(rest){ const out={}; Object.entries(rest||{}).forEach(([part,lvl])=>{ if(lvl!=="careful"&&lvl!=="avoid") return;
+  touched("joint",part).forEach(c=>{ if(out[c]!=="injury") out[c]=lvl==="avoid"?"injury":"careful"; }); }); return out; }
+function legacyNote(rest){ const de=CFG.language==="de", parts=Object.entries(rest||{}).filter(([,l])=>l==="careful"||l==="avoid");
+  if(!parts.length) return "";
+  return (de?"Übernommen aus deiner früheren Körperteil-Einstellung (":"Taken over from your earlier body-part setting (")+parts.map(([k,l])=>`${partName(k)}: ${rlabel(l)}`).join(", ")+(de?"): beim Speichern wird daraus die Einstellung je Übung, die du unten siehst.":"): saving turns it into the per-exercise choices you see below."); }
+
+// ---------- daily check-in (readiness: sleep, energy, resting HR, time today, restrictions today) ----------
+// Asked once per day before the report (skippable); editable from the report via "☀ Check-in". The engine scores
+// sleep / energy / soreness / resting HR (Hooper/McLean-style wellness) and obeys the exercise flags; stored per
+// person in goals.json (local, git-ignored). "For good" states made here go to the profile in the same save.
+let CK={sleep:null,energy:null,soreness:{},painLv:{},rhr:"",minutes:null,exercises:{}}, CK_BASE=null, CK_DATE=null, CK_ORIGIN="gate";
+let CK_PROFILE={}, CK_LASTING={}, CK_LASTING0="", CK_LEGACY={}, CK_AUTO={};     // the profile's choices as loaded / the health ones as edited here / the legacy body parts
+const CKCYCLE=["","t_careful","t_injury","l_careful","l_injury"];   // a tap walks: as planned -> today go easy -> today leave out -> for good go easy -> for good leave out
+const ckVisible=c=>!(CK_PROFILE[c]==="elsewhere"||CK_PROFILE[c]==="unwanted");
+function ckState(c){ return CK.exercises[c]?"t_"+CK.exercises[c]:CK_LASTING[c]?"l_"+CK_LASTING[c]:""; }
+function ckSet(c,st){ delete CK.exercises[c]; if(st.startsWith("t_")) CK.exercises[c]=st.slice(2); else if(st.startsWith("l_")) CK_LASTING[c]=st.slice(2); else delete CK_LASTING[c]; }
+function cklabel(st){const de=CFG.language==="de"; if(!st) return de?"wie geplant":"as planned"; return (st.startsWith("t_")?(de?"heute ":"today: "):(de?"dauerhaft ":"for good: "))+lvWord(st.slice(2));}
+function ckColor(st){ return !st?"":st.startsWith("l_")?"var(--fc)":st==="t_injury"?"var(--accent)":"var(--warn)"; }
 function ckLabels(){const de=CFG.language==="de";
   $("#ck_h").textContent=de?"Wie geht es dir heute?":"How do you feel today?";
   $("#ck_sub").textContent=de?"20 Sekunden. Der Coach richtet Intensität und Auswahl danach.":"20 seconds. The coach sets today's intensity and selection by it.";
   $("#ck_sleep_l").textContent=de?"Schlaf":"Sleep"; $("#ck_energy_l").textContent=de?"Energie":"Energy";
-  $("#ck_sore_l").textContent=de?"Muskelkater — Region antippen (keiner · leicht · stark)":"Muscle soreness — tap a region (none · mild · strong)";
   $("#ck_rhr_l").textContent=de?"Ruhepuls (optional)":"Resting heart rate (optional)";
-  $("#ck_ex_l").textContent=de?"Einzelne Übungen heute (freiwillig)":"Single exercises today (optional)";
-  $("#ck_ex_sub").textContent=de?"Zwickt heute etwas? Antippen: wie geplant → heute nur mit Vorsicht → heute nicht. Gilt nur für heute; was bleibt, gehört im Profil auf die Übungs-Kacheln.":"Something hurts today? Tap: as planned → with care today → not today. Today only; whatever stays belongs on the exercise tiles in the profile.";
   $("#ck_min_l").textContent=de?"Zeit heute (freiwillig)":"Time today (optional)";
   $("#ck_min_hint").textContent=de?"Eine Obergrenze nur für heute: Passt der Plan nicht hinein, fallen zuerst Zusatzsätze weg, dann die Übungen, die am ehesten warten können. Mehr Zeit macht den Plan nicht länger - das stellst du im Profil ein.":"An upper limit for today only: if the plan does not fit, extra sets go first, then the exercises that can wait best. More time does not make the plan longer - that is set in the profile.";
-  $("#ck_pain_l").textContent=de?"Schmerzen heute? Körperteil antippen (gilt nur für heute)":"Pain today? Tap the body part (today only)";
+  $("#ck_rs_l").textContent=de?"Einschränkungen heute":"Restrictions today";
+  $("#ck_rs_sub").textContent=de?"Antippen, was heute nicht voll geht: einmal = schonen (submaximal, keine Zielzahl), zweimal = auslassen. Ein Körperteil setzt die betroffenen Übungen - darunter entscheidest du einzelne Übungen anders.":"Tap what cannot go all-out today: once = go easy (sub-maximal, no target number), twice = leave out. A body part sets the exercises it touches - below you decide single exercises differently.";
+  $("#ck_sore_l").textContent=de?"Muskelkater — Region":"Muscle soreness — region";
+  $("#ck_pain_l").textContent=de?"Schmerz — Gelenk":"Pain — joint";
+  $("#ck_ex_l").textContent=de?"Einzelne Übungen":"Single exercises";
+  $("#ck_ex_sub").textContent=de?"Antippen: wie geplant → heute schonen → heute auslassen → dauerhaft schonen → dauerhaft auslassen. „Dauerhaft“ landet im Profil.":"Tap: as planned → today go easy → today leave out → for good go easy → for good leave out. “For good” goes to the profile.";
   $("#ckSkip").textContent=de?"Heute überspringen":"Skip today"; $("#ckSave").textContent=de?"Speichern & Report":"Save & report";
+  $("#ckClose").title=de?"Schließen ohne zu speichern":"Close without saving";
   $("#ck_rhr_hint").textContent=CK_BASE
     ?(de?`Deine Basis: ${CK_BASE} bpm (Median der letzten Werte) · mehr als +7 = nicht erholt`:`Your baseline: ${CK_BASE} bpm (median of recent values) · more than +7 = not recovered`)
     :(de?"Morgens vor dem Aufstehen messen. Nach 3 Werten entsteht deine Basislinie.":"Measure in the morning before getting up. After 3 values your baseline appears.");
@@ -863,32 +886,30 @@ function renderCheckin(){const de=CFG.language==="de";
   const seg=(id,opts,key)=>{$(id).innerHTML=opts.map(([v,d,e])=>`<button data-v="${v}" aria-pressed="${CK[key]===v}">${de?d:e}</button>`).join("");};
   seg("#ckSleep",[["poor","schlecht","poor"],["ok","ok","ok"],["good","gut","good"]],"sleep");
   seg("#ckEnergy",[["low","wenig","low"],["ok","ok","ok"],["high","viel","high"]],"energy");
-  $("#ckSore").innerHTML=CK_REGIONS.map(([k,d,e])=>{const lvl=CK.soreness[k]||"none";
-    const col=lvl==="strong"?"var(--accent)":lvl==="mild"?"var(--warn)":"var(--rule2)";
-    const bg=lvl==="none"?"var(--panel)":lvl==="mild"?"var(--warn-bg)":"rgba(255,106,82,.12)";
-    const lab={none:"—",mild:de?"leicht":"mild",strong:de?"stark":"strong"}[lvl];
-    return `<button class="excard" data-k="${k}" style="text-align:center;border-color:${col};background:${bg};min-height:84px;padding:12px"><div class="exname" style="font-size:18px">${de?d:e}</div><div class="meta" style="color:${col};font-weight:600;margin-top:4px">${lab}</div></button>`;}).join("");
-  $("#ckPain").innerHTML=BODYPARTS.map(([k,d,e])=>{const on=CK.pain.includes(k);
-    return `<button class="excard" data-k="${k}" style="text-align:center;border-color:${on?'var(--accent)':'var(--rule2)'};background:${on?'rgba(255,106,82,.12)':'var(--panel)'};min-height:70px;padding:10px"><div class="exname" style="font-size:17px">${de?d:e}</div><div class="meta" style="color:${on?'var(--accent)':'var(--ink3)'};font-weight:600">${on?(de?'SCHMERZ':'PAIN'):'—'}</div></button>`;}).join("");
+  $("#ckSore").innerHTML=bodyTiles(CK_REGIONS.map(x=>[...x,"region"]),k=>({mild:"careful",strong:"injury"})[CK.soreness[k]]||"");
+  $("#ckPain").innerHTML=bodyTiles(BODYPARTS.map(x=>[...x,"joint"]),k=>CK.painLv[k]||"");
   $("#ckRhr").value=CK.rhr||"";
-  // single exercises today: every exercise the profile has not switched off for good, grouped like the machine groups them
-  const XG={Push:de?"Drücken":"Push",Pull:de?"Ziehen":"Pull",Drive:de?"Beine":"Legs"};
-  $("#ckEx").innerHTML=Object.keys(XG).map(grp=>{
-    const rows=Object.entries(CATALOG).filter(([c,m])=>m.group===grp&&!m.library&&!CK_OFF[c]).sort((a,b)=>a[1].name.localeCompare(b[1].name));
-    if(!rows.length) return "";
-    return `<div><div class="foot" style="margin-bottom:6px">${XG[grp]}</div><div class="segbig">${rows.map(([c,m])=>{
-      const st=CK.exercises[c]||"", col=st==="injury"?"var(--accent)":"var(--warn)";
-      return `<button data-c="${esc(c)}" aria-pressed="${!!st}" style="min-width:150px;padding:0 6px;${st?`border-color:${col};color:${col};background:var(--panel)`:''}">${esc(m.name)}<br><small style="font-weight:400">${cklabel(st)}</small></button>`;}).join("")}</div></div>`;}).join("");
+  $("#ckEx").innerHTML=exTiles(ckState,cklabel,ckColor,c=>!ckVisible(c),CK_AUTO);
+  if(Object.keys(CK.exercises).length||Object.keys(CK_LASTING).length) $("#ckExBox").open=true;
+  $("#ck_legacy").textContent=legacyNote(CK_LEGACY);
   const ws=(REPORT&&REPORT.plan&&REPORT.plan.profile&&REPORT.plan.profile.window_sizes)||{};
   $("#ckMinutes").innerHTML=[null,15,20,30,45,60,75,90].map(m=>`<button data-v="${m||''}" aria-pressed="${(CK.minutes||null)===m}" style="min-width:${m?84:150}px;padding:0 6px">${m?m+' min':(de?'wie üblich':'as usual')}${m&&ws[m]?`<br><small style="font-weight:400">≈ ${ws[m]} ${de?'Übungen':'exercises'}</small>`:''}</button>`).join("");
 }
 $("#ckSleep").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.sleep=CK.sleep===b.dataset.v?null:b.dataset.v;renderCheckin();});
-$("#ckEx").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c, nxt=CKCYCLE[(CKCYCLE.indexOf(CK.exercises[c]||"")+1)%CKCYCLE.length];
-  if(nxt) CK.exercises[c]=nxt; else delete CK.exercises[c]; renderCheckin();});
-$("#ckMinutes").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.minutes=b.dataset.v?+b.dataset.v:null;renderCheckin();});
 $("#ckEnergy").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.energy=CK.energy===b.dataset.v?null:b.dataset.v;renderCheckin();});
-$("#ckSore").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k,cur=CK.soreness[k]||"none",nxt=CK_LEVELS[(CK_LEVELS.indexOf(cur)+1)%3];if(nxt==="none")delete CK.soreness[k];else CK.soreness[k]=nxt;renderCheckin();});
-$("#ckPain").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k;CK.pain=CK.pain.includes(k)?CK.pain.filter(x=>x!==k):[...CK.pain,k];renderCheckin();});
+$("#ckMinutes").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;CK.minutes=b.dataset.v?+b.dataset.v:null;renderCheckin();});
+// a body part: the tap is kept as the reason (soreness -> wellness score, pain -> coach) AND flags the exercises it touches, today
+$("#ckSore").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k;
+  const cur=({mild:"careful",strong:"injury"})[CK.soreness[k]]||"", nxt=LEVELS[(LEVELS.indexOf(cur)+1)%3];
+  if(nxt) CK.soreness[k]=nxt==="injury"?"strong":"mild"; else delete CK.soreness[k];
+  applyBody(CK.exercises,"region",k,nxt,ckVisible,CK_AUTO); renderCheckin();});
+$("#ckPain").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const k=b.dataset.k;
+  const cur=CK.painLv[k]||"", nxt=LEVELS[(LEVELS.indexOf(cur)+1)%3];
+  if(nxt) CK.painLv[k]=nxt; else delete CK.painLv[k];
+  applyBody(CK.exercises,"joint",k,nxt,ckVisible,CK_AUTO); renderCheckin();});
+$("#ckEx").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c;
+  if(CK_AUTO[c]){ delete CK.exercises[c]; delete CK_AUTO[c]; }              // set by a body part: one tap = "not this one" (Belt Squat anyway)
+  else ckSet(c,CKCYCLE[(CKCYCLE.indexOf(ckState(c))+1)%CKCYCLE.length]); renderCheckin();});
 async function gateCheckin(){                 // once per day, skippable; then the report
   const ck=await api("/api/checkin?user_id="+CUR.id);
   let skipped=false; try{skipped=localStorage.getItem("arx_ck_skip_"+CUR.id)===ck.date;}catch(e){}
@@ -897,16 +918,30 @@ async function gateCheckin(){                 // once per day, skippable; then t
 }
 async function openCheckin(origin,ck){
   CK_ORIGIN=origin||"report"; if(!ck) ck=await api("/api/checkin?user_id="+CUR.id);
-  const c=ck.checkin||{};
-  CK={sleep:c.sleep||null,energy:c.energy||null,soreness:Object.assign({},c.soreness||{}),rhr:c.rhr||"",pain:[...(c.pain||[])],minutes:c.minutes||null,exercises:Object.assign({},c.exercises||{})};
-  CK_OFF=ck.excluded_exercises||{};
+  const c=ck.checkin||{}, pl=Object.assign({},c.pain_levels||{}); (c.pain||[]).forEach(k=>{ if(!pl[k]) pl[k]="careful"; });
+  CK={sleep:c.sleep||null,energy:c.energy||null,soreness:Object.assign({},c.soreness||{}),painLv:pl,rhr:c.rhr||"",minutes:c.minutes||null,exercises:Object.assign({},c.exercises||{})};
+  CK_PROFILE=ck.excluded_exercises||{}; CK_LEGACY=ck.restrictions||{}; CK_LASTING={};
+  Object.entries(CK_PROFILE).forEach(([x,r])=>{ if(r==="careful"||r==="injury") CK_LASTING[x]=r; });
+  Object.entries(legacyChoices(CK_LEGACY)).forEach(([x,r])=>{ if(!CK_PROFILE[x]) CK_LASTING[x]=r; });   // the old body-part levels, once
+  CK_LASTING0=JSON.stringify(CK_LASTING); CK_AUTO={};
   CK_BASE=ck.rhr_baseline; CK_DATE=ck.date;
   CFG.language=(CUR&&CUR.language)||GLOBAL_LANG; ckLabels(); renderCheckin(); show("checkin");
 }
+function closeCheckin(){ if(CK_ORIGIN==="report"&&REPORT) show("report"); else loadReport(); }   // back without saving - the gate asks again next time
+$("#ckClose").addEventListener("click",closeCheckin);
 $("#ckSkip").addEventListener("click",()=>{try{localStorage.setItem("arx_ck_skip_"+CUR.id,CK_DATE);}catch(e){} if(CK_ORIGIN==="report"){show("report");return;} loadReport();});
+// the lasting choices made on the check-in screen (and the legacy body parts, once) go to the profile in the same save
+async function saveLasting(){
+  const hasLegacy=Object.values(CK_LEGACY||{}).some(l=>l==="careful"||l==="avoid");
+  if(JSON.stringify(CK_LASTING)===CK_LASTING0&&!hasLegacy) return;
+  const merged={}; Object.entries(CK_PROFILE).forEach(([x,r])=>{ if(r==="elsewhere"||r==="unwanted") merged[x]=r; });
+  Object.entries(CK_LASTING).forEach(([x,r])=>{ merged[x]=r; });
+  await post("/api/restrictions",{user_id:CUR.id,excluded_exercises:merged,restrictions:{}}); CUR.restrictions={};
+}
 $("#ckSave").addEventListener("click",async()=>{
-  const body={user_id:CUR.id,date:CK_DATE,sleep:CK.sleep,energy:CK.energy,soreness:CK.soreness,rhr:$("#ckRhr").value?+$("#ckRhr").value:null,pain:CK.pain,minutes:CK.minutes,exercises:CK.exercises};
-  await post("/api/checkin",body); loadReport();
+  const body={user_id:CUR.id,date:CK_DATE,sleep:CK.sleep,energy:CK.energy,soreness:CK.soreness,rhr:$("#ckRhr").value?+$("#ckRhr").value:null,
+    pain:Object.keys(CK.painLv),pain_levels:CK.painLv,minutes:CK.minutes,exercises:CK.exercises};
+  await post("/api/checkin",body); await saveLasting(); loadReport();
 });
 $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
 
@@ -915,6 +950,10 @@ $("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;$("#q").valu
 $("#r_pdf").addEventListener("click",()=>window.print());
 $("#r_settings").addEventListener("click",()=>openSettings("report"));
 $("#r_name").addEventListener("click",()=>openProfile());
+function closeProfile(){ if(GOAL_MODE==="edit"&&CUR&&REPORT) show("report"); else home(); }     // back without saving
+$("#goalClose").addEventListener("click",closeProfile);
+function closeSettings(){ if(SETTINGS_ORIGIN==="report"&&CUR&&REPORT) show("report"); else home(); }
+$("#setClose").addEventListener("click",closeSettings);
 $("#r_profile").addEventListener("click",()=>openProfile());
 
 async function loadReport(){
@@ -992,7 +1031,6 @@ function renderReport(){
   $("#r_name").textContent=anon?(de0?"Athlet":"Athlete"):r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
   $("#r_profile").innerHTML="✎ "+(de0?"Profil":"Profile");
   $("#r_settings").innerHTML="⚙ "+(de0?"Einstellungen":"Settings");
-  $("#r_limits").innerHTML="⚠ "+(de0?"Grenzen":"Limits");
   $("#r_checkin").innerHTML="☀ Check-in";
   $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit"; $("#r_html").innerHTML="⬇ "+(de0?"Datei":"File");
   $("#r_html").title=de0?"Report als eine Datei herunterladen (öffnet überall, auch ohne App)":"Download the report as one file (opens anywhere, no app needed)";
@@ -1030,7 +1068,7 @@ function renderReport(){
   ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
   ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;
-  const main=status+nav+goalLine+goalProgressHtml(r)+restrHtml(r.restrictions,r.pain_today,r.restriction_checks)
+  const main=status+nav+goalLine+goalProgressHtml(r)+restrHtml(r)
     +chap("ch1",1,de0?'Letzte Einheit':'Last session',ch1)+chap("ch2",2,de0?'Nächstes Training':'Next training',ch2)
     +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3);
 
@@ -1191,8 +1229,8 @@ function readinessHtml(l){
   const de=CFG.language==="de", rc=l&&l.recovery; if(!rc) return "";
   const muscles=Object.entries(rc.muscles||{}).sort((a,b)=>(b[1].ready_on||'').localeCompare(a[1].ready_on||'')||a[0].localeCompare(b[0]));
   const chips=muscles.map(([m,v])=>{
-    const col=!v.ready?'var(--accent)':(v.sore==='mild'?'var(--warn)':'var(--good)');
-    const txt=!v.ready?`${de?'ab':'from'} ${(v.ready_on||'').slice(5)}`:(v.sore==='mild'?(de?'leichter Muskelkater':'mild soreness'):(de?'bereit':'ready'));
+    const col=!v.ready?'var(--accent)':'var(--good)';
+    const txt=!v.ready?`${de?'ab':'from'} ${(v.ready_on||'').slice(5)}`:(de?'bereit':'ready');
     return `<span class="chip" style="border:1px solid ${col};color:${col};background:transparent;margin:0" title="${esc(v.reason||'')}">${mname(m)} · ${txt}</span>`;}).join(' ');
   const list=(arr,col,label,fmt)=>arr.length?`<div style="margin-top:8px"><b style="color:${col}">${label}:</b> ${arr.map(fmt).join(', ')}</div>`:'';
   return `<div class="panel" style="margin-top:12px"><div class="eyebrow" style="margin-bottom:8px">${de?'Bereitschaft heute':'Readiness today'} · ${l.today||''}</div>
@@ -1203,26 +1241,34 @@ function readinessHtml(l){
     <p class="foot" style="margin:10px 0 0">${de?'Je Muskel: Ruhezeit nach der letzten harten Belastung (tief 3 Tage, moderat 2, submaximal 1); ein Check-in mit Muskelkater überstimmt den Kalender.':'Per muscle: rest after its last hard load (deep 3 days, moderate 2, sub-max 1); a check-in with soreness overrides the calendar.'}</p>
   </div>`;
 }
-function restrHtml(rest,painToday,checks){
-  const active=Object.entries(rest||{}).filter(([,v])=>v&&v!=="ok");
-  if(!active.length) return "";
-  const de=CFG.language==="de", pain=new Set(painToday||[]);
-  const nameOf=k=>{const b=BODYPARTS.find(x=>x[0]===k);return b?(de?b[1]:b[2]):k;};
-  const chips=active.map(([k,v])=>{
-    const col=v==="avoid"?"var(--accent)":"var(--warn)";
-    return `<span class="grp" style="background:${col}">${nameOf(k)}: ${rlabel(v)}${pain.has(k)?(de?' · heute (Check-in)':' · today (check-in)'):''}</span>`;}).join(" ");
-  // did the athlete respect their own limits? (engine: restriction_checks, last 14 days)
+function restrHtml(r){
+  // one concept (v0.9.0): today's flags from the check-in (with the body parts behind them), the lasting choices from
+  // the profile, the legacy body-part levels while they still exist - and the mirror of the last 14 days
+  const de=CFG.language==="de", checks=r.restriction_checks||[];
+  const chip=(t,col)=>`<span class="grp" style="background:${col}">${t}</span>`, col=l=>(l==="injury"||l==="avoid"||l==="strong")?"var(--accent)":"var(--warn)";
+  const rd=r.readiness||{}, sore=Object.entries(rd.sore_regions||{}), pain=r.pain_today||[], todayEx=Object.entries(r.today_exercises||{});
+  const lasting=[...(((r.plan||{}).excluded||{}).exercises||[]).filter(e=>e.reason==="injury").map(e=>[e.name,"injury"]),...(r.careful_exercises||[]).map(n=>[n,"careful"])];
+  const legacy=Object.entries(r.restrictions||{}).filter(([,v])=>v&&v!=="ok");
+  const groups=[];
+  if(sore.length||pain.length||todayEx.length) groups.push([de?"Heute (Check-in)":"Today (check-in)","openCheckin('report')",
+    [...sore.map(([k,l])=>chip(`${partName(k)}: ${de?'Muskelkater':'soreness'} · ${lvWord(l==='strong'?'injury':'careful')}`,col(l))),
+     ...pain.map(k=>chip(`${partName(k)}: ${de?'Schmerz':'pain'}`,'var(--warn)')),
+     ...todayEx.map(([n,l])=>chip(`${esc(n)}: ${lvWord(l)}`,col(l)))]]);
+  if(lasting.length||legacy.length) groups.push([de?"Dauerhaft (Profil)":"For good (profile)","openProfile('gExclBox')",
+    [...lasting.map(([n,l])=>chip(`${esc(n)}: ${lvWord(l)}`,col(l))),...legacy.map(([k,v])=>chip(`${partName(k)}: ${rlabel(v)}`,col(v)))]]);
+  if(!groups.length&&!checks.length) return "";
   let checksHtml="";
-  if(checks&&checks.length){
-    const issueT={trained_avoid:de?'trainiert trotz „vermeiden“':'trained despite "avoid"',hard_on_careful:de?'hart trotz „vorsichtig“':'hard despite "careful"',eccentric_jump:de?'Exzentrik-Sprung trotz „vorsichtig“':'eccentric jump despite "careful"'};
+  if(checks.length){
+    const issueT={trained_avoid:de?'trainiert trotz „auslassen“':'trained despite "leave out"',hard_on_careful:de?'hart trotz „schonen“':'hard despite "go easy"',eccentric_jump:de?'Exzentrik-Sprung trotz „schonen“':'eccentric jump despite "go easy"'};
     const rows=checks.slice(-8).map(c=>`<tr><td>${c.date}</td><td>${c.exercise}</td><td>${issueT[c.issue]||c.issue}</td><td class="num">${c.issue==='eccentric_jump'?`+${c.jump_pct} % (${uKg(c.prev_eccentric_kg)}→${uKg(c.eccentric_kg)} ${LKg()})`:(c.inroad!=null?c.inroad+'% '+effLabel(c.effort):'')}</td></tr>`).join("");
-    checksHtml=`<div class="panel" style="margin-top:10px"><div class="eyebrow" style="color:var(--warn);margin-bottom:6px">${de?'Grenzen eingehalten? (letzte 14 Tage)':'Limits respected? (last 14 days)'}${checks.length>8?` · ${checks.length}`:''}</div>
+    checksHtml=`<div class="panel" style="margin-top:10px"><div class="eyebrow" style="color:var(--warn);margin-bottom:6px">${de?'Einschränkungen eingehalten? (letzte 14 Tage)':'Restrictions respected? (last 14 days)'}${checks.length>8?` · ${checks.length}`:''}</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:16px;white-space:nowrap">${rows}</table></div>
-      <p class="foot" style="margin:8px 0 0">${de?'Ein Spiegel, keine Diagnose: „vorsichtig“ heißt submaximal und ohne Sprünge in der Exzentrik.':'A mirror, not a diagnosis: "careful" means sub-max and no jumps in the eccentric.'}</p></div>`;
+      <p class="foot" style="margin:8px 0 0">${de?'Ein Spiegel, keine Diagnose: „schonen“ heißt submaximal und ohne Sprünge in der Exzentrik.':'A mirror, not a diagnosis: "go easy" means sub-max and no jumps in the eccentric.'}</p></div>`;
   }
-  return `<section><div class="eyebrow" style="color:var(--warn)">${de?'Einschränkungen aktiv':'Restrictions active'}</div>
+  return `<section><div class="eyebrow" style="color:var(--warn)">${de?'Einschränkungen':'Restrictions'}</div>
     <div class="verdict" style="border-left-color:var(--warn);background:var(--warn-bg)">
-      <p style="margin:0">${de?'Betroffene Partien werden nicht voll belastet, betroffene Übungen werden geschont oder ausgelassen.':'Affected areas are not loaded to the max; affected exercises are eased or omitted.'}<br><span style="display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:8px">${chips}</span></p>
+      <p style="margin:0">${de?'Geschonte Übungen bekommen keine Zielzahl, ausgelassene werden nicht geplant.':'Eased exercises get no target number, left-out ones are not planned.'}</p>
+      ${groups.map(([h,link,chips])=>`<div style="margin-top:8px"><span class="foot">${h}</span> <span style="display:inline-flex;gap:8px;flex-wrap:wrap;vertical-align:middle">${chips.join(" ")}</span> <a href="#" onclick="${link};return false" style="color:var(--accent)">${de?'ändern':'edit'}</a></div>`).join("")}
     </div>${checksHtml}</section>`;
 }
 // today's check-in, scored (or the invitation to do it)
@@ -1243,7 +1289,7 @@ function checkinHtml(r){
   if(rd.rhr){const rc=rd.rhr_status==='elevated'?'var(--accent)':rd.rhr_status==='raised'?'var(--warn)':rd.rhr_status?'var(--good)':'var(--ink2)';
     chips.push(chip(`${de?'Ruhepuls':'resting HR'} ${rd.rhr}${rd.rhr_baseline?` (${rd.rhr_diff>0?'+':''}${rd.rhr_diff} vs ${rd.rhr_baseline})`:(de?' · noch keine Basis':' · no baseline yet')}`,rc));}
   if((r.checkin||{}).minutes) chips.push(chip(`⏱ ${de?'heute höchstens':'today at most'} ${r.checkin.minutes} min`,'var(--ink2)'));
-  Object.entries(r.today_exercises||{}).forEach(([n,lvl])=>chips.push(chip(`${esc(n)}: ${lvl==='injury'?(de?'heute nicht':'not today'):(de?'heute nur mit Vorsicht':'with care today')}`,lvl==='injury'?'var(--accent)':'var(--warn)')));
+  Object.entries(r.today_exercises||{}).forEach(([n,lvl])=>chips.push(chip(`${esc(n)}: ${de?'heute':'today'} ${lvWord(lvl)}`,lvl==='injury'?'var(--accent)':'var(--warn)')));
   if(rd.pain&&rd.pain.length) chips.push(chip(`${de?'Schmerz':'pain'}: ${rd.pain.map(k=>{const b=BODYPARTS.find(x=>x[0]===k);return b?(de?b[1]:b[2]):k;}).join(', ')}`,'var(--accent)'));
   return `<div class="verdict" style="border-left-color:${band[1]};background:var(--panel);margin-top:12px">
     <div class="big" style="color:${band[1]}">${rd.score==null?'—':rd.score}<small>Check-in</small></div>
@@ -1642,7 +1688,9 @@ async function putQr(sel,url){ const box=$(sel); if(!box) return; if(!url){ box.
   try{ box.innerHTML=await qrSvg(url); }catch(e){ box.textContent=CFG.language==="de"?"QR-Code konnte nicht erzeugt werden.":"The QR code could not be drawn."; } }
 function closeModal(){ $("#modal").classList.remove("open"); clearTimeout(PHONE_T); PHONE_T=null; }
 $("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") closeModal(); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#modal").classList.contains("open")) closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key!=="Escape") return; if($("#modal").classList.contains("open")){ closeModal(); return; }
+  const scr=document.querySelector(".screen.active"), id=scr&&scr.id;
+  if(id==="checkin") closeCheckin(); else if(id==="goal") closeProfile(); else if(id==="setup"&&CONFIGURED) closeSettings(); });
 const agoTxt=s=>{ const de=CFG.language==="de"; return s<60?(de?`vor ${s} s`:`${s} s ago`):(de?`vor ${Math.round(s/60)} min`:`${Math.round(s/60)} min ago`); };
 
 function renderPhoneStart(){ const box=$("#phoneStart"); if(!box) return; if(ACCESS.role!=="local"){ box.innerHTML=ACCESS.role==="trainer"?linkFootHtml():""; return; }

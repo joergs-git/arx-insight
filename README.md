@@ -58,7 +58,7 @@ follow-up questions in a chat.
 - 🧭 **Progress per exercise** — best set per day, "vs last time", trend and a cautious forecast, on two axes (last sessions / last days).
 - 📏 **Range-of-motion validity** — force is only compared between days that used the same ROM (within 5 % of the exercise's reference). Days with a different ROM are shown but excluded from trend and forecast, and the exercise gets a visible ROM warning instead of a fake trend. A deliberately shortened range on a restricted exercise becomes the new baseline instead of a nag.
 - 🧠 **Muscle-level recovery** — readiness is judged per muscle, not by the calendar or by Push/Pull/Drive: a set loads its target muscles at the effort it reached and its limiters one level lighter; a muscle is ready again when the rest its last hard load required has passed (deep 3 days, moderate 2, sub-max 1). Two sessions on consecutive days are fine when they used different muscles. Per exercise you see *ready*, *limited* (a limiter such as the grip is not fresh — train sub-max) or *not ready*, each with a date.
-- ☀️ **Daily check-in** (20 seconds, skippable) — sleep, energy, muscle soreness per region, resting heart rate against your own baseline, pain today. Strong soreness blocks that region whatever the calendar says; an elevated resting HR or poor sleep means a light day; pain makes a body part *careful* for today. A transparent 0–100 wellness score (in the spirit of the Hooper / McLean questionnaires) goes to the coach. Since v0.8.9 it also asks about **single exercises today** (optional: *with care today* / *not today* — for a health limit that came up spontaneously; lasting ones belong on the profile tiles). Since v0.8.1 you can also say **how much time you have today** (optional): an upper limit for a session planned for today — a plan that does not fit is cut the way a trainer would cut it (extra sets first, then the exercises that can wait best; the big exercise of each movement group and muscles that would otherwise wait too long stay), what was left out is named and comes first next time. More time never makes the plan longer.
+- ☀️ **Daily check-in** (20 seconds, skippable) — sleep, energy, resting heart rate against your own baseline, and **restrictions today** (v0.9.0): tap a sore muscle region or a painful joint once for *go easy* (sub-maximal, no target number) or twice for *leave out*, and every exercise it touches lights up right below — change single ones as you like (sore legs, but the belt squat anyway). The exercise tiles are what the plan obeys; the body parts are shortcuts, and soreness still feeds the transparent 0–100 wellness score (in the spirit of the Hooper / McLean questionnaires) that goes to the coach. An elevated resting HR or poor sleep means a light day. Since v0.8.1 you can also say **how much time you have today** (optional): an upper limit for a session planned for today — a plan that does not fit is cut the way a trainer would cut it (extra sets first, then the exercises that can wait best; the big exercise of each movement group and muscles that would otherwise wait too long stay), what was left out is named and comes first next time. More time never makes the plan longer.
 - 🛌 **Load flag on the last 7 days** — *overload* only when a muscle was loaded hard again before its rest was over (or the check-in says so), *underload* when every recent session was light, *detraining* after 10+ days off. Not judged on your first weeks forever.
 - 🧾 **Session sequence** — the order of your sets within each day, the rest before each one, machine pauses, work density, false starts, and rule-based flags: too many sets, a scattered full-body day on a split plan, the same exercise or muscle hit again within 5 minutes, and a density shift that betrays changed pause/tempo settings (only against a consistent baseline).
 - 🤝 **Shared limiters** — knows that Dead Lift, Row, Pull Down and Biceps Curl all hang on the grip: it spots a limiter pre-fatigued by an earlier set, lists the conflicts per day, and orders the plan so a "means" exercise comes before the one that targets that same structure.
@@ -69,13 +69,13 @@ follow-up questions in a chat.
 - 🪝 **Grip aids (hooks / straps)** — switch them on per exercise and the grip stops counting as that exercise's limiter in recovery, evidence, order and budget; days with and without an aid are never compared with each other. The plan suggests an aid only where studies show a benefit (dead lifts), not for pull-downs.
 - ⚖️ **Body values — entirely optional** — weight, waist, arm, chest, thigh, body fat: any subset, whenever you like, no reminders. Shown as a rough trend with its measurement noise, read together with your strength index. Nothing entered = nothing shown.
 - 📚 **Science base** — `science.json`: 19 topics, 101 references (meta-analyses, position stands, RCTs), each retrieved from PubMed and cross-checked via Crossref, with the rule of thumb, how *this app* applies it and what does **not** transfer to a motor-driven machine. Every planner default cites its entry (a test enforces it); where the evidence contradicted a planned default it was changed — e.g. **no extra rest days by age alone**, and "maintain" cuts volume but keeps the effort. Your own measured data always outranks a textbook default.
-- ⚠️ **Injury-aware** — flag a shoulder, knee, etc. as *careful* or *avoid* (which exercises a joint touches is editable per exercise in `exercises.json`), and the plan won't push it. A "limits respected?" box lists sets of the last 14 days that went hard on a careful exercise, jumped in the eccentric, or trained an avoided one — a mirror, not a diagnosis.
+- ⚠️ **Restrictions — one concept** (v0.9.0) — two words everywhere, *go easy* (sub-maximal, no target number) and *leave out*, for today (check-in) or for good (profile). Body parts are shortcuts: tapping *shoulder* flags every exercise that loads the shoulder (which joints an exercise touches is editable per exercise in `exercises.json`), and you keep the last word per exercise. The report lists what is active with a link to change it, and a "restrictions respected?" box mirrors sets of the last 14 days that went hard on an eased exercise, jumped in the eccentric, or trained a left-out one — a mirror, not a diagnosis.
 - ⏱️ **Training time & work** — motivational totals (sessions = real visits), per week / month / year.
 - 📖 **One page, three chapters** (v0.5.0) — a status strip (last session · today's check-in · next training · load) and then one reading direction: **1 Last session → 2 Next training → 3 History, trends & what stands out**. No side column, no second plan; on a phone the chapters sit in a bottom bar.
 - 🤖 **AI coach inside each chapter** using **your own** Claude API key (only aggregated, name-free numbers are sent) — it receives what a human trainer never has in view at once: the run of every rep of the last session (concentric / eccentric), every exercise's series on comparable days, weekly windows, your own measured order and second-set effects with their n, the findings, plan vs what you did, and the engine's plan with the **decision space** around it. Its answer is one structured board (exercise names and dates are fixed lists — nothing can be invented): a verdict per exercise, what it means and what follows, the plan with cues, the history, one focus. It **may change the plan** — date, exercises, order, targets within ±5 %, sets, rests — but the server checks every row against the same rules as the engine (recovered muscles, sub-max where required, effort cap, helper-before-target, every change needs a reason); one repair round, otherwise the engine's plan applies and the board says so. Changes are marked ✎. **It remembers** what it told you (the last three boards travel with every request) and says what it changes and why. The analysis runs in the background, is cached per data state (a reload never bills twice), default model Claude Opus 5 at high effort (Claude Fable 5.1 selectable), everything tunable in ⚙ Settings. The report itself never needs the AI.
 - 💬 **Ask the coach** — a chat about *this* report: why this order, what a grip aid would give you, what to do with 20 minutes today. It knows your data, the plan and its own board; answers stream in and survive a locked phone screen; your own name is stripped from what you type. Up to 100 questions per report and per day (a guard against a runaway client, not a ration; the daily count starts again at midnight).
 - 📏 **No muscle waits too long** (v0.5.0) — a muscle needs a stimulus at least about once a week to grow. One session a week is therefore always planned as full body, the big push / pull / leg exercise first (a split at that frequency would train each muscle every 2–3 weeks); a region that would wait more than ~8 days is flagged, and with one weekly session and a muscle goal the plan says openly what that dose is documented to deliver. Since v0.7.0 the big slot of a movement group goes to the exercise that reaches the muscles which would otherwise wait too long — so with Overhead Press or High Pull in your repertoire the chest or the lats cannot lose their turn for two weeks — and the remaining slots reach such muscles first (calves once a week before a second arm exercise).
-- 🚫 **Exercises you do not do on the ARX** (v0.7.0) — in the profile every exercise of the machine is a tile: *in the plan → I train it elsewhere → not for me → not possible right now (health) → with care only (health)* (the health choices since v0.8.7 / v0.8.8: a shoulder problem usually rules out the overhead pressing and only eases the rest — switch off exactly what hurts, keep what only needs care in the plan sub-maximally, leave the body part at "ok", and the report tells you if you went harder anyway). Switched-off exercises are never planned, never suggested and the AI coach cannot bring them back. *Elsewhere* (you squat in the gym, curl at home) means their target muscles count as trained there: no "new exercise" suggestion, no frequency warning, not "neglected" — and the plan says honestly that it cannot see that load, so soreness belongs into the check-in. *Not for me* leaves the muscles to your other exercises where they can reach them. Either way a switched-off exercise has **no say in anything that looks ahead** (v0.7.1): for an exercise you never did the report is the very same as if the machine did not offer it, and one with a history keeps its charts in chapter 3 but no longer appears in the readiness lists, the findings, the deload signal, the profile's target and grip-aid lists or in what the AI coach reads.
+- 🚫 **Exercises you do not do on the ARX** (v0.7.0; since v0.9.0 part of *Restrictions*) — in the profile every exercise of the machine is a tile: *in the plan → I train it elsewhere → not for me → leave out for good (health) → go easy for good (health)* (the health choices since v0.8.7 / v0.8.8, reachable from the check-in as well: a shoulder problem usually rules out the overhead pressing and only eases the rest — switch off exactly what hurts, keep what only needs care in the plan sub-maximally, leave the body part at "ok", and the report tells you if you went harder anyway). Switched-off exercises are never planned, never suggested and the AI coach cannot bring them back. *Elsewhere* (you squat in the gym, curl at home) means their target muscles count as trained there: no "new exercise" suggestion, no frequency warning, not "neglected" — and the plan says honestly that it cannot see that load, so soreness belongs into the check-in. *Not for me* leaves the muscles to your other exercises where they can reach them. Either way a switched-off exercise has **no say in anything that looks ahead** (v0.7.1): for an exercise you never did the report is the very same as if the machine did not offer it, and one with a history keeps its charts in chapter 3 but no longer appears in the readiness lists, the findings, the deload signal, the profile's target and grip-aid lists or in what the AI coach reads.
 - 📱 **On your phone, by QR code** (v0.6.0; on by default since v0.6.1, one click switches it off) — press **📱 Connect a phone** on the start screen and scan a code: the **trainer code** opens the whole app on a phone in the same Wi-Fi; an **athlete code** opens exactly one person's report, check-in, profile, coach analysis and **live chat with the coach** (ask about the plan you just got, standing at the machine) — and nothing else. Codes expire, can be renewed, replaced or revoked; API key, update, exit and the codes themselves stay PC-only; a minor's chat is off until the trainer allows it; the report can be downloaded as one file that opens anywhere.
 - ⏸️ **Breaks are understood** (v0.5.1) — more than two weeks away is named as what it is. Up to about three weeks nothing is lost: the plan simply continues and holds your numbers for one session. After a longer break your old values are only an orientation — what you reach is the new starting point, and it comes back much faster than it was built. The app never makes you "catch up" with extra sets or sessions (no evidence that this helps), and if your real attendance is too low for a split it plans fuller sessions until your rhythm is back.
 - 🖨️ **PDF** in the same dark design with the coach board included, 🌍 **English / German**, **lb-inch / kg-cm**, big touch-friendly UI, an **update notice** on the start screen and in the report with a **one-click update** on Windows (v0.4.1; the check repeats every few hours), Desktop + Start-menu shortcuts that can be pinned to the taskbar, and a deep link (`?user=<id>`, `&anon=1` hides the name for screenshots).
@@ -321,10 +321,11 @@ numbers or poor readiness). The AI coach judges on top of all that - inside the 
 within the engine's rules (see *Can the AI invent exercises or numbers?*).
 
 **Why does it ask how I feel before the report?**
-Because a coach would. Sleep, energy, soreness per region, resting heart rate and pain take 20
-seconds and change today's plan: strong soreness blocks that region, an elevated resting HR
-(more than ~7 bpm above your own baseline, which forms after three morning values) or poor sleep
-means a light day, pain makes a body part *careful* for today. An **ordinary day** — sleep ok,
+Because a coach would. Sleep, energy, resting heart rate and today's restrictions take 20 seconds
+and change today's plan: a sore region or a painful joint flags the exercises it touches (*go
+easy* or *leave out*; since v0.9.0 the plan obeys those exercise flags and you keep the last word
+per exercise), an elevated resting HR (more than ~7 bpm above your own baseline, which forms after
+three morning values) or poor sleep means a light day. An **ordinary day** — sleep ok,
 energy ok, nothing sore — is a full training day (since v0.8.4 the middle answers no longer make a
 session lighter); only a clearly worse signal does, and then the plan says so in plain words: *one
 exercise fewer and no all-out sets because of the check-in — not a question of time*. You can skip
@@ -340,20 +341,26 @@ the biceps still recovering) gets its turn fresh, the rested group trains now. O
 session is held back when it comes sooner than the rhythm; the muscle-level recovery decides the
 rest. The week outlook then reads Mon · Wed · Fri, not Wed · Sat · Tue.
 
-**Something hurts today — do I have to change my profile?** *(v0.8.9)*
-No. The check-in has a collapsed block *Single exercises today*: tap an exercise once for **with
-care today** (sub-maximal, no target number) or twice for **not today**. It applies to a session
-planned for today only — tomorrow the exercise is planned normally again, the profile is untouched
-and the *limits respected?* box does not look back at earlier sets because of it. If it stays, the
-exercise tiles in the profile are the place (*with care only* / *not possible for health reasons*).
-The pain-today body parts stay as they were: they ease everything that loads that joint for today.
+**Something hurts today — do I have to change my profile?** *(v0.9.0)*
+No. The check-in has one block *Restrictions today*: tap a sore muscle region or a painful joint
+once for **go easy** (sub-maximal, no target number) or twice for **leave out** — every exercise it
+touches lights up right below (a region through its target muscles, a helper muscle only ever
+"go easy"; a joint through the joints listed per exercise in `exercises.json`), and one tap on such
+a tile says *not this one* (sore legs, but the belt squat anyway). Tiles you set by hand walk the
+whole cycle *as planned → today go easy → today leave out → for good go easy → for good leave out*;
+the "for good" states land in the profile with the same save. The plan obeys the exercise tiles,
+today only — tomorrow the exercise is planned normally again — and the row says why (*your
+check-in (muscle soreness): go easy today*). Nothing of it looks back at earlier sets. The screen
+closes with ✕ (or Escape) without saving; *Skip today* is the only thing that stops the question
+for the day.
 
 **Mild or strong soreness — what is the difference?**
-Strong soreness in a region blocks its exercises for the day, whatever the calendar says. Mild
-soreness keeps them: the exercise is *limited* — sub-maximal, by feel, no target number, and the
-plan says why. Since v0.8.6 such a day is still a possible training day ("training today anyway":
-the sore muscles sub-maximal); the full session is recommended for the next fresh day. Both also
-count in the readiness score (mild costs half the soreness points, strong all of them).
+One tap or two. *Go easy* (mild) keeps the exercises of that region in the plan without a target
+number — the all-out set is what a not-quite-recovered muscle should skip; *leave out* (strong)
+takes them out of a session planned for today, and if nothing of the session is left, the plan
+moves on to the next possible day and says so. Both answers also lower the wellness score, so a
+clearly sore day is a moderate day. Since v0.9.0 the soreness answer itself no longer blocks a
+region behind your back: what you see on the exercise tiles is exactly what the plan does.
 
 **What does "limited" mean for an exercise?**
 Its target muscles are recovered, but a *limiter* — the grip, the elbow flexors, the triceps on a
@@ -540,20 +547,20 @@ those muscles are the most due next time, so nothing has to be "caught up". A bi
 makes the session longer — for more volume use *Minutes per session* in the profile.
 
 **I squat in the gym / do curls at home — can I switch an exercise off?** *(v0.7.0)*
-Yes: profile → *Exercises I do not do on the ARX*. Tap an exercise once for **I train it elsewhere**,
-twice for **not for me**, three times for **not possible right now (health)** *(v0.8.7)*, four times
-for **with care only (health)** *(v0.8.8)*; a fifth tap puts it back into the plan. The first three
+Yes: profile → *Restrictions (for good)*. Tap an exercise once for **I train it elsewhere**,
+twice for **not for me**, three times for **leave out for good (health)** *(v0.8.7)*, four times
+for **go easy for good (health)** *(v0.8.8)*; a fifth tap puts it back into the plan. The first three
 take the exercise out of every plan, every suggestion and out of what the AI coach may choose from.
-*With care only* keeps it in the plan, sub-maximal and without a target number — movement helps a
-recovering joint, the all-out set does not; the coach may not plan it harder either. The health
-choices are for the case where a body part is not simply "careful" or "avoid" for everything that
-touches it — a shoulder problem usually forbids the overhead pressing and only asks for care in the
-row: rule out the one, ease the other, set the body part back to *ok*, and the *limits respected?*
-box lists an exercise you did anyway or went harder on than agreed. The difference is what
+*Go easy for good* keeps it in the plan, sub-maximal and without a target number — movement helps a
+recovering joint, the all-out set does not; the coach may not plan it harder either. Body parts are
+shortcuts here too (since v0.9.0 the separate *limits* screen is gone): tap *shoulder* once and every
+exercise that loads the shoulder goes to *go easy for good*, then rule out the overhead pressing
+alone with one more tap on its tile — and the *restrictions respected?* box lists an exercise you
+did anyway or went harder on than agreed. The difference is what
 happens to the muscles: *elsewhere* treats the muscles the exercise is for as trained outside the
 ARX — nothing new is suggested for them, no "waits too long" warning, no "neglected" finding — but
 the app cannot see that training, so give those muscles their rest before an ARX session that needs
-them and enter soreness in the check-in (it outranks the calendar). *Not for me* keeps the muscles
+them and enter soreness in the check-in (it flags the exercises for the day). *Not for me* keeps the muscles
 the plan's business: your other exercises take over where they reach them. Your history of the
 exercise stays in chapter 3 — it is your data. The link *I do not do this on the ARX* next to a
 suggested new exercise takes you straight to the setting.

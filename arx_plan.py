@@ -233,6 +233,54 @@ def today_exercise_levels(cfg: dict, catalog: dict) -> dict:
     return {str(c): lvl for c, lvl in raw.items() if str(c) in (catalog or {}) and lvl in TODAY_CHOICES}
 
 
+# the check-in's body vocabulary (v0.9.0: body parts are SHORTCUTS to exercises - the page flags what a tapped region /
+# joint touches, the athlete may change single exercises, and the plan obeys the exercise flags only)
+CHECKIN_REGIONS = {
+    "legs": ["quads", "glutes", "hamstrings", "calves"],
+    "back": ["lats", "upper_back", "lower_back"],
+    "chest": ["chest"],
+    "arms": ["elbow_flexors", "triceps", "grip"],
+    "shoulders": ["shoulders"],
+}
+
+
+def body_map(catalog: dict) -> dict:
+    """What a body part touches: {"regions": {region: {code: target | helper}}, "joints": {joint: [codes]}} -
+    THE mapping behind the check-in's shortcuts (the page renders it, a test pins it). A region reaches an
+    exercise through a target muscle or, one step weaker, through a limiter; a joint through the catalog's joints."""
+    region_of = {m: r for r, ms in CHECKIN_REGIONS.items() for m in ms}
+    regions: dict = {r: {} for r in CHECKIN_REGIONS}
+    joints: dict = {}
+    for code, meta in (catalog or {}).items():
+        for m in meta.get("targets") or []:
+            if m in region_of:
+                regions[region_of[m]][str(code)] = "target"
+        for m in meta.get("limiters") or []:
+            if m in region_of:
+                regions[region_of[m]].setdefault(str(code), "helper")
+        for j in meta.get("joints") or []:
+            joints.setdefault(j, []).append(str(code))
+    return {"regions": regions, "joints": {j: sorted(c) for j, c in joints.items()}}
+
+
+def today_exercise_why(cfg: dict, catalog: dict) -> dict:
+    """{code: soreness | pain | checkin} - the reason behind a flag of today's check-in, read off the body parts
+    the athlete tapped (a sore region the exercise works, a painful joint it loads); else plain "checkin"."""
+    ck = (cfg or {}).get("checkin") or {}
+    sore = {r for r, l in (ck.get("soreness") or {}).items() if l in ("mild", "strong")}
+    pain = set(ck.get("pain") or [])
+    bm = body_map(catalog)
+    out = {}
+    for code in today_exercise_levels(cfg, catalog):
+        if any(code in bm["regions"].get(r, {}) for r in sore):
+            out[code] = "soreness"
+        elif any(code in bm["joints"].get(j, []) for j in pain):
+            out[code] = "pain"
+        else:
+            out[code] = "checkin"
+    return out
+
+
 def careful_of(cfg: dict, catalog: dict) -> list[str]:
     """Codes of the exercises the athlete set to "careful" for health reasons (same profile field as the
     exclusions, but these stay in the plan - sub-maximal, no target number)."""
@@ -395,11 +443,11 @@ def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: s
     moves it on for every muscle of a planned session, target or helper."""
     out = {}
     for m, v in ((load.get("recovery") or {}).get("muscles") or {}).items():
-        out[m] = {"ready_on": v["ready_on"], "last_target": None, "sore": v.get("sore")}
+        out[m] = {"ready_on": v["ready_on"], "last_target": None}
     for s in work:
         for m, role in _muscles(catalog.get(str(s["exercise"]), {}), s["exercise"], s["date"], aids).items():
             if role == "target":
-                cell = out.setdefault(m, {"ready_on": None, "last_target": None, "sore": None})
+                cell = out.setdefault(m, {"ready_on": None, "last_target": None})
                 cell["last_target"] = max(cell["last_target"] or "", s["date"][:10])
     for cell in out.values():
         cell["last_stim"] = cell["last_target"]
@@ -409,13 +457,13 @@ def muscle_state(load: dict, work: list[dict], catalog: dict, aids: dict, age: s
 def apply_session(state: dict, day: date, items: list[dict], age: str | None) -> dict:
     """The muscle state after a planned session: targets at the planned effort rank, limiters one
     rank lower (the same rule as the recovery model)."""
-    new = {m: dict(v, sore=None) for m, v in state.items()}
+    new = {m: dict(v) for m, v in state.items()}
     for it in items:
         rank = EFFORT_RANK.get(it["effort_target"]["label"], 2)
         for m, role in it["muscles"].items():
             r = rank if role == "target" else max(rank - 1, 1)
             ready = (day + timedelta(days=rest_days(r, age))).isoformat()
-            cell = new.setdefault(m, {"ready_on": None, "last_target": None, "last_stim": None, "sore": None})
+            cell = new.setdefault(m, {"ready_on": None, "last_target": None, "last_stim": None})
             cell["ready_on"] = max(cell["ready_on"] or "", ready)
             cell["last_stim"] = day.isoformat()    # a helper gets a training stimulus as well (see frequency_notes)
             if role == "target":
@@ -424,16 +472,14 @@ def apply_session(state: dict, day: date, items: list[dict], age: str | None) ->
 
 
 def exercise_status(c: dict, state: dict, day: date, today: date | None = None) -> tuple[str, list[str]]:
-    """ready | limited | not_ready on a given day (+ the muscles behind it). Mild soreness from
-    today's check-in limits today only."""
+    """ready | limited | not_ready on a given day (+ the muscles behind it). What today's check-in says
+    about single exercises is applied by score_candidates (v0.9.0: soreness is a shortcut to those flags)."""
     iso = day.isoformat()
     late = lambda m: (state.get(m, {}).get("ready_on") or "") > iso
     blocked = sorted(m for m, role in c["muscles"].items() if role == "target" and late(m))
     if blocked:
         return "not_ready", blocked
     limited = sorted(m for m, role in c["muscles"].items() if role == "limiter" and late(m))
-    if today is not None and day == today:
-        limited += sorted(m for m in _targets(c) if state.get(m, {}).get("sore") == "mild" and m not in limited)
     return ("limited", limited) if limited else ("ready", [])
 
 
@@ -569,8 +615,7 @@ def score_candidates(pool: list[dict], state: dict, day: date, focus: dict, spw:
         if ps == "progressing":
             why.append(item("sel_progress", {"change_spct": (c["progress"] or {}).get("change_pct")}, cfg))
         urgent = sorted(m for m in c["muscles"] if m in urgent_now)
-        sore = sorted(m for m in targets if today is not None and day == today and (state.get(m) or {}).get("sore") == "mild")
-        out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind, sore_muscles=sore,
+        out.append(dict(c, score=round(score, 3), base_score=round(score, 3), status=status, limited_by=behind,
                         urgent=urgent, urgent_weight=sum(URGENT_WEIGHT[c["muscles"][m]] for m in urgent),
                         why_selected=why, days_since_target=days_due, days_away=days_away, due_muscle=worst,
                         bench_rank=bench_rank.get(c["name"]) if can_bench else None))
@@ -832,16 +877,15 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     if c["restriction"] == "careful":
         out["target_rule"] = "sub_max_careful"
         # the athlete's own choice for THIS exercise (profile tile) - or a body part he marked as careful
-        code = ("plan_submax_careful_today" if c.get("careful_today")
-                else "plan_submax_careful_exercise" if c["name"] in (cfg.get("_careful_names") or ()) else "plan_submax_careful")
-        out["interp"] = item(code, {}, cfg)
+        if c.get("careful_today"):                 # today's check-in (v0.8.9) - with the body part behind it (v0.9.0)
+            out["interp"] = item("plan_submax_careful_today", {"why": (cfg.get("_today_why") or {}).get(c["code"], "checkin")}, cfg)
+        else:
+            code = "plan_submax_careful_exercise" if c["name"] in (cfg.get("_careful_names") or ()) else "plan_submax_careful"
+            out["interp"] = item(code, {}, cfg)
         return out
     if c["status"] == "limited":
         out["target_rule"] = "sub_max_limiter"
-        if c.get("sore_muscles"):                  # the check-in: mild soreness in a target muscle - today only
-            out["interp"] = item("plan_submax_sore", {"muscle": c["sore_muscles"][0]}, cfg)
-        else:
-            out["interp"] = item("plan_submax_limited", {"muscle": (c.get("limited_by") or [None])[0]}, cfg)
+        out["interp"] = item("plan_submax_limited", {"muscle": (c.get("limited_by") or [None])[0]}, cfg)
         return out
     if band == "light_or_rest":
         out["target_rule"], out["target_peak_kg"] = "light_day", round(base["kg"] * LIGHT_DAY_SHARE, 1)
@@ -943,10 +987,13 @@ def manual_groups(cfg: dict, work: list[dict]) -> list[str] | None:
 
 
 def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: dict, spw: int, size: int,
-                   today: date, only_groups: list[str] | None = None, comeback: bool = False) -> dict | None:
+                   today: date, only_groups: list[str] | None = None, comeback: bool = False,
+                   min_ex: int | None = None) -> dict | None:
     """What could be trained on that day (no order yet) + how complete that session would be.
     only_groups = the athlete's one-time choice for this session (beats the automatic theme);
-    comeback = first session after weeks away: back to the known exercises first, nothing new."""
+    comeback = first session after weeks away: back to the known exercises first, nothing new;
+    min_ex = a floor for the session size that replaces the usual minimum (today under the check-in's
+    limits: what the athlete left in is his session, even a single eased exercise - v0.9.0)."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
     theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg), cfg.get("_real_spw"))
     # no history yet: a first session. Judged on the HISTORY (cfg["_starter"], see build_plan) as well: an
@@ -955,9 +1002,10 @@ def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: d
     chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1))
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
-    # a day on which everything is only "limited" (mild soreness, a helper not fresh) is still a possible day - a
-    # sub-maximal one, worth half (fill) - not "no session": mild soreness must not act like strong soreness (v0.8.6)
-    if len(chosen) < min(MIN_READY_EXERCISES, max(1, usable)) or not chosen:
+    # a day on which everything is only "limited" (a helper not fresh) is still a possible day - a sub-maximal one,
+    # worth half (fill) - not "no session" (v0.8.6; since v0.9.0 the check-in's flags say what is eased or left out)
+    floor = min_ex if min_ex is not None else min(MIN_READY_EXERCISES, max(1, usable))
+    if len(chosen) < floor or not chosen:
         return None
     want = size if theme is None else min(size, max(MIN_READY_EXERCISES, sum(1 for c in pool if not c["new"] and c["group"] in theme)))
     fill = min(1.0, sum(1.0 if c["status"] == "ready" else 0.5 for c in chosen) / max(1, want))
@@ -1133,7 +1181,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     # read by split_factor via score_candidates / select_session; _starter = is there a history at all (not: a pool);
     # _external = muscles trained outside the ARX (arx_report sets it once for the findings too)
     cfg = dict(cfg, _real_spw=real_spw, _starter=len(exercises) < SESSION_MIN_EX, _external=list(external),
-               _today_exercises=today_exercise_levels(cfg, catalog))
+               _today_exercises=today_exercise_levels(cfg, catalog), _today_why=today_exercise_why(cfg, catalog))
     excluded = excluded_block(cfg, catalog)
     chosen_groups = manual_groups(cfg, work)       # "next session only these groups" - first session only
     pool = build_pool(exercises, work, catalog, cfg, today, progress, restriction_of)
@@ -1223,10 +1271,12 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             if not sel:
                 continue
             if limits and with_band and d == today:
-                lim = select_session(d, pool_, st8, cfg, focus, spw, size, today, groups_, comeback=comeback)
-                if not lim:                        # nothing is left for today - then today is really no option
+                # what the athlete left in is his session for today, even one eased exercise ("Belt Squat anyway");
+                # a fuller day later is named by fuller_option. Nothing left -> today is really no option
+                lim = select_session(d, pool_, st8, cfg, focus, spw, size, today, groups_, comeback=comeback, min_ex=1)
+                if not lim:
                     continue
-                sel = dict(lim, fill=sel["fill"])
+                sel = dict(lim, fill=sel["fill"], fill_limited=lim["fill"])
             gap = (d - prev).days if prev else None
             off = max(0.0, abs(gap - ideal_gap) - CADENCE_FREE_DAYS) / ideal_gap if gap is not None else 0.0
             missing = spw - counts.get(d.isocalendar()[:2], 0)     # sessions the week of d still needs
@@ -1312,7 +1362,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         why.append(item("date_week_last_chance", {"spw": spw, "done": wk_done}, cfg))
     if best["habit"]:
         why.append(item("date_habit", {"weekday": d1.weekday()}, cfg))
-    fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best["fill"] + 0.25), None)
+    fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best.get("fill_limited", best["fill"]) + 0.25), None)
     if fuller:
         session["fuller_option"] = item("date_fuller_later", {"later_date": fuller["date"].isoformat(), "k": len(fuller["chosen"]),
                                                               "k_now": len(best["chosen"])}, cfg)
