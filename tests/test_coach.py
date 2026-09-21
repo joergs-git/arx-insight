@@ -106,7 +106,11 @@ class Payload(unittest.TestCase):
                                                                   {"exercise": "Dead Lift", "reason": "not_wanted"},
                                                                   {"exercise": "Horizontal Press", "reason": "health_not_possible"}])
         self.assertIn("health_not_possible", ai.system_prompt("board")[0]["text"])
-        self.assertGreaterEqual(ai.PROMPT_VERSION, 8)
+        self.assertGreaterEqual(ai.PROMPT_VERSION, 9)
+        care = ai.build_payload(*make(excluded_exercises={"23": "careful"}))
+        self.assertEqual(care["profile"]["exercises_with_care"], ["Horizontal Press"])
+        self.assertEqual(care["profile"]["exercises_switched_off"], [])
+        self.assertIn("exercises_with_care", ai.system_prompt("board")[0]["text"])
         self.assertEqual(p["profile"]["muscles_trained_elsewhere"], ["elbow_flexors"])
         offered = {c["exercise"] for d in p["planner"]["decision_space"]["dates"] for c in d["candidates"]}
         self.assertFalse(offered & {"Biceps Curl", "Dead Lift"})                       # not in the decision space ...

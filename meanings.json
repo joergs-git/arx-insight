@@ -1359,5 +1359,15 @@
    "en": "Nothing pushes you into it; the other exercises cover the muscles where they can. Switch it back on in the profile once it is possible again - and if the exercise appears in your sets anyway, the report says so.",
    "de": "Nichts drängt dich dorthin; die anderen Übungen decken die Muskeln ab, wo sie es können. Schalte sie im Profil wieder ein, sobald es wieder geht - und taucht die Übung trotzdem in deinen Sätzen auf, sagt der Report das."
   }
+ },
+ "plan_submax_careful_exercise": {
+  "meaning": {
+   "en": "You set this exercise to 'careful' for health reasons - it stays in the plan, but not at the limit.",
+   "de": "Diese Übung hast du aus gesundheitlichen Gründen auf 'vorsichtig' gesetzt - sie bleibt im Plan, aber nicht bis ans Limit."
+  },
+  "action": {
+   "en": "Sub-maximal and smooth, no target number, no all-out eccentric - movement helps a recovering joint, the maximal set does not. Stop at any pain; back to 'in the plan' in the profile once it is fully possible again.",
+   "de": "Submaximal und ruhig, keine Zielzahl, keine Exzentrik bis ans Limit - Bewegung hilft einem Gelenk in Erholung, der Maximalsatz nicht. Bei Schmerz aufhören; im Profil zurück auf 'im Plan', sobald es wieder voll geht."
+  }
  }
 }
