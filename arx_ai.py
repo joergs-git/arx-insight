@@ -40,7 +40,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 15
+PROMPT_VERSION = 16
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -194,6 +194,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
                     "rest_before_min": x.get("rest_before_min"), "peak": F(x["max_kg"]), "concentric_top3": F(x.get("con_top3_kg")),
                     "eccentric_top3": F(x.get("ecc_top3_kg")), "inroad_pct": x.get("inroad"), "effort": x.get("effort"),
                     "repeat_now": x.get("repeat_now"),           # below the goal's target and not repeated properly in this visit (v0.11.0)
+                    # contract modes-1: movement/ending(/phase), the Output of the set and the machine's own inroad scale
+                    "mode": f"{x.get('movement', 'dynamic')}/{x.get('ending', 'reps')}" + (f"/{x.get('phase')}" if x.get("phase") in ("negative", "positive") else ""),
+                    "output_kg_s": x.get("output_kg_s"), "inroad_machine_pct": x.get("inroad_machine"),
                     "effort_capped": x.get("effort_capped"), "fatigue_concentric_pct": x.get("fatigue_con_pct"),
                     "fatigue_eccentric_pct": x.get("fatigue_ecc_pct"), "best_rep": x.get("best_rep"),
                     "pacing_deficit_pct": x.get("pacing_deficit_pct"), "reps": x.get("reps"), "seconds": x.get("seconds"),
@@ -318,7 +321,9 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
             # columnar series: one entry per training day (best set of the day)
             "series": {"date": [o["date"] for o in pts], "peak": [F(o["kg"]) for o in pts], "concentric": [F(o.get("con_top3_kg")) for o in pts],
                        "eccentric": [F(o.get("ecc_top3_kg")) for o in pts], "inroad_pct": [o.get("inroad") for o in pts],
-                       "context": [o.get("context") for o in pts], "comparable": [bool(o.get("comparable")) for o in pts]},
+                       "context": [o.get("context") for o in pts], "comparable": [bool(o.get("comparable")) for o in pts],
+                       "mode": [f"{o.get('movement', 'dynamic')}/{o.get('ending', 'reps')}" for o in pts], "output_kg_s": [o.get("output_kg_s") for o in pts]},
+            "modes_seen": e.get("modes_seen"), "output_delta_pct": e.get("output_delta_pct"),
         })
     win = hist.get("windows") or {}
     weeks = [{"week": w["label"], "start": w["start"], "partial": w["partial"], "sessions": w["sessions"], "working_sets": w["working_sets"],
@@ -439,7 +444,7 @@ BOARD_RULES = """YOUR TASK: fill the board - one JSON object in the given schema
 last_session: headline (max 90 characters, the one thing that defines the session) - meaning (what it means for this athlete) - consequence (what follows concretely) - verdicts: one per exercise of last_session in the order performed; rating better / same / worse only when vs_previous.same_settings is true, else not_comparable (or first); note max 140 characters with the decisive number (prefer concentric / eccentric strength and the run of the reps over the raw peak) - bullets: 2 to 4 observations a human trainer would have missed (order effects, a phase that gives up early, pacing, rests, settings drift, plan vs actual), each with its number. If there is no last session write that there is no session yet and keep the lists empty.
 
 next_training: readiness (one sentence: check-in verdict or "no check-in", what is recovered) - date and why_date - rows - rest_note - grip_note (helper muscles / aids; empty string when nothing is worth saying) - week_outlook (one or two sentences) - changes_vs_previous (what differs from previous_recommendations and why; empty list when nothing).
-VOCABULARY: the within-set force decline (inroad_pct) is called "fatigue in the set" / "Ermüdung im Satz" to the athlete - levels deep / medium / light ("tief / mittel / leicht"); the goal's minimum is the "fatigue target" / "Ermüdungsziel". Never say "inroad" or "Kraftabfall" to the athlete; a set below the target is "a real load, but half the stimulus", never "no stimulus".
+VOCABULARY: a set's mode is movement/ending (dynamic or static hold; ended by reps, by the clock = "Countdown", by the machine's inroad rule = "Inroad-Modus", or unknown) plus a phase when only one direction carried work (negative-only / positive-only); "Output" is the impulse of a set and the progress figure of timed sets ("beat your gray line"); inroad_machine_pct is the machine's OWN inroad scale (best rep peak to last rep peak, what its Inroad Mode uses) - call it "Maschinen-Inroad" / "machine inroad" and never confuse it with the fatigue in the set. A hold or a single-phase set is never compared with a dynamic both-phase set. The within-set force decline (inroad_pct) is called "fatigue in the set" / "Ermüdung im Satz" to the athlete - levels deep / medium / light ("tief / mittel / leicht"); the goal's minimum is the "fatigue target" / "Ermüdungsziel". Never say "inroad" or "Kraftabfall" to the athlete; a set below the target is "a real load, but half the stimulus", never "no stimulus".
 THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. why of an UNCHANGED row = one sentence why the row stays as it is (what it measures or does now) - never a filler word such as "Platzhalter" or "placeholder". You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
 
 history: four_weeks (what the last weeks show: sessions against the target, hard sets, strength index, effort hit rate - with numbers) - longer_term (quarter / year; empty string while history.availability says these views are not available) - kpi_notes: for the 2 to 5 exercises where it matters, what the progress status means and what follows - anomalies: the findings that deserve attention, each with its ref from history.findings, the meaning and the action.

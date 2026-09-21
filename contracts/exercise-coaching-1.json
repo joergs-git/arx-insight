@@ -1,0 +1,688 @@
+{
+ "contract": "exercise-coaching",
+ "version": 1,
+ "owner": "arx-free",
+ "_comment": [
+  "How an exercise is done on the ARX Omni: start, path, end, two to four cues by phase (C = concentric, E = eccentric, any) and the safety points -",
+  "German and English, our own wording (facts checked in arx-free docs/coaching-knowledge.md; the manufacturer's text is not quoted).",
+  "start / end describe the machine's START and END position of the exercise (the way the setup screen and the recorded sets have it).",
+  "A safety point with \"level\": \"warning\" is shown as a red band wherever the exercise is set up; the others are lines of the card.",
+  "ONE file for both products: written in arx-free, where it is shown at the machine; ARX Insight carries an identical copy for its plan rows",
+  "(contracts/README.md). Keys = the exercise codes of the catalogue. A change = a new version here first."
+ ],
+ "exercises": {
+  "3": {
+   "name": "Row",
+   "start": {
+    "en": "Arms long with a slight stretch, feet on the pegs, knees soft, chest tall.",
+    "de": "Arme lang mit leichter Dehnung, Füße auf den Stützen, Knie locker, Brust aufrecht."
+   },
+   "path": {
+    "en": "Pull the elbows back and down, close to the body. The torso stays still.",
+    "de": "Ellbogen nach hinten-unten ziehen, nah am Körper. Der Oberkörper bleibt ruhig."
+   },
+   "end": {
+    "en": "Hands at the torso, shoulder blades together.",
+    "de": "Hände am Rumpf, Schulterblätter zusammen."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Tall chest, shoulders away from the ears.",
+     "de": "Brust raus, Schultern weg von den Ohren."
+    },
+    {
+     "phase": "C",
+     "en": "Drive the elbows back!",
+     "de": "Ellbogen nach hinten!"
+    },
+    {
+     "phase": "E",
+     "en": "Do not let it pull you forward.",
+     "de": "Lass dich nicht nach vorn ziehen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Do not round the lower back when the arms are long.",
+     "de": "Unteren Rücken nicht rund machen, wenn die Arme lang sind."
+    }
+   ]
+  },
+  "4": {
+   "name": "Pull Down",
+   "start": {
+    "en": "Seat belt closed. The set begins at the bottom: upper arms almost in line with the torso, elbows near the stomach.",
+    "de": "Gurt geschlossen. Der Satz beginnt unten: Oberarme fast in Linie mit dem Rumpf, Ellbogen nahe am Bauch."
+   },
+   "path": {
+    "en": "Let the bar rise under control, then pull the elbows down and slightly out. Broad chest, shoulders down, head off the pad.",
+    "de": "Die Stange kontrolliert steigen lassen, dann die Ellbogen nach unten und leicht außen ziehen. Breite Brust, Schultern tief, der Kopf liegt nicht auf."
+   },
+   "end": {
+    "en": "The top is where a light stretch BEGINS - not further.",
+    "de": "Oben ist dort, wo eine leichte Dehnung BEGINNT - nicht weiter."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Broad chest, shoulders down.",
+     "de": "Breite Brust, Schultern tief."
+    },
+    {
+     "phase": "C",
+     "en": "Elbows to the hips!",
+     "de": "Ellbogen zur Hüfte!"
+    },
+    {
+     "phase": "E",
+     "en": "Brake the bar on its way up.",
+     "de": "Brems die Stange auf dem Weg nach oben."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Stop where the stretch begins - the motor is stronger than your shoulder.",
+     "de": "Stopp, wo die Dehnung beginnt - der Motor ist stärker als deine Schulter."
+    },
+    {
+     "en": "Buckle the seat belt before the set.",
+     "de": "Vor dem Satz den Gurt schließen."
+    }
+   ]
+  },
+  "5": {
+   "name": "Overhead Press",
+   "start": {
+    "en": "Upper arms point down and out at about 45 degrees, hands near the shoulders, in front of the head.",
+    "de": "Oberarme zeigen etwa 45 Grad nach unten-außen, Hände nahe den Schultern, vor dem Kopf."
+   },
+   "path": {
+    "en": "Press up and slightly forward. The hands stay in front of the face, never behind the head.",
+    "de": "Nach oben und leicht nach vorn drücken. Die Hände bleiben vor dem Gesicht, nie hinter dem Kopf."
+   },
+   "end": {
+    "en": "Arms almost long overhead.",
+    "de": "Arme fast lang über dem Kopf."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Neck long, face relaxed.",
+     "de": "Nacken lang, Gesicht locker."
+    },
+    {
+     "phase": "C",
+     "en": "Press to the ceiling!",
+     "de": "Zur Decke drücken!"
+    },
+    {
+     "phase": "E",
+     "en": "Resist all the way down, abs tight.",
+     "de": "Den ganzen Weg nach unten bremsen, Bauch fest."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Elbows are never locked at the end of the press.",
+     "de": "Ellbogen am Ende des Drückens nie durchstrecken."
+    }
+   ]
+  },
+  "10": {
+   "name": "Dead Lift",
+   "start": {
+    "en": "Standing tall over the platform pulley, knees slightly bent, arms long, back flat.",
+    "de": "Aufrecht über der Plattform-Rolle, Knie leicht gebeugt, Arme lang, Rücken gerade."
+   },
+   "path": {
+    "en": "Down first: hips back, back flat, handles close to the legs. Up: drive through the heels, hips forward.",
+    "de": "Zuerst nach unten: Hüfte nach hinten, Rücken gerade, Griffe nah an den Beinen. Nach oben: über die Fersen drücken, Hüfte nach vorn."
+   },
+   "end": {
+    "en": "Bent over - only as deep as the back stays flat.",
+    "de": "Vorgebeugt - nur so tief, wie der Rücken gerade bleibt."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Flat back, neck neutral.",
+     "de": "Rücken gerade, Nacken neutral."
+    },
+    {
+     "phase": "C",
+     "en": "Through the heels, hips forward!",
+     "de": "Über die Fersen, Hüfte nach vorn!"
+    },
+    {
+     "phase": "E",
+     "en": "Hips back - resist through the heels.",
+     "de": "Hüfte nach hinten - über die Fersen bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Never round the back under load.",
+     "de": "Den Rücken unter Last nie rund machen."
+    },
+    {
+     "en": "Knees stay soft - never locked.",
+     "de": "Knie bleiben locker - nie durchgestreckt."
+    }
+   ]
+  },
+  "11": {
+   "name": "Biceps Curl",
+   "start": {
+    "en": "Standing tall, arms long, palms forward, elbows at the sides.",
+    "de": "Aufrecht stehen, Arme lang, Handflächen nach vorn, Ellbogen an den Seiten."
+   },
+   "path": {
+    "en": "Curl the hands up. The elbows stay where they are, the torso does not swing.",
+    "de": "Die Hände nach oben beugen. Die Ellbogen bleiben, wo sie sind, der Oberkörper schwingt nicht."
+   },
+   "end": {
+    "en": "Hands at about chest height.",
+    "de": "Hände etwa auf Brusthöhe."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Elbows glued to your sides.",
+     "de": "Ellbogen kleben an den Seiten."
+    },
+    {
+     "phase": "C",
+     "en": "Palms to the ceiling!",
+     "de": "Handflächen zur Decke!"
+    },
+    {
+     "phase": "E",
+     "en": "Fight it all the way down.",
+     "de": "Wehr dich auf dem ganzen Weg nach unten."
+    }
+   ],
+   "safety": [
+    {
+     "en": "No leaning back to help.",
+     "de": "Nicht nach hinten lehnen, um zu helfen."
+    }
+   ]
+  },
+  "12": {
+   "name": "Triceps Pressdown",
+   "start": {
+    "en": "Facing the seat, elbows bent a little more than 90 degrees, hands near the chest.",
+    "de": "Blick zum Sitz, Ellbogen etwas mehr als 90 Grad gebeugt, Hände nahe der Brust."
+   },
+   "path": {
+    "en": "Press the hands down and slightly back. Elbows tight at the sides, torso still.",
+    "de": "Die Hände nach unten und leicht nach hinten drücken. Ellbogen eng am Körper, Oberkörper ruhig."
+   },
+   "end": {
+    "en": "Hands just below the waist.",
+    "de": "Hände knapp unter der Hüfte."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Elbows tight to the body.",
+     "de": "Ellbogen eng am Körper."
+    },
+    {
+     "phase": "C",
+     "en": "Hands to the floor!",
+     "de": "Hände zum Boden!"
+    },
+    {
+     "phase": "E",
+     "en": "Brake the way up.",
+     "de": "Den Weg nach oben bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Both upper cables on ONE carabiner - never pull on a single cable.",
+     "de": "Beide oberen Seile an EINEM Karabiner - nie an einem einzelnen Seil ziehen.",
+     "level": "warning"
+    }
+   ]
+  },
+  "13": {
+   "name": "Shrugs",
+   "start": {
+    "en": "Standing tall, arms long, shoulders fully lowered.",
+    "de": "Aufrecht stehen, Arme lang, Schultern ganz unten."
+   },
+   "path": {
+    "en": "Lift the shoulders straight up and slightly back. The arms stay long.",
+    "de": "Die Schultern gerade nach oben und leicht nach hinten heben. Die Arme bleiben lang."
+   },
+   "end": {
+    "en": "Shoulders as high as they go.",
+    "de": "Schultern so hoch es geht."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Your arms are just hooks.",
+     "de": "Deine Arme sind nur Haken."
+    },
+    {
+     "phase": "C",
+     "en": "Shoulders to the ears!",
+     "de": "Schultern zu den Ohren!"
+    },
+    {
+     "phase": "E",
+     "en": "Let them down slowly.",
+     "de": "Langsam wieder ablassen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Do not roll the shoulders; the chin stays level.",
+     "de": "Die Schultern nicht kreisen; das Kinn bleibt gerade."
+    }
+   ]
+  },
+  "14": {
+   "name": "Calf Raise",
+   "start": {
+    "en": "Belt low on the hips, torso bent forward, hands on the stability bar, feet flat, legs straight.",
+    "de": "Gurt tief auf der Hüfte, Oberkörper vorgebeugt, Hände an der Haltestange, Füße flach, Beine gestreckt."
+   },
+   "path": {
+    "en": "Rise onto the balls of the feet as high as you can, come down under control.",
+    "de": "So hoch wie möglich auf die Fußballen, kontrolliert wieder herunter."
+   },
+   "end": {
+    "en": "Heels back on the platform (on a block: slightly below the forefoot).",
+    "de": "Fersen wieder auf der Plattform (auf einem Block: etwas tiefer als der Vorfuß)."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Lean on the bar, weight over the toes.",
+     "de": "An die Stange lehnen, Gewicht über den Zehen."
+    },
+    {
+     "phase": "C",
+     "en": "Up onto your toes!",
+     "de": "Hoch auf die Zehen!"
+    },
+    {
+     "phase": "E",
+     "en": "Heels down slowly.",
+     "de": "Fersen langsam ab."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Legs straight, but the knees never pushed back into the lock.",
+     "de": "Beine gestreckt, aber die Knie nie nach hinten durchgedrückt."
+    },
+    {
+     "en": "Hold on to the stability bar - balance comes first.",
+     "de": "An der Haltestange festhalten - Gleichgewicht geht vor."
+    }
+   ]
+  },
+  "19": {
+   "name": "Belt Squat",
+   "start": {
+    "en": "Belt on the hip bones, not on the lower back. Standing tall, arms long on the stability bar, knees slightly bent.",
+    "de": "Gurt auf den Hüftknochen, nicht auf dem unteren Rücken. Aufrecht, Arme lang an der Haltestange, Knie leicht gebeugt."
+   },
+   "path": {
+    "en": "Down first: hips back and down as if sitting on a chair, chest up, shins as vertical as possible. Up: through the heels.",
+    "de": "Zuerst nach unten: Hüfte nach hinten-unten wie auf einen Stuhl, Brust oben, Schienbeine möglichst senkrecht. Nach oben: über die Fersen."
+   },
+   "end": {
+    "en": "Stop before the thighs are horizontal.",
+    "de": "Stopp, bevor die Oberschenkel waagerecht sind."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Chest proud, arms long.",
+     "de": "Brust stolz, Arme lang."
+    },
+    {
+     "phase": "C",
+     "en": "Through the heels, chest up and forward!",
+     "de": "Über die Fersen, Brust hoch und nach vorn!"
+    },
+    {
+     "phase": "E",
+     "en": "Sit back - resist through the heels.",
+     "de": "Nach hinten setzen - über die Fersen bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "NEVER lock the knees under load.",
+     "de": "Die Knie unter Last NIE durchstrecken.",
+     "level": "warning"
+    },
+    {
+     "en": "Set the top position while pressing hard - pads and body give way, and a safe-looking top can end in locked knees.",
+     "de": "Die obere Position unter vollem Druck einstellen - Polster und Körper geben nach, und ein sicher wirkendes Oben kann in durchgestreckten Knien enden.",
+     "level": "warning"
+    }
+   ]
+  },
+  "20": {
+   "name": "Romanian Dead Lift",
+   "start": {
+    "en": "Standing tall, knees slightly bent and fixed at that angle, arms long.",
+    "de": "Aufrecht, Knie leicht gebeugt und in diesem Winkel fixiert, Arme lang."
+   },
+   "path": {
+    "en": "Down first: push the hips back, the torso tips forward with a flat back, handles close to the legs. Up: hips forward.",
+    "de": "Zuerst nach unten: Hüfte nach hinten schieben, der Oberkörper kippt mit geradem Rücken nach vorn, Griffe nah an den Beinen. Nach oben: Hüfte nach vorn."
+   },
+   "end": {
+    "en": "As deep as the back stays flat.",
+    "de": "So tief, wie der Rücken gerade bleibt."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Soft knees, flat back.",
+     "de": "Knie locker, Rücken gerade."
+    },
+    {
+     "phase": "C",
+     "en": "Hips forward!",
+     "de": "Hüfte nach vorn!"
+    },
+    {
+     "phase": "E",
+     "en": "Hips back towards the seat.",
+     "de": "Hüfte nach hinten zum Sitz."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Do not round the spine.",
+     "de": "Die Wirbelsäule nicht rund machen."
+    },
+    {
+     "en": "The knees stay slightly bent - never locked.",
+     "de": "Die Knie bleiben leicht gebeugt - nie durchgestreckt."
+    }
+   ]
+  },
+  "23": {
+   "name": "Horizontal Press",
+   "start": {
+    "en": "Back against the seat, elbows level with or slightly behind the torso, hands at chest height.",
+    "de": "Rücken am Sitz, Ellbogen auf Höhe des Rumpfes oder leicht dahinter, Hände auf Brusthöhe."
+   },
+   "path": {
+    "en": "Press forward and slightly together through the palms. The back stays on the seat.",
+    "de": "Über die Handflächen nach vorn und leicht zusammen drücken. Der Rücken bleibt am Sitz."
+   },
+   "end": {
+    "en": "Arms almost long, hands close together at about chin height.",
+    "de": "Arme fast lang, Hände nah beieinander etwa auf Kinnhöhe."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Tall chest, shoulders down.",
+     "de": "Brust aufrecht, Schultern tief."
+    },
+    {
+     "phase": "C",
+     "en": "Through the palms, hands together!",
+     "de": "Durch die Handflächen, Hände zusammen!"
+    },
+    {
+     "phase": "E",
+     "en": "Elbows up, in line with the hands - resist.",
+     "de": "Ellbogen hoch, in Linie mit den Händen - bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Elbows are never locked at the end of the press.",
+     "de": "Ellbogen am Ende des Drückens nie durchstrecken."
+    },
+    {
+     "en": "The shoulders stay on the seat - do not reach after the handles.",
+     "de": "Die Schultern bleiben am Sitz - den Griffen nicht nachgreifen."
+    }
+   ]
+  },
+  "25": {
+   "name": "Incline Press",
+   "start": {
+    "en": "Elbows level with or slightly behind the torso, upper arms about 45 degrees down from the shoulder, hands at chest height.",
+    "de": "Ellbogen auf Höhe des Rumpfes oder leicht dahinter, Oberarme etwa 45 Grad unter der Schulter, Hände auf Brusthöhe."
+   },
+   "path": {
+    "en": "Press forward, up and together. The back stays on the seat.",
+    "de": "Nach vorn, oben und zusammen drücken. Der Rücken bleibt am Sitz."
+   },
+   "end": {
+    "en": "Arms almost long, hands close together at about forehead height.",
+    "de": "Arme fast lang, Hände nah beieinander etwa auf Stirnhöhe."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Tall chest, shoulders away from the ears.",
+     "de": "Brust aufrecht, Schultern weg von den Ohren."
+    },
+    {
+     "phase": "C",
+     "en": "Forward and up!",
+     "de": "Nach vorn und oben!"
+    },
+    {
+     "phase": "E",
+     "en": "Elbows up, wrists over elbows - resist.",
+     "de": "Ellbogen hoch, Handgelenke über den Ellbogen - bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Elbows are never locked at the end of the press.",
+     "de": "Ellbogen am Ende des Drückens nie durchstrecken."
+    }
+   ]
+  },
+  "26": {
+   "name": "Decline Press",
+   "start": {
+    "en": "Elbows level with or slightly behind the torso - a slight stretch, hands at chest height.",
+    "de": "Ellbogen auf Höhe des Rumpfes oder leicht dahinter - eine leichte Dehnung, Hände auf Brusthöhe."
+   },
+   "path": {
+    "en": "Press forward, down and together. The back stays on the seat.",
+    "de": "Nach vorn, unten und zusammen drücken. Der Rücken bleibt am Sitz."
+   },
+   "end": {
+    "en": "Arms almost long, hands close together at about navel height.",
+    "de": "Arme fast lang, Hände nah beieinander etwa auf Nabelhöhe."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Do not shrug - face and neck relaxed.",
+     "de": "Schultern nicht hochziehen - Gesicht und Nacken locker."
+    },
+    {
+     "phase": "C",
+     "en": "Forward and down!",
+     "de": "Nach vorn und unten!"
+    },
+    {
+     "phase": "E",
+     "en": "Elbows up - resist.",
+     "de": "Ellbogen hoch - bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Elbows are never locked at the end of the press.",
+     "de": "Ellbogen am Ende des Drückens nie durchstrecken."
+    }
+   ]
+  },
+  "31": {
+   "name": "Pull Over",
+   "start": {
+    "en": "Leaning back, upper arms in the straps, shoulders back and down. The set begins at the bottom: elbows almost level with the torso.",
+    "de": "Zurückgelehnt, Oberarme in den Schlaufen, Schultern hinten-unten. Der Satz beginnt unten: Ellbogen fast auf Höhe des Rumpfes."
+   },
+   "path": {
+    "en": "Let the upper arms rise in an arc over the head under control, then pull them back down in the same arc.",
+    "de": "Die Oberarme kontrolliert im Bogen über den Kopf steigen lassen, dann im selben Bogen wieder herunterziehen."
+   },
+   "end": {
+    "en": "Overhead only to a light stretch.",
+    "de": "Über Kopf nur bis zu einer leichten Dehnung."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Ribs down, abs tight.",
+     "de": "Rippen unten, Bauch fest."
+    },
+    {
+     "phase": "C",
+     "en": "Pull with the elbows, not the hands!",
+     "de": "Mit den Ellbogen ziehen, nicht mit den Händen!"
+    },
+    {
+     "phase": "E",
+     "en": "Slow the arc on its way up.",
+     "de": "Den Bogen nach oben bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Stop where the stretch begins - the motor is stronger than your shoulder.",
+     "de": "Stopp, wo die Dehnung beginnt - der Motor ist stärker als deine Schulter."
+    }
+   ]
+  },
+  "41": {
+   "name": "High Pull",
+   "start": {
+    "en": "Standing tall, arms almost long, hands in front of the hips.",
+    "de": "Aufrecht stehen, Arme fast lang, Hände vor der Hüfte."
+   },
+   "path": {
+    "en": "Pull the elbows up and out. The hands stay close to the body.",
+    "de": "Die Ellbogen nach oben-außen ziehen. Die Hände bleiben nah am Körper."
+   },
+   "end": {
+    "en": "Hands at lower chest height - the elbows not higher than the shoulders.",
+    "de": "Hände auf Höhe der unteren Brust - die Ellbogen nicht höher als die Schultern."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Chest tall, neck relaxed.",
+     "de": "Brust aufrecht, Nacken locker."
+    },
+    {
+     "phase": "C",
+     "en": "Elbows lead, hands follow!",
+     "de": "Ellbogen führen, Hände folgen!"
+    },
+    {
+     "phase": "E",
+     "en": "Lower it slowly, shoulders stay back.",
+     "de": "Langsam ablassen, Schultern bleiben hinten."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Elbows never above shoulder height - that pinches the shoulder.",
+     "de": "Ellbogen nie über Schulterhöhe - das klemmt die Schulter ein."
+    }
+   ]
+  },
+  "42": {
+   "name": "Pec Fly",
+   "start": {
+    "en": "Back on the seat, arms wide at chest height, elbows slightly bent.",
+    "de": "Rücken am Sitz, Arme weit auf Brusthöhe, Ellbogen leicht gebeugt."
+   },
+   "path": {
+    "en": "Bring the arms together in a wide arc as if hugging a barrel. The elbows keep their bend.",
+    "de": "Die Arme in weitem Bogen zusammenführen, als würdest du ein Fass umarmen. Die Ellbogen behalten ihre Beugung."
+   },
+   "end": {
+    "en": "Hands close together in front of the chest.",
+    "de": "Hände nah beieinander vor der Brust."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "The elbows keep their bend.",
+     "de": "Die Ellbogen behalten ihre Beugung."
+    },
+    {
+     "phase": "C",
+     "en": "Hug the barrel!",
+     "de": "Umarm das Fass!"
+    },
+    {
+     "phase": "E",
+     "en": "Open slowly - only to a light stretch.",
+     "de": "Langsam öffnen - nur bis zu einer leichten Dehnung."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Do not let the arms be pulled far behind the torso.",
+     "de": "Die Arme nicht weit hinter den Rumpf ziehen lassen."
+    }
+   ]
+  },
+  "43": {
+   "name": "Hamstring Curl",
+   "start": {
+    "en": "One leg at a time. Facing the seat back: knee and hip of the working leg pressed into the pad, hands on the cross arms, leg almost straight.",
+    "de": "Ein Bein nach dem anderen. Blick zur Rückenlehne: Knie und Hüfte des Arbeitsbeins ins Polster gedrückt, Hände an den Armen der Maschine, Bein fast gestreckt."
+   },
+   "path": {
+    "en": "Curl the heel towards the glutes. The knee stays on the pad.",
+    "de": "Die Ferse zum Gesäß beugen. Das Knie bleibt am Polster."
+   },
+   "end": {
+    "en": "Heel as high as it goes.",
+    "de": "Ferse so hoch es geht."
+   },
+   "cues": [
+    {
+     "phase": "any",
+     "en": "Knee into the pad, hips tight to the machine.",
+     "de": "Knie ins Polster, Hüfte eng an die Maschine."
+    },
+    {
+     "phase": "C",
+     "en": "Heel to the glutes!",
+     "de": "Ferse zum Gesäß!"
+    },
+    {
+     "phase": "E",
+     "en": "Hold the tension at the top, then brake.",
+     "de": "Oben die Spannung halten, dann bremsen."
+    }
+   ],
+   "safety": [
+    {
+     "en": "Cuff ring at the front of the ankle; train both sides.",
+     "de": "Ring der Manschette vorn am Knöchel; beide Seiten trainieren."
+    }
+   ]
+  }
+ }
+}

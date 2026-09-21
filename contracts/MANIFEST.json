@@ -31,6 +31,24 @@
    "files": {
     "vocabulary-1.md": "67b3ff5f752e437c18a90aeeba5a214946b8bec3f921943ac6156c0c08cdb6d1"
    }
+  },
+  {
+   "name": "modes",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "a set's mode (movement x ending x phase), Output and the machine's own inroad scale - definitions and field names",
+   "files": {
+    "modes-1.md": "49455a1c107887019963217020af019fa2d9751124a1a8cd8056e4df9a0be4fe"
+   }
+  },
+  {
+   "name": "exercise-coaching",
+   "version": 1,
+   "owner": "arx-free",
+   "what": "how an exercise is done on the machine - start, path, end, cues by phase, safety points (German + English)",
+   "files": {
+    "exercise-coaching-1.json": "908de20f7e9fdae9023bbffe458534183f593449c6cd1cd03b331563da009a1d"
+   }
   }
  ]
 }
