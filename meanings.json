@@ -46,8 +46,8 @@
    "de": "Plateau: innerhalb {change_spct} auf {n} vergleichbaren Tagen über {span_days} Tage."
   },
   "action": {
-   "en": "Change one stimulus, not everything: a deeper effort target, a slower tempo or a longer hold - and give the muscle its full rest.",
-   "de": "Einen Reiz ändern, nicht alles: tiefere Ausbelastung, langsameres Tempo oder längeres Halten - und dem Muskel die volle Erholung geben."
+   "en": "Change one stimulus, not everything: deeper fatigue in the set, a slower tempo or a longer hold - and give the muscle its full rest.",
+   "de": "Einen Reiz ändern, nicht alles: tiefere Ermüdung im Satz, langsameres Tempo oder längeres Halten - und dem Muskel die volle Erholung geben."
   }
  },
  "progress_plateau_context": {
@@ -56,8 +56,8 @@
    "de": "Plateau auf {n} vergleichbaren Tagen; der neueste, niedrigere Wert ({drop_spct}) wurde vorermüdet an Position {position} gemessen."
   },
   "action": {
-   "en": "Test it fresh once, then change one stimulus (effort target, tempo or hold).",
-   "de": "Einmal frisch testen, dann einen Reiz ändern (Ausbelastung, Tempo oder Halten)."
+   "en": "Test it fresh once, then change one stimulus (fatigue in the set, tempo or hold).",
+   "de": "Einmal frisch testen, dann einen Reiz ändern (Ermüdung im Satz, Tempo oder Halten)."
   }
  },
  "progress_regressing": {
@@ -212,7 +212,7 @@
  },
  "finding_unsteady_force": {
   "meaning": {
-   "en": "Unusually unsteady: {drops} sudden force drops within phases (typical for this exercise: {usual}).",
+   "en": "Unusually unsteady: {drops} sudden fatigue in the sets within phases (typical for this exercise: {usual}).",
    "de": "Ungewöhnlich unruhig: {drops} plötzliche Kraftabfälle innerhalb der Phasen (üblich bei dieser Übung: {usual})."
   },
   "action": {
@@ -282,8 +282,8 @@
  },
  "finding_effort_target_missed": {
   "meaning": {
-   "en": "Only {hits} of {sets} sets in the last 4 weeks reached your effort target ({target_pct} force decline).",
-   "de": "Nur {hits} von {sets} Sätzen der letzten 4 Wochen erreichten dein Ausbelastungsziel ({target_pct} Kraftabfall)."
+   "en": "Only {hits} of {sets} sets in the last 4 weeks reached your effort target ({target_pct} fatigue in the set).",
+   "de": "Nur {hits} von {sets} Sätzen der letzten 4 Wochen erreichten dein Ermüdungsziel ({target_pct} Ermüdung im Satz)."
   },
   "action": {
    "en": "This is the biggest lever: stay in the set until force clearly falls.",
@@ -492,8 +492,8 @@
  },
  "plan_step": {
   "meaning": {
-   "en": "Progressing on {n} comparable days and the last set was taken to real fatigue ({last_pct} drop).",
-   "de": "Fortschritt auf {n} vergleichbaren Tagen und der letzte Satz ging bis in echte Ermüdung ({last_pct} Abfall)."
+   "en": "Progressing on {n} comparable days and the last set was taken to real fatigue ({last_pct} fatigue in the set).",
+   "de": "Fortschritt auf {n} vergleichbaren Tagen und der letzte Satz ging bis in echte Ermüdung ({last_pct} Ermüdung im Satz)."
   },
   "action": {
    "en": "Next small step: +{step_pct} on {base_kg} ({base_date}) - target {target_kg}, same range, tempo and pauses.",
@@ -502,8 +502,8 @@
  },
  "plan_hold_effort": {
   "meaning": {
-   "en": "The last set stopped at a {last_pct} drop - below the {effort_pct} your goal asks for. The force is there, the set was not finished.",
-   "de": "Der letzte Satz endete bei {last_pct} Abfall - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
+   "en": "The last set stopped at a {last_pct} fatigue in the set - below the {effort_pct} your goal asks for. The force is there, the set was not finished.",
+   "de": "Der letzte Satz endete bei {last_pct} Ermüdung im Satz - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
   },
   "action": {
    "en": "Same force ({target_kg}) - but all-out from the first repetition, building the force fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down, not when the repetitions are over. A second time like this and the set-up changes.",
@@ -536,8 +536,8 @@
    "de": "In dieser Einheit wird die Übung frisch gemessen (letzter frischer Wert: {base_kg} am {base_date})."
   },
   "action": {
-   "en": "Match or beat it with full effort and a force drop of at least {effort_pct} - this is your real progress check.",
-   "de": "Mit voller Ausbelastung und mindestens {effort_pct} Kraftabfall erreichen oder übertreffen - das ist dein echter Fortschritts-Check."
+   "en": "Match or beat it with full effort and a fatigue in the set of at least {effort_pct} - this is your real progress check.",
+   "de": "Mit voller Ausbelastung und mindestens {effort_pct} Ermüdung im Satz erreichen oder übertreffen - das ist dein echter Fortschritts-Check."
   }
  },
  "plan_hold": {
@@ -546,8 +546,8 @@
    "de": "Auf vergleichbaren Tagen noch kein klarer Trend (Referenz: {base_kg} vom {base_date})."
   },
   "action": {
-   "en": "Reach {target_kg} with the same settings and take the set to a force drop of at least {effort_pct}.",
-   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Kraftabfall führen."
+   "en": "Reach {target_kg} with the same settings and take the set to a fatigue in the set of at least {effort_pct}.",
+   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Ermüdung im Satz führen."
   }
  },
  "plan_context_adjusted": {
@@ -557,7 +557,7 @@
   },
   "action": {
    "en": "Judge this set by its effort, not by the number.",
-   "de": "Diesen Satz an der Ausbelastung messen, nicht an der Zahl."
+   "de": "Diesen Satz an der Ermüdung im Satz messen, nicht an der Zahl."
   }
  },
  "date_trained_today": {
@@ -742,8 +742,8 @@
  },
  "commitment_min_time_max_effort": {
   "meaning": {
-   "en": "Least time: one set per exercise, taken all the way (force drop of at least {effort_pct}). About {minutes} min a week.",
-   "de": "Wenig Zeit: ein Satz pro Übung, ganz zu Ende geführt (Kraftabfall mindestens {effort_pct}). Etwa {minutes} Min. pro Woche."
+   "en": "Least time: one set per exercise, taken all the way (fatigue in the set of at least {effort_pct}). About {minutes} min a week.",
+   "de": "Wenig Zeit: ein Satz pro Übung, ganz zu Ende geführt (Ermüdung im Satz mindestens {effort_pct}). Etwa {minutes} Min. pro Woche."
   },
   "action": {
    "en": "The price is effort: every set has to be a real one - the app shows whether it was.",
@@ -762,8 +762,8 @@
  },
  "commitment_more_time_less_brutal": {
   "meaning": {
-   "en": "Sets stop short of the limit (force drop around {effort_pct}); a second set on the main exercises makes up for it. About {minutes} min a week.",
-   "de": "Sätze enden vor dem Limit (Kraftabfall um {effort_pct}); ein zweiter Satz bei den Hauptübungen gleicht das aus. Etwa {minutes} Min. pro Woche."
+   "en": "Sets stop short of the limit (fatigue in the set around {effort_pct}); a second set on the main exercises makes up for it. About {minutes} min a week.",
+   "de": "Sätze enden vor dem Limit (Ermüdung im Satz um {effort_pct}); ein zweiter Satz bei den Hauptübungen gleicht das aus. Etwa {minutes} Min. pro Woche."
   },
   "action": {
    "en": "The price is time: easier sets need more of them for the same result.",
@@ -793,7 +793,7 @@
  "pva_followed": {
   "meaning": {
    "en": "You did all {total} planned exercises; {hits} of {judged} force targets and {effort_hits} of {effort_judged} effort targets met.",
-   "de": "Du hast alle {total} geplanten Übungen gemacht; {hits} von {judged} Kraftzielen und {effort_hits} von {effort_judged} Ausbelastungszielen erreicht."
+   "de": "Du hast alle {total} geplanten Übungen gemacht; {hits} von {judged} Kraftzielen und {effort_hits} von {effort_judged} Ermüdungszielen erreicht."
   },
   "action": {
    "en": "The next plan builds on exactly these results.",
@@ -826,8 +826,8 @@
    "de": "Deine Referenz {base_kg} ({base_date}) wurde nach anderer Arbeit für dieselben Muskeln gemessen - frisch solltest du sie übertreffen."
   },
   "action": {
-   "en": "Full effort, same settings, and take the set to a force drop of at least {effort_pct}: this value becomes your real baseline.",
-   "de": "Volle Ausbelastung, gleiche Einstellungen, und den Satz bis mindestens {effort_pct} Kraftabfall führen: Dieser Wert wird deine echte Basis."
+   "en": "Full effort, same settings, and take the set to a fatigue in the set of at least {effort_pct}: this value becomes your real baseline.",
+   "de": "Volle Ausbelastung, gleiche Einstellungen, und den Satz bis mindestens {effort_pct} Ermüdung im Satz führen: Dieser Wert wird deine echte Basis."
   }
  },
  "time_transitions": {
@@ -1116,8 +1116,8 @@
    "de": "Letztes Mal ({prev_date}, gleiche Einstellungen): konzentrisch -{prev_con_pct}, exzentrisch -{prev_ecc_pct}; jetzt -{con_pct} / -{ecc_pct}."
   },
   "action": {
-   "en": "A bigger drop at the same or higher force means you went deeper; a smaller one means there was more in it.",
-   "de": "Ein größerer Abfall bei gleicher oder höherer Kraft heißt: Du bist tiefer gegangen; ein kleinerer: Da war noch mehr drin."
+   "en": "More fatigue in the set at the same or higher force means you went deeper; less means there was more in it.",
+   "de": "Mehr Ermüdung im Satz bei gleicher oder höherer Kraft heißt: Du bist tiefer gegangen; weniger: Da war noch mehr drin."
   }
  },
  "date_manual_groups": {
@@ -1226,8 +1226,8 @@
    "de": "Diese Muskeln hatten {days} Tage kein direktes Training. Eine Pause dieser Länge kostet nichts, ist aber auch keine Grundlage für einen Schritt nach oben (Referenz: {base_kg} vom {base_date})."
   },
   "action": {
-   "en": "Reach {target_kg} with the same settings and take the set to a force drop of at least {effort_pct}; the next session steps up again.",
-   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Kraftabfall führen; die nächste Einheit steigert wieder."
+   "en": "Reach {target_kg} with the same settings and take the set to a fatigue in the set of at least {effort_pct}; the next session steps up again.",
+   "de": "{target_kg} mit denselben Einstellungen erreichen und den Satz bis mindestens {effort_pct} Ermüdung im Satz führen; die nächste Einheit steigert wieder."
   }
  },
  "plan_rebase_after_break": {
@@ -1392,8 +1392,8 @@
  },
  "plan_effort_reset": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction and no pauses at the turnarounds, same repetitions - or two repetitions more instead. The comparison basis starts anew with the new settings.",
@@ -1402,8 +1402,8 @@
  },
  "plan_effort_pauses": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to 0 - or two repetitions more instead. The comparison basis starts anew.",
@@ -1412,8 +1412,8 @@
  },
  "plan_effort_reps": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}); tempo and pauses are exhausted, so {reps_from} → {reps_to} repetitions. The comparison basis starts anew.",
@@ -1422,8 +1422,8 @@
  },
  "repeat_now_panel": {
   "meaning": {
-   "en": "Still on the machine? {exercises}: below the {target_pct} force drop your goal asks for - a real load, but half the stimulus.",
-   "de": "Noch am Gerät? {exercises}: unter den {target_pct} Kraftabfall, die dein Ziel verlangt - eine echte Belastung, aber nur der halbe Reiz."
+   "en": "Still on the machine? {exercises}: below the {target_pct} fatigue in the set your goal asks for - a real load, but half the stimulus.",
+   "de": "Noch am Gerät? {exercises}: unter den {target_pct} Ermüdung im Satz, die dein Ziel verlangt - eine echte Belastung, aber nur der halbe Reiz."
   },
   "action": {
    "en": "Once more, now, properly: all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. A set that stayed below the target cost little, so a second one is in.",
@@ -1432,8 +1432,8 @@
  },
  "repeat_now": {
   "meaning": {
-   "en": "{last_pct} force drop - below the {target_pct} your goal asks for: a real load, but half the stimulus.",
-   "de": "{last_pct} Kraftabfall - unter den {target_pct}, die dein Ziel verlangt: eine echte Belastung, aber nur der halbe Reiz."
+   "en": "{last_pct} fatigue in the set - below the {target_pct} your goal asks for: a real load, but half the stimulus.",
+   "de": "{last_pct} Ermüdung im Satz - unter den {target_pct}, die dein Ziel verlangt: eine echte Belastung, aber nur der halbe Reiz."
   },
   "action": {
    "en": "Once more, properly - now if you are still on the machine, otherwise tomorrow: a set below the target costs only a day of rest.",
@@ -1442,8 +1442,8 @@
  },
  "plan_repeat_after_miss": {
   "meaning": {
-   "en": "The session of {last_date} was a strength test for {exercises}: no set reached the force drop your goal asks for.",
-   "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Kraftabfall, den dein Ziel verlangt."
+   "en": "The session of {last_date} was a strength test for {exercises}: no set reached the fatigue in the set your goal asks for.",
+   "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Ermüdung im Satz, den dein Ziel verlangt."
   },
   "action": {
    "en": "A set below the target costs only a day of rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down.",
@@ -1462,8 +1462,8 @@
  },
  "plan_beginner_row": {
   "meaning": {
-   "en": "Last time the set ended at a {last_pct} drop - fine for a first session.",
-   "de": "Der letzte Satz endete bei {last_pct} Abfall - für eine erste Einheit in Ordnung."
+   "en": "Last time the set ended at a {last_pct} fatigue in the set - fine for a first session.",
+   "de": "Der letzte Satz endete bei {last_pct} Ermüdung im Satz - für eine erste Einheit in Ordnung."
   },
   "action": {
    "en": "Same number ({target_kg}) or a little more, whatever feels comfortable; the real set comes from session three.",
@@ -1472,12 +1472,22 @@
  },
  "plan_effort_tempo": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} force drop your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Kraftabfall, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction; your pauses at the turnarounds stay - they serve the tension a strength goal wants. Or two repetitions more instead. The comparison basis starts anew.",
    "de": "Gleiche Kraft ({target_kg}), neue Einstellung: {tempo_from} → {tempo_to} s je Richtung; deine Pausen an den Umkehrpunkten bleiben - sie dienen der Spannung, die ein Kraftziel will. Oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
+  }
+ },
+ "fatigue_glossary": {
+  "meaning": {
+   "en": "Fatigue in the set = the force lost from the strongest stretch of the set to its last repetitions. Deep (20 % and more) means close to failure - the full stimulus for muscle size; medium (10-19 %) is a real load but half the stimulus; light (under 10 %) is technique or a strength test.",
+   "de": "Ermüdung im Satz = der Kraftverlust vom stärksten Abschnitt des Satzes bis zu den letzten Wiederholungen. Tief (ab 20 %) heißt nahe am Versagen - der volle Reiz für Muskelaufbau; mittel (10-19 %) ist eine echte Belastung, aber nur der halbe Reiz; leicht (unter 10 %) ist Technik oder Krafttest."
+  },
+  "action": {
+   "en": "Your goal asks for {level} - at least {target_pct} in every set that counts.",
+   "de": "Dein Ziel verlangt {level} - mindestens {target_pct} in jedem Satz, der zählt."
   }
  }
 }

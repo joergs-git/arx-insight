@@ -34,7 +34,8 @@ from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
-import arx_plan as planner      # the ONE plan: when, what, order, targets, week plan, plan ledger
+import arx_plan as planner
+from arx_detail import INROAD_DEEP      # the ONE plan: when, what, order, targets, week plan, plan ledger
 
 
 
@@ -1814,6 +1815,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         # still on the machine? (the last set ended less than VISIT_GAP_MIN minutes ago) - then "once more, now"
         "open": open_session, "minutes_since_last_set": round(minutes_ago) if minutes_ago is not None else None,
         "inroad_target": goal_min, "repeat_now": [r["name"] for r in rows if r["repeat_now"]],
+        # one plain explanation of the measure, with the athlete's own target (v0.12.3)
+        "fatigue_glossary": history.item("fatigue_glossary", {"level": ("tief" if (cfg or {}).get("language") == "de" else "deep") if goal_min >= INROAD_DEEP
+                                                                       else ("mittel" if (cfg or {}).get("language") == "de" else "medium"), "target_pct": goal_min}, cfg or {}),
         "repeat_panel": (history.item("repeat_now_panel", {"exercises": [r["name"] for r in rows if r["repeat_now"]], "target_pct": goal_min}, cfg or {})
                          if open_session and any(r["repeat_now"] for r in rows) else None),
         "working_sets": day["working_sets"], "false_starts": day.get("false_starts", 0),
