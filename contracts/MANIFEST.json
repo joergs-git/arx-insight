@@ -1,0 +1,36 @@
+{
+ "_comment": [
+  "Every file the two products have to agree on, with its SHA-256. A contract changes with its version, in its owner's project first -",
+  "then `python -m arx_tools.contracts --update` here and the identical copy in the other project. See contracts/README.md."
+ ],
+ "contracts": [
+  {
+   "name": "arx-export",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "history of the original software for arx-free",
+   "files": {
+    "arx-export-1.md": "5a6789c481b9c6db3dd365257a89c390c2706a5f7b039274cc5bf3b6fc02b43e"
+   }
+  },
+  {
+   "name": "effort-v3",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "did the set produce fatigue - rule and shared test vectors",
+   "files": {
+    "effort-v3.md": "02963719f9347672850a1a5e2a048cc03c9f8263d40edf7cf98faa1dead92b95",
+    "effort-v3-vectors.json": "fd29d74a00fc981018f53daee3f27f1f5e1f3a4320cb7d8a13011d2dbbcd3b52"
+   }
+  },
+  {
+   "name": "vocabulary",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "the words a person reads or hears for the fatigue rule (report, coach, live display)",
+   "files": {
+    "vocabulary-1.md": "67b3ff5f752e437c18a90aeeba5a214946b8bec3f921943ac6156c0c08cdb6d1"
+   }
+  }
+ ]
+}
