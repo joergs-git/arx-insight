@@ -106,8 +106,11 @@ COVER_FIRST = (10.0, 5.0)      # full body: the best big exercise of each moveme
 NEW_WEIGHT = 0.5               # a known exercise wins a tie against a never-performed one
 URGENT_WEIGHT = {"target": 1.0, "limiter": 0.5}   # how much an exercise does for an urgent muscle (as in arx_evidence.ROLE_WEIGHT)
 # Exercises the athlete does not do on the ARX (profile): "elsewhere" = trained outside the machine (its
-# target muscles count as covered there), "unwanted" = not wanted at all (the plan covers the muscles otherwise).
-EXCLUDE_REASONS = ("elsewhere", "unwanted")
+# target muscles count as covered there), "unwanted" = not wanted at all (the plan covers the muscles otherwise),
+# "injury" (v0.8.7) = not possible for health reasons right now - planned like "unwanted", but the report mirrors
+# it when the exercise is done anyway, and the coach knows why. This is how a shoulder problem rules out exactly the
+# overhead pressing and nothing else, while the body part itself can go back to "ok".
+EXCLUDE_REASONS = ("elsewhere", "unwanted", "injury")
 MINUTES_PER_EXERCISE = 6.0     # set + change-over when the athlete's own pace is not known yet
 TRANSITION_NOTE_MIN = 5.0      # a longer change-over between exercises is worth a word (time is the goal)
 TRANSITION_TARGET_MIN = 4.0    # what is enough between two DIFFERENT exercises
@@ -243,12 +246,15 @@ def excluded_block(cfg: dict, catalog: dict) -> dict | None:
                   key=lambda x: x["name"])
     away = [x["name"] for x in rows if x["reason"] == "elsewhere"]
     off = [x["name"] for x in rows if x["reason"] == "unwanted"]
+    hurt = [x["name"] for x in rows if x["reason"] == "injury"]
     external = external_muscles(cfg, catalog)
     notes = []
     if away:
         notes.append(item("excluded_elsewhere", {"exercises": away, "muscles": external, "k": len(away)}, cfg))
     if off:
         notes.append(item("excluded_unwanted", {"exercises": off, "k": len(off)}, cfg))
+    if hurt:
+        notes.append(item("excluded_injury", {"exercises": hurt, "k": len(hurt)}, cfg))
     return {"exercises": rows, "external_muscles": external, "notes": notes}
 
 

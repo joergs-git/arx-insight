@@ -1209,9 +1209,10 @@ def _restriction_checks(work: list[dict], exercises: list[dict], restrictions: d
     previous day-best of a 'careful' exercise (eccentric_jump) - on ARX the
     eccentric runs ~1.6x the concentric, and a jump there is what an irritated
     joint feels first. Empty when nothing is restricted."""
-    if not any(_LEVEL_RANK.get(v, 0) for v in (restrictions or {}).values()):
+    hurt = {e["name"] for e in exercises if e.get("excluded") == "injury"}     # switched off for health reasons (v0.8.7)
+    if not any(_LEVEL_RANK.get(v, 0) for v in (restrictions or {}).values()) and not hurt:
         return []
-    level_of = {e["name"]: e.get("restriction", "ok") for e in exercises}
+    level_of = {e["name"]: ("avoid" if e["name"] in hurt else e.get("restriction", "ok")) for e in exercises}
     ecc_by_day: dict = {}                       # (exercise, date) -> eccentric day-best
     for s in work:
         k = (s["name"], s["date"][:10])
