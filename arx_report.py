@@ -103,7 +103,7 @@ PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTO
 # contract modes-1 (v0.14.0): a set's mode = movement (dynamic | static) x ending (what stops the set). PROTOCOL is
 # the ending only - the owner's data has static holds ended by the clock and by the inroad rule. Any other code is
 # "unknown" and shown as such, never silently "reps".
-ENDINGS = {3: "reps", 1: "time", 0: "inroad"}
+ENDINGS = {3: "reps", 1: "time", 0: "inroad", 4: "fatigue"}     # 4 = arx-free's fatigue-target protocol (never from the original)
 STATIC_POS_TOLERANCE_IN = 1.0  # static holds compare only at the same position (+- this many inches)
 OUTPUT_TIME_TOLERANCE = 0.05   # timed sets compare their Output only at the same duration (+- 5 %)
 STATIC_MIN_SECONDS = 20        # a shorter isometric attempt is a test, like any other short set

@@ -1496,8 +1496,8 @@
    "de": "Modus-Vorschlag: Static-Halten statt Bewegung - diese Übung steht auf 'schonen', und ein Halten belastet das Gelenk ohne die exzentrische Überlast."
   },
   "action": {
-   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; the machine's Inroad Mode may end the set, stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew.",
-   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; der Inroad-Modus der Maschine darf den Satz beenden, bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu."
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode watch the work zone and stop when the force no longer reaches it - the machine does not stop for you; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus die Zone im Blick behalten und stoppen, wenn die Kraft sie nicht mehr erreicht - die Maschine stoppt nicht von selbst; bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu."
   }
  },
  "mode_static_return": {
@@ -1506,8 +1506,8 @@
    "de": "Modus-Vorschlag für die erste Einheit nach Monaten: Static-Halten - Kraft ohne den Muskelkater, den die ersten exzentrischen Sätze bringen würden."
   },
   "action": {
-   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; the machine's Inroad Mode may end the set, stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew. Next session: back to your usual mode.",
-   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; der Inroad-Modus der Maschine darf den Satz beenden, bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu. Nächste Einheit: zurück zu deinem üblichen Modus."
+   "en": "Set the machine to Static at a pain-free position where you are strong (mid-range, not the stretched end), hold about {seconds} s and build the force smoothly; in Inroad Mode watch the work zone and stop when the force no longer reaches it - the machine does not stop for you; stop at any pain, no target number. A hold is compared only with holds at the same position - the comparison basis starts anew. Next session: back to your usual mode.",
+   "de": "Stell die Maschine auf Static an einer schmerzfreien Position, an der du stark bist (mittlerer Bereich, nicht das gedehnte Ende), halte etwa {seconds} s und baue die Kraft gleichmäßig auf; im Inroad-Modus die Zone im Blick behalten und stoppen, wenn die Kraft sie nicht mehr erreicht - die Maschine stoppt nicht von selbst; bei Schmerz aufhören, keine Zielzahl. Ein Halten wird nur mit Halten an derselben Position verglichen - die Vergleichsbasis beginnt neu. Nächste Einheit: zurück zu deinem üblichen Modus."
   }
  },
  "mode_countdown_conditioning": {

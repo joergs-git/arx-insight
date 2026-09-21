@@ -1127,6 +1127,7 @@ function modeLabel(x){ const de=CFG.language==="de"; if(!x) return ""; const par
   if(x.movement==="static") parts.push(de?`Static ${Math.round(x.seconds||0)} s`:`Static ${Math.round(x.seconds||0)} s`);
   if(x.ending==="time") parts.push(`Countdown ${Math.floor((x.seconds||0)/60)}:${String(Math.round((x.seconds||0)%60)).padStart(2,'0')}`);
   else if(x.ending==="inroad") parts.push(de?"Inroad-Modus":"Inroad Mode");
+  else if(x.ending==="fatigue") parts.push(de?"Ermüdungsziel-Satz":"fatigue-target set");
   else if(x.ending==="unknown") parts.push(de?"unbekannter Modus":"unknown mode");
   if(x.phase==="negative") parts.push(de?"nur negativ":"negative only"); else if(x.phase==="positive") parts.push(de?"nur positiv":"positive only");
   return parts.join(" · "); }

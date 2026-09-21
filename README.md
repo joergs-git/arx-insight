@@ -195,23 +195,24 @@ The ARX database is never modified — the tool always works on a temporary copy
 ## Modes of the machine
 
 A set has a **mode**: the movement (dynamic, or a *static* hold - `StartPosition == EndPosition`) and what ends it
-(a repetition count, the clock = *Countdown*, the machine's *Inroad Mode*, or an unknown code that is shown as
-unknown, never silently treated as reps), plus the phase that carried the work when only one direction did
+(a repetition count, the clock = *Countdown*, the original's *Inroad Mode* - it shows a zone, the stop is by hand -,
+arx-free's fatigue target, or an unknown code that is shown as unknown, never silently treated as reps), plus the phase that carried the work when only one direction did
 (negative-only / positive-only reps get no fatigue judgement - the rule needs both phases). Since v0.14.0 holds are
 working sets with their own effort method (six time slices) and load the muscles like any set; only the same mode
 is ever compared (a hold with holds at the same position, a Countdown set with Countdown sets of the same
 duration), and chapter 3 says which modes an exercise's history contains. Timed sets progress by **Output**
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
 own inroad scale (best rep peak → last rep peak, what its Inroad Mode uses) is shown next to the fatigue in the set
-as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-1.md`; the next steps
+as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-2.md`; the next steps
 (calibrating the machine's Inroad setting to your fatigue target) are in the roadmap.
 
 **Which mode does the plan suggest, and when?** *(v0.15.0)* — a suggestion on the row (◎), never a silent change of
 your target: your **goal** first, then the situation. A conditioning share of 30 % or more (or the outcome
 *performance*) → **Countdown** 90 s on the big exercises, with an Output target of last time + 2 % at the same
 duration once a timed reference exists; an exercise on *go easy* or the first session after months away → a
-**static hold** of about 40 s at a pain-free, strong position, ended by the machine's Inroad Mode (holds cost less
-recovery than the eccentric overload); a plateau under a **strength** goal → one session of **negative-only**
+**static hold** of about 40 s at a pain-free, strong position - in Inroad Mode you stop when the force no longer
+reaches the shown zone, the machine never stops a set by itself (holds cost less recovery than the eccentric
+overload); a plateau under a **strength** goal → one session of **negative-only**
 repetitions (judged on the eccentric force only, full rest afterwards). A balanced or size goal keeps Reps; beginners
 get no mode suggestions. Every text says that a mode change restarts the comparison basis, and the plan-vs-actual
 mirror tells whether you followed the suggestion. Evidence: `science.json` → *isometric_training*,

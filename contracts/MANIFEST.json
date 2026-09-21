@@ -34,11 +34,12 @@
   },
   {
    "name": "modes",
-   "version": 1,
+   "version": 2,
    "owner": "arx-insight",
-   "what": "a set's mode (movement x ending x phase), Output and the machine's own inroad scale - definitions and field names",
+   "what": "a set's mode (movement x ending x phase), Output and the machine's own inroad scale - definitions and field names; v2 adds the ending 'fatigue' and corrects the Inroad Mode wording",
    "files": {
-    "modes-1.md": "49455a1c107887019963217020af019fa2d9751124a1a8cd8056e4df9a0be4fe"
+    "modes-1.md": "49455a1c107887019963217020af019fa2d9751124a1a8cd8056e4df9a0be4fe",
+    "modes-2.md": "a537ad15a0b9fcc8cf48d1461687df646238b591a4ef8fdebbd3867e33755087"
    }
   },
   {
