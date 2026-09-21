@@ -453,7 +453,7 @@ outside its folder), unpacks it into `%LOCALAPPDATA%\ARXInsight\app\` and runs i
 refreshes the packages, re-points the shortcuts and starts the new version; the running one closes
 by itself. Your settings, goals and environment are kept, the previous version stays as a fallback.
 It never updates silently, and the button only works on the PC itself — never from a phone (the phone shows that a new version exists, nothing more).
-**Do not want to wait for the banner?** ⚙ Settings → *Version & update* → **Check for updates now**
+**Do not want to wait for the banner?** ⚙ on the start screen (the device settings; since v0.9.1 they are no longer in an athlete's report) → *Version & update* → **Check for updates now**
 (v0.8.3) asks GitHub at once and brings up the same update button — or tells you that you have the
 latest version, or that GitHub could not be reached. The manual way (download the ZIP, run the
 installer) keeps working. Versions before 0.4.1 need the manual way once.

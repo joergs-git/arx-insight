@@ -305,7 +305,9 @@
 </div></div>
 
 <!-- SEARCH -->
-<div class="screen" id="search"><div class="center">
+<div class="screen" id="search" style="position:relative">
+  <button class="btn ghost notathlete" id="s_settings" aria-label="Settings" style="position:absolute;top:16px;right:16px;min-height:44px;padding:0 14px;font-size:20px">⚙</button>
+  <div class="center">
   <div class="logo">ARX Insight</div>
   <div id="updStart" style="width:min(760px,94vw)"></div>
   <div id="phoneStart" style="width:min(760px,94vw)"></div>
@@ -431,7 +433,6 @@
     <div class="meta" id="r_meta"></div>
     <div class="spacer"></div>
     <button class="btn ghost localonly" id="r_link" title="Phone access for this athlete">📱</button>
-    <button class="btn ghost notathlete" id="r_settings">⚙</button>
     <button class="btn ghost" id="r_checkin">☀</button>
     <button class="btn ghost" id="r_pdf">PDF</button>
     <button class="btn ghost" id="r_html" title="Download the report as one file">⬇</button>
@@ -537,6 +538,7 @@ api("/api/bootstrap").then(b=>{
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
   SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI;
   BODY_MAP=b.body_map||{}; CONFIGURED=!!b.configured;
+  $("#s_settings").title=b.language==="de"?"Einstellungen dieses Geräts":"Settings of this device";
   $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned); renderPhoneStart();
   if(ACCESS.role==="athlete"){ startAthlete(); return; }
   if(!b.configured){openSettings("search");return;}
@@ -948,7 +950,7 @@ $("#r_checkin").addEventListener("click",()=>openCheckin("report"));
 // ---------- report ----------
 $("#r_exit").addEventListener("click",()=>{CFG.language=GLOBAL_LANG;$("#q").value="";$("#results").innerHTML="";home();});
 $("#r_pdf").addEventListener("click",()=>window.print());
-$("#r_settings").addEventListener("click",()=>openSettings("report"));
+$("#s_settings").addEventListener("click",()=>openSettings("search"));     // device settings live on the user overview (v0.9.1)
 $("#r_name").addEventListener("click",()=>openProfile());
 function closeProfile(){ if(GOAL_MODE==="edit"&&CUR&&REPORT) show("report"); else home(); }     // back without saving
 $("#goalClose").addEventListener("click",closeProfile);
@@ -1030,7 +1032,6 @@ function renderReport(){
   const anon=new URLSearchParams(location.search).get("anon")==="1";
   $("#r_name").textContent=anon?(de0?"Athlet":"Athlete"):r.athlete_alias; $("#r_name").title=de0?"Profil dieses Sportlers bearbeiten":"Edit this athlete's profile";
   $("#r_profile").innerHTML="✎ "+(de0?"Profil":"Profile");
-  $("#r_settings").innerHTML="⚙ "+(de0?"Einstellungen":"Settings");
   $("#r_checkin").innerHTML="☀ Check-in";
   $("#r_pdf").textContent="PDF"; $("#r_exit").textContent="Exit"; $("#r_html").innerHTML="⬇ "+(de0?"Datei":"File");
   $("#r_html").title=de0?"Report als eine Datei herunterladen (öffnet überall, auch ohne App)":"Download the report as one file (opens anywhere, no app needed)";
