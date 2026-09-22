@@ -254,10 +254,13 @@ the left of the report that stays in view while you scroll, on a phone above it.
 last session with one symbol, one line and the numbers (repetitions, seconds, peak force) - 👍 target reached,
 ⭐ a new best, 👌 reached but lower than last time (or on *go easy*), 👎 below the fatigue target ("half the
 stimulus", with *once more* while you are still on the machine); the words are the engine's own judgement, no AI
-needed. Then today's check-in score, the next session (when, how long, the exercises in their order) with up to
-three things to watch (the levers after a missed target first, then mode suggestions, exercises on *go easy*, a
-time window) and the coach's focus line once a board exists, and the load line (sessions per week against the
-target). A tap on the last or the next box opens the chapter behind it.
+needed - and next to each exercise a **sparkline** of its last six training days (the day's best peak force, hollow
+dots = other settings; the y-axis spans the data, so a real trend fills the box). Then the next session (when, how
+long, the exercises in their order) with up to three things to watch (the levers after a missed target first, then
+mode suggestions, exercises on *go easy*, a time window) and the coach's focus line once a board exists, and your
+**restrictions** (today's from the check-in, the lasting ones from the profile, each with its *edit* link; the
+14-day mirror folded away) *(v0.20.3)*. A tap on the last or the next box opens the chapter behind it. Every date
+in the report carries its weekday (*Mi 23.09.*).
 
 **Can I name the days I train on?** *(v0.19.0)* — yes: *Preferred training days* in the profile (optional, e.g.
 Mon / Wed / Fri). They are a preference, not a cage: the plan keeps them while the muscles are ready and the session
