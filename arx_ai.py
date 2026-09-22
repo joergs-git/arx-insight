@@ -627,9 +627,29 @@ FILLERS = ("platzhalter", "placeholder", "n/a", "na", "tbd", "todo", "keine anga
 
 
 def is_filler(text) -> bool:
-    """True for an empty or filler 'why' (dashes, dots, 'Platzhalter', 'placeholder', 'n/a' ...)."""
+    """True for an empty or filler text (dashes, dots, one or two characters, 'Platzhalter', 'placeholder', 'n/a' ...)."""
     w = str(text or "").strip().lower().strip("-—–.·*_ ")
-    return not w or w in FILLERS or any(w.startswith(f) for f in ("platzhalter", "placeholder"))
+    return len(w) <= 2 or w in FILLERS or any(w.startswith(f) for f in ("platzhalter", "placeholder"))
+
+
+MUST_CARRY_TEXT = (("last_session", "headline"), ("last_session", "meaning"), ("last_session", "consequence"),
+                   ("next_training", "readiness"), ("history", "four_weeks"), ("focus",))
+
+
+def filler_texts(board: dict) -> list[str]:
+    """The board's narrative fields that came back as fillers (v0.20.1 - a real board had focus 'x', four_weeks
+    'Platzhalter', one 'x' recommendation): such a board is not shown; the job fails with a code and can be retried."""
+    bad = []
+    for path in MUST_CARRY_TEXT:
+        node = board
+        for k in path:
+            node = node.get(k) if isinstance(node, dict) else None
+        if is_filler(node):
+            bad.append(".".join(path))
+    recs = board.get("key_recommendations") or []
+    if not recs or all(is_filler(x) for x in recs):
+        bad.append("key_recommendations")
+    return bad
 
 
 REVERTABLE = ("change_without_reason", "filler_why")     # problems the engine's own row settles without another call
@@ -790,9 +810,10 @@ def make_board(report: dict, cfg: dict, previous: list[dict] | None = None, clie
     """Payload -> request -> validation -> repair -> the board record to store and show:
     {key, created, today, model, effort, board, plan_source, repaired, repair, changes, problems, usage, unverified}.
     Repair (v0.18.0), cheapest first: a change without a reason is reverted to the engine's row (no call); what is
-    left (a duplicated exercise, a wrong count, a bound) goes to ONE small rows-only call on the same cached prefix -
-    never a replay of the first answer, never a second full board. The system prompt and the payload carry cache
-    marks: the next board within minutes (a training partner) and the repair call read them from the cache."""
+    left (a duplicated exercise, a wrong count, a bound) goes to ONE small rows-only call - never a replay of the
+    first answer, never a second full board. No cache marks on board calls (v0.20.1): with structured output the
+    schema is part of the cached prefix, and it differs per athlete (enums) and per call (board vs rows) - a real
+    board showed two cache WRITES and no read, i.e. money for nothing. The chat, without a schema, keeps its cache."""
     payload = build_payload(report, cfg, previous)
     leaks = lint_payload(payload)
     if leaks:                                         # a programming error - never send it
@@ -800,12 +821,15 @@ def make_board(report: dict, cfg: dict, previous: list[dict] | None = None, clie
     model, effort = model_of(cfg), effort_of(cfg, "ai_effort_board", BOARD_EFFORT_DEFAULT)
     text = dumps_payload(payload)
     client = client or make_client(cfg)
-    system = [dict(b, cache_control={"type": "ephemeral"}) for b in system_prompt("board")]
-    payload_block = {"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}
+    system = system_prompt("board")
+    payload_block = {"type": "text", "text": text}
     msg = stream_message(client, model=model, system=system, messages=[{"role": "user", "content": [payload_block]}],
                          max_tokens=BOARD_MAX_TOKENS, effort=effort, schema=board_schema(report), should_stop=should_stop)
     board = _parse_board(msg)
     usage = [usage_of(msg)]
+    fillers = filler_texts(board)
+    if fillers:                                       # seen live: focus "x", four_weeks "Platzhalter" - not a board, a retry
+        raise AIError("filler_board", "the coach left sections as placeholders: " + ", ".join(fillers[:6]))
     problems, changes = validate_board(board, report, cfg)
     repair = None
     if problems and revert_unreasoned(board, problems, payload):
@@ -1070,7 +1094,7 @@ class ChatManager:
 
 # =============================================================================
 # A deterministic stand-in for the API (tests, screenshots, demos): ARX_AI_FAKE=<scenario>
-#   ok | repair | repair_rows | fallback | refusal | truncated | rate_limit | network | invalid_key | slow
+#   ok | repair | repair_rows | fallback | fillers | refusal | truncated | rate_limit | network | invalid_key | slow
 # =============================================================================
 class _Block:
     def __init__(self, text):
@@ -1184,5 +1208,8 @@ class FakeAnthropic:
         if sc == "slow":
             time.sleep(1.5)
         # repair: a target out of bounds with a filler reason - reverted without a call; repair_rows: a duplicated row -
-        # one rows-only call settles it; fallback: the duplicate comes back on every call
-        return _Stream(json.dumps(fake_board(payload, broken=(sc == "repair"), structural=(sc in ("fallback", "repair_rows"))), ensure_ascii=False))
+        # one rows-only call settles it; fallback: the duplicate comes back on every call; fillers: sections left as "x"
+        board = fake_board(payload, broken=(sc == "repair"), structural=(sc in ("fallback", "repair_rows")))
+        if sc == "fillers":
+            board["focus"], board["history"]["four_weeks"], board["key_recommendations"] = "x", "Platzhalter", ["x"]
+        return _Stream(json.dumps(board, ensure_ascii=False))

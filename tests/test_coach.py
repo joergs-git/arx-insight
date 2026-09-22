@@ -283,8 +283,10 @@ class Validation(unittest.TestCase):
     def test_a_change_needs_a_reason_and_a_reasoned_change_passes(self):
         b = copy.deepcopy(self.board)
         r = b["next_training"]["rows"][0]
-        r["target"], r["why"] = round(r["target"] * 1.03, 1), "ok"
+        r["target"], r["why"] = round(r["target"] * 1.03, 1), "fine"
         self.assertEqual(self.codes(b), ["change_without_reason"])
+        r["why"] = "ok"                                                   # v0.20.1: one or two characters are a filler as well
+        self.assertEqual(sorted(self.codes(b)), ["change_without_reason", "filler_why"])
         r["why"] = "Concentric strength rose on four comparable days, so a slightly higher target is justified."
         problems, changes = ai.validate_board(b, self.report, self.cfg)
         self.assertEqual(problems, [])
@@ -326,8 +328,10 @@ class MakeBoard(FakeEnv):
         client.stream = lambda **kw: (seen.append(copy.deepcopy(kw)), orig(**kw))[1]
         rec = ai.make_board(report, cfg, client=client)
         self.assertEqual((rec["plan_source"], rec["repaired"], rec["repair"], rec["problems"], len(rec["usage"])), ("coach", False, None, [], 1))
-        self.assertEqual(seen[0]["system"][0]["cache_control"], {"type": "ephemeral"})              # the static prompt is cached
-        self.assertEqual(seen[0]["messages"][0]["content"][0]["cache_control"], {"type": "ephemeral"})   # and so is the payload
+        # no cache marks on board calls (v0.20.1): the structured-output schema is part of the cached prefix and differs
+        # per athlete and per call - a real board showed two cache writes and no read
+        self.assertNotIn("cache_control", seen[0]["system"][0])
+        self.assertNotIn("cache_control", seen[0]["messages"][0]["content"][0])
         # a target out of bounds with a filler reason on every row: the engine's rows go back in - still one call
         os.environ["ARX_AI_FAKE"] = "repair"
         rec = ai.make_board(report, cfg)
@@ -342,13 +346,25 @@ class MakeBoard(FakeEnv):
         self.assertEqual((rec["plan_source"], rec["repaired"], rec["repair"], len(rec["usage"])), ("coach", True, "rows", 2))
         self.assertEqual([m["role"] for m in seen[1]["messages"]], ["user"])                        # never a replay of the first answer
         blocks = seen[1]["messages"][0]["content"]
-        self.assertEqual(blocks[0], seen[0]["messages"][0]["content"][0])                           # cache hit on the payload
+        self.assertEqual(blocks[0], seen[0]["messages"][0]["content"][0])                           # the same payload block first
         self.assertIn("duplicate_exercise", blocks[2]["text"])
         self.assertEqual(sorted(seen[1]["output_config"]["format"]["schema"]["properties"]), ["date", "rows", "why_date"])
         os.environ["ARX_AI_FAKE"] = "fallback"
         rec = ai.make_board(report, cfg)
         self.assertEqual((rec["plan_source"], rec["changes"], len(rec["usage"])), ("engine_fallback", [], 2))
         self.assertTrue(rec["problems"])
+
+    def test_a_board_of_placeholders_is_not_a_board(self):
+        """v0.20.1 (seen live): focus 'x', four_weeks 'Platzhalter', one 'x' recommendation - the job fails with a
+        code instead of showing it; the rule-check texts of a good board pass."""
+        report, cfg = make()
+        os.environ["ARX_AI_FAKE"] = "fillers"
+        with self.assertRaises(ai.AIError) as ctx:
+            ai.make_board(report, cfg)
+        self.assertEqual(ctx.exception.code, "filler_board")
+        self.assertIn("focus", ctx.exception.message)
+        self.assertEqual(ai.filler_texts(good_board(report, cfg)), [])
+        self.assertTrue(ai.is_filler("x") and ai.is_filler(" - ") and not ai.is_filler("Row first: it measures the lats fresh."))
 
     def test_a_superseded_job_stops_the_stream(self):
         report, cfg = make()
