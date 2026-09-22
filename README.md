@@ -202,7 +202,8 @@ working sets judged by the shared hold rule (contract `hold-1`, see the FAQ) and
 is ever compared (a hold with holds at the same position, a Countdown set with Countdown sets of the same
 duration), and chapter 3 says which modes an exercise's history contains. Timed sets progress by **Output**
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
-own inroad scale (best rep peak → last rep peak, what its Inroad Mode uses) is shown next to the fatigue in the set
+own inroad scale (the original computes it live as the momentary force against the maximum reached so far in the set -
+any repetition, no averaging; Insight reads the same scale from the recording as best rep peak → last rep peak) is shown next to the fatigue in the set
 as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-2.md`; the next steps
 are done (v0.15.0 / v0.16.0, see the FAQ).
 
@@ -219,7 +220,8 @@ mirror tells whether you followed the suggestion. Evidence: `science.json` → *
 *timed_sets_conditioning*, *eccentric*.
 
 **Can Insight tell me what to set the machine's Inroad Mode to?** *(v0.16.0)* — once your own sets carry the
-answer. The machine's Inroad Mode works on its own scale (best rep peak → last rep peak), Insight judges fatigue in
+answer. The machine's Inroad Mode works on its own scale (momentary force against the maximum reached so far, no
+averaging - read from the recording as best rep peak → last rep peak), Insight judges fatigue in
 the set on another; a straight line through your dynamic sets (at least 6, spread over 10 machine points, half the
 scatter explained) maps one to the other, per exercise when possible. Then the escalation row after two misses gets
 a **fourth lever** ("Inroad Mode at about X % — end the set when the zone is missed; the original never does"), static hints carry no machine value (the calibration is fitted on dynamic sets),

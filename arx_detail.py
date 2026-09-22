@@ -409,7 +409,10 @@ def _legacy_inroad(t, f, events) -> tuple[int | None, str]:
     """The v2 figure exactly as versions <= 0.3.x computed it (arx_report.rep_segments / _inroad /
     classify_effort): BeginRep/EndRep pairs by position, highest SAMPLE of each rep (force rounded
     to 0.1 kg, time to 0.01 s), decline from the best rep peak to the last one; 'rising' = the last
-    peak is within 2 % of the first. Kept for display and for the v2 -> v3 comparison."""
+    peak is within 2 % of the first. Kept for display and for the v2 -> v3 comparison - and it is the ORIGINAL's own
+    scale: the machine shows the momentary force against the maximum reached so far in the set, any repetition, no
+    averaging (owner's test on the original, 2026-09-22). The momentary value dips inside every repetition anyway,
+    so the peaks are what a person judges the zone by - hence best rep peak -> last rep peak here."""
     begins = [x[0] for x in events if x[1] == "BeginRep"]
     ends = [x[0] for x in events if x[1] == "EndRep"]
     peaks = []

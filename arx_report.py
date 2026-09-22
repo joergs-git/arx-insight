@@ -475,7 +475,8 @@ def _exercise_series(work: list[dict], catalog: dict, restrictions: dict | None 
                     "tempo_s": (b.get("tempo") or {}).get("con_s"),   # seconds per direction actually driven
                     "protocol": b.get("protocol"),          # 3 = reps, 1 = countdown, 0 = inroad
                     # contract modes-1: movement x ending x phase; Output (impulse) for timed sets; the machine's own
-                    # inroad scale (best rep peak -> last rep peak) next to the fatigue judgement
+                    # inroad scale (best rep peak -> last rep peak = the original's momentary-force-against-the-maximum-so-far
+                    # scale, read from the recording) next to the fatigue judgement
                     "movement": b.get("movement", "dynamic"), "ending": b.get("ending", "reps"), "phase": b.get("phase") or "both",
                     "pos_in": b.get("pos_in"), "output_kg_s": b.get("impulse_kg_s"), "inroad_machine": b.get("inroad_legacy"),
                     "aid_on": bool(b.get("aid_on")),        # a grip aid in use: not comparable with days without

@@ -201,7 +201,8 @@ COUNTDOWN_SECONDS = 90         # length of a suggested Countdown set (inside the
 OUTPUT_STEP_PCT = 2.0          # the Output target of a timed set: last comparable Output + this
 STATIC_HOLD_S = 40             # a suggested static hold (a Countdown - the original never ends a set by itself; arx-free ends a hold by the fatigue target)
 # the machine's Inroad Mode setting calibrated to the fatigue target (v0.16.0): a straight line through the athlete's
-# own sets, fatigue in the set (effort-v3) against the machine's inroad scale (best rep peak -> last rep peak)
+# own sets, fatigue in the set (effort-v3) against the machine's inroad scale (best rep peak -> last rep peak; the original
+# computes it live as the momentary force against the maximum reached so far - no averaging, owner's test 2026-09-22)
 CALIB_MIN_SETS = 6             # sets needed for a fit
 CALIB_MIN_R2 = 0.5             # ... and this much of the scatter explained
 CALIB_MIN_SPREAD = 10          # ... over at least this many machine-scale points, else no fit

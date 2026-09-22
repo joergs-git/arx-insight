@@ -43,6 +43,12 @@ real route), and the original's Inroad percentages are not on the scale of ARX I
 | Compat views `"ExerciseSet"` / `"User"` (planned M6) | arx-free | SQLite views with the original's column names | Insight's SQL and decoders run unchanged | Insight's own tests against an arx-free database |
 | Evidence ("is that scientifically right?") | **ARX Insight** (`science.json`) | one verified list | `docs/coaching-knowledge.md` refers to its topics, keeps no second list | review |
 
+Observed on the original by the owner, not yet in a contract (goes into `modes-4` with the next change - an adopted
+contract is never edited in place): the original computes its Inroad **live as the momentary force against the maximum
+reached so far in the set** - any repetition, no averaging (2026-09-22). Insight's `inroad_machine` reads the same
+scale from the recording as best repetition peak -> last repetition peak (the momentary value dips inside every
+repetition; the peaks are what a person judges the zone by).
+
 **Only in ARX Insight, never rebuilt here:** what to train when, targets and progression, rest between sessions,
 what changes after missed targets, how long a beginner ramps, the AI coach.
 **Only in arx-free, never rebuilt there:** everything that moves the machine and its safety rules, the live coach at
