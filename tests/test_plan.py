@@ -569,6 +569,26 @@ class EffortEscalation(unittest.TestCase):
         r = report(rows, "2026-09-11", **extra)
         return r, next(x for x in r["plan"]["next_session"]["exercises"] if x["name"] == self.NAME)
 
+    def test_the_fatigue_session_is_for_the_experienced_near_their_best(self):
+        """v0.19.1: a missed target at full strength -> an experienced athlete gets the harder way (a set ended by the
+        fatigue target); far below the best the row says 'effort, not the protocol' and offers nothing harder."""
+        rows = self.sets([0.05, 0.05, 0.05, 0.01])
+        r, it = self.row(rows, experience="experienced")
+        self.assertEqual(r["exercises"][0]["share_of_best_pct"], 100)
+        self.assertEqual((it["mode_hint"]["mode"], it["mode_hint"]["interp"]["code"], it["mode_hint"]["settings"]["fatigue_target_pct"]),
+                         ("dynamic/fatigue", "mode_fatigue_session", 20))
+        self.assertNotIn("{", it["mode_hint"]["interp"]["text"]["meaning"] + it["mode_hint"]["interp"]["text"]["action"])
+        self.assertIsNone(it.get("effort_note"))
+        r, it = self.row(rows)                                                              # four days, not experienced: no such hint
+        self.assertIsNone(it.get("mode_hint"))
+        # the last set far below the best (77 % - above the low-force cap, so it counts): the note, no fatigue session
+        weak = rows[:3] + [fx.make_set(9, PRESS, datetime(2026, 9, 10, 10, 0), sec_per_dir=3.0, pause_start=2.0, con=(115, 0.01), ecc=(184, 0.01))]
+        r, it = self.row(weak, experience="experienced")
+        self.assertLess(r["exercises"][0]["share_of_best_pct"], 80)
+        self.assertIsNone(it.get("mode_hint"))
+        self.assertEqual(it["effort_note"]["code"], "plan_effort_below_best")
+        self.assertNotIn("{", it["effort_note"]["text"]["meaning"] + it["effort_note"]["text"]["action"])
+
     def test_one_miss_is_intent_two_misses_change_the_set_up(self):
         r, it = self.row(self.sets([0.05, 0.05, 0.05, 0.01]))
         self.assertLess(r["exercises"][0]["occ"][-1]["inroad"], planner.INROAD_DEEP)
@@ -576,6 +596,15 @@ class EffortEscalation(unittest.TestCase):
         self.assertIn(it["target_rule"], ("hold_reach_effort", "retest_fresh"))
         self.assertEqual((it.get("settings_change"), it["step_pct"]), (None, 0))
         self.assertEqual(r["exercises"][0]["effort_misses"], 1)
+        # v0.19.1: after the first miss the set-up change is on the row as the ALTERNATIVE to the intent cue
+        self.assertEqual((it["settings_alternative"]["tempo_s"], it["settings_alternative"]["pause_return_s"]["to"]), ({"from": 3.0, "to": 4.0}, 0))
+        if it["target_rule"] == "hold_reach_effort":
+            self.assertEqual(it["interp"]["code"], "plan_hold_effort_choice")
+            self.assertIn("4", it["interp"]["text"]["action"]); self.assertNotIn("{", it["interp"]["text"]["action"])
+        self.assertIsNone(it.get("effort_note"))                                          # at 100 % of the best: no "effort" note
+        # a strength goal keeps a defined turnaround of 2 s - longer pauses are cut to it, shorter ones stay
+        self.assertEqual(planner.effort_reset_settings({"tempo_s": 3.0, "pause_end_s": 3.0, "pause_return_s": 1.0, "reps": 8}, keep_pauses=True),
+                         {"tempo_s": {"from": 3.0, "to": 4.0}, "pause_end_s": {"from": 3.0, "to": 2.0}})
         for lang in ("en", "de"):
             r, it = self.row(self.sets([0.05, 0.05, 0.01, 0.01]), language=lang)
             self.assertEqual((it["target_rule"], it["interp"]["code"], it["step_pct"]), ("effort_reset", "plan_effort_reset", 0))

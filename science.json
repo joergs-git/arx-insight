@@ -1,7 +1,7 @@
 {
  "_comment": "ARX Insight science base: the evidence behind the planner's defaults. Curated and versioned with the code - the app never searches the web. Every entry: what the evidence says (statement), a cautious rule of thumb (practical_rule), how THIS app applies it (applied_as), what does not transfer to a motor-driven machine (arx_caveat), the constants it backs (parameters), the evidence level and the references. The athlete's own measured data always outranks a default from this file.",
  "version": 2,
- "reviewed": "2026-09-21",
+ "reviewed": "2026-09-22",
  "review_policy": "Re-check at every release against new meta-analyses and position stands; a default that the evidence no longer supports is changed in the code, not only here.",
  "method": "References were retrieved live from the official PubMed record (NCBI E-utilities) and cross-checked against the Crossref record of their DOI (title, first author, year); bibliographic fields were written by script, not retyped. Key findings are taken from the abstracts - no full texts were read. A sample was re-checked independently before this file was written.",
  "evidence_levels": {
@@ -1612,6 +1612,62 @@
      "pmid": "33924785",
      "type": "meta-analysis",
      "key_finding": "Systematic review with meta-analysis of resistance circuit-based training: improvements in body composition, strength and cardiorespiratory fitness in adults."
+    }
+   ]
+  },
+  "rest_between_repetitions": {
+   "title": "Pauses between repetitions: relaxation is quick, recovery is not",
+   "statement": "A pause of a few seconds at the turnaround lets the muscle go slack but restores almost none of its energy store: immediately after exhaustive work phosphocreatine stands at 15-20 % of rest, its fast recovery component has a half-time of about 21 s and reaches 65 % of rest only after 90 s. Set structures that insert real rest INSIDE a set (cluster sets, rest redistribution - typically 10-30 s or more) keep velocity and power up and lower metabolic and perceived strain compared with a continuous set (32 studies pooled).",
+   "practical_rule": "0-2 s at the turnaround keeps a set continuous; 3-5 s take a little tension out and restore nothing worth mentioning; intra-set rests from about 10 s on make a set measurably easier. To get MORE fatigue out of one set: pauses to 0-2 s and, above all, a slower repetition. To get more force per repetition (strength, power): real rests inside the set instead.",
+   "applied_as": "Effort escalation (v0.19.1): after the FIRST missed fatigue target the row offers the set-up change as the alternative to the intent cue (pauses at the turnarounds to 0 s, one second slower per direction - the comparison basis restarts); after the second miss it becomes the plan. A strength goal keeps a defined turnaround of EFFORT_PAUSE_KEEP_S = 2 s (the owner's practice; the evidence supports 'a few seconds change little', not a precise threshold). The harder third way - a set ended by the fatigue target - is offered only to an experienced athlete whose last comparable force is at least FATIGUE_SESSION_SHARE = 80 % of his best (below that the gap is effort, not the protocol).",
+   "arx_caveat": "No study used a motor-driven machine. The ARX pause is a hold at the turnaround under load, not passive rest - it is time under tension of its own, so cutting it changes the set less than a cluster rest would. The phosphocreatine figures come from exhaustive cycling and isometric work, not from an 8-repetition set.",
+   "parameters": [
+    "arx_plan.EFFORT_PAUSE_KEEP_S",
+    "arx_plan.EFFORT_TEMPO_STEP_S",
+    "arx_plan.FATIGUE_SESSION_SHARE"
+   ],
+   "evidence_level": "indirect",
+   "reviewed": "2026-09-22",
+   "references": [
+    {
+     "authors": "Jukic I, Ramos AG, Helms ER, McGuigan MR, Tufano JJ",
+     "year": 2020,
+     "title": "Acute Effects of Cluster and Rest Redistribution Set Structures on Mechanical, Metabolic, and Perceptual Fatigue During and After Resistance Training: A Systematic Review and Meta-analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-020-01344-2",
+     "pmid": "32901442",
+     "type": "meta-analysis",
+     "key_finding": "32 studies. Pooled results revealed that alternative set structures allowed for greater absolute mean [standardized mean difference (SMD) = 0.60] and peak velocity (SMD = 0.41), and mean (SMD = 0.33) and peak power (SMD = 0.38) during RT. In addition, alternative set structures were also highly effective at mitigating a decline in velocity and power variables during (SMD&#x..."
+    },
+    {
+     "authors": "Tufano JJ, Brown LE, Haff GG",
+     "year": 2017,
+     "title": "Theoretical and Practical Aspects of Different Cluster Set Structures: A Systematic Review",
+     "journal": "J Strength Cond Res",
+     "doi": "10.1519/JSC.0000000000001581",
+     "pmid": "27465625",
+     "type": "systematic review",
+     "key_finding": "Fatigue accumulates over successive repetitions and repetition quality falls; intermittent rest between repetitions or groups of repetitions inside a set (a cluster set) acutely alleviates that fatigue so performance stays nearly constant - which helps where fatigue is detrimental (power) and may cost where fatigue is the stimulus. Rest-period terminology in the literature is not uniform."
+    },
+    {
+     "authors": "Harris RC, Edwards RH, Hultman E, Nordesjo LO, Nylind B, Sahlin K",
+     "year": 1976,
+     "title": "The time course of phosphorylcreatine resynthesis during recovery of the quadriceps muscle in man",
+     "journal": "Pflugers Arch",
+     "doi": "10.1007/BF00585149",
+     "pmid": "1034909",
+     "type": "physiology (biopsies)",
+     "key_finding": "After exhaustive dynamic exercise or an isometric contraction held to fatigue, muscle phosphocreatine was 15-16 % of the resting content; resynthesis was biphasic with a fast component half-time of 21-22 s and a slow component half-time above 170 s."
+    },
+    {
+     "authors": "Bogdanis GC, Nevill ME, Boobis LH, Lakomy HK, Nevill AM",
+     "year": 1995,
+     "title": "Recovery of power output and muscle metabolites following 30 s of maximal sprint cycling in man",
+     "journal": "J Physiol",
+     "doi": "10.1113/jphysiol.1995.sp020533",
+     "pmid": "7714837",
+     "type": "physiology (biopsies)",
+     "key_finding": "At the end of a 30-s maximal sprint phosphocreatine was 19.7 % of rest; it recovered to 65 % after 1.5 min and only to 85.5 % after 6 min - the first seconds of a pause restore almost nothing."
     }
    ]
   }
