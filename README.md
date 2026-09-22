@@ -249,13 +249,15 @@ structured output the schema is part of the cached prefix and differs per athlet
 no cache marks there; the chat, without a schema, keeps its one-hour cache.) A board that leaves whole sections as
 placeholders is not shown at all - the job fails with a code and *Try again* is offered *(v0.20.1)*.
 
-**Is there a short version?** *(v0.20.0)* — yes, at the very top of the report, above the fold: the
-**Kurzfassung** box. Left: every exercise of the last session with one symbol and one line - 👍 target reached,
+**Is there a short version?** *(v0.20.0, v0.20.2)* — yes: the **compact box**, on a wide screen a column to
+the left of the report that stays in view while you scroll, on a phone above it. It holds every exercise of the
+last session with one symbol, one line and the numbers (repetitions, seconds, peak force) - 👍 target reached,
 ⭐ a new best, 👌 reached but lower than last time (or on *go easy*), 👎 below the fatigue target ("half the
-stimulus", with *once more* while you are still on the machine); the words are the engine's own judgement,
-no AI needed. Right: when the next session is, the exercises in their order, and up to three things to watch
-(the levers after a missed target first, then mode suggestions, exercises on *go easy*, a time window) - plus the
-coach's focus line once a board exists. A tap on either half opens the chapter behind it.
+stimulus", with *once more* while you are still on the machine); the words are the engine's own judgement, no AI
+needed. Then today's check-in score, the next session (when, how long, the exercises in their order) with up to
+three things to watch (the levers after a missed target first, then mode suggestions, exercises on *go easy*, a
+time window) and the coach's focus line once a board exists, and the load line (sessions per week against the
+target). A tap on the last or the next box opens the chapter behind it.
 
 **Can I name the days I train on?** *(v0.19.0)* — yes: *Preferred training days* in the profile (optional, e.g.
 Mon / Wed / Fri). They are a preference, not a cage: the plan keeps them while the muscles are ready and the session

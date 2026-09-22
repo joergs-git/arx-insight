@@ -165,21 +165,26 @@
   /* grid/flex children default to min-width:auto, so a wide table or chart would push the whole
      page wider than a phone screen - cap them, inner tables/charts scroll on their own */
   #r_main,.kpi,.excard,.panel,.verdict > *{min-width:0}
-  /* v0.20.0: the Kurzfassung - one box above the fold: the last session judged per exercise, what comes next and what to watch */
-  .brief{display:grid;grid-template-columns:1fr 1.2fr;margin-top:14px;border:2px solid var(--ink);background:var(--panel)}
-  .brief .bcol{padding:12px 16px;min-width:0;cursor:pointer}
-  .brief .bcol+.bcol{border-left:2px solid var(--rule)}
-  .brief .bhead{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
-  .brief .bx{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:15px;line-height:1.35}
-  .brief .bx .f{font-size:18px;width:26px;text-align:center;flex:none}
-  .brief .bx b{flex:none}
-  .brief .border{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:15px}
-  .brief .bo{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--rule2);border-radius:6px;padding:3px 8px}
-  .brief .bo i{font-style:normal;font-family:var(--disp);font-size:12px;color:var(--ink3)}
-  .brief .bwatch{margin-top:8px;font-size:14px;color:var(--ink2);line-height:1.45}
-  .brief .bfocus{margin-top:6px;font-size:14px;font-style:italic;color:var(--ink)}
-  .brief .bfocus:empty{display:none}
-  @media(max-width:700px){.brief{grid-template-columns:1fr}.brief .bcol+.bcol{border-left:0;border-top:2px solid var(--rule)}}
+  /* v0.20.2: the compact box - left of the main frame on a wide screen (sticky), above it on a phone */
+  .side{margin-top:14px}
+  .side .sbox{border:2px solid var(--ink);background:var(--panel);padding:12px 14px;margin-bottom:10px;min-width:0}
+  .side .bhead{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+  .side .sv{font-family:var(--disp);font-size:22px;font-weight:700;line-height:1.1}
+  .side .ss{color:var(--ink2);font-size:14px;margin-top:2px}
+  .side .bx{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:15px;line-height:1.3}
+  .side .bx .f{font-size:18px;width:26px;text-align:center;flex:none}
+  .side .bx > div{min-width:0}
+  .side .bn{color:var(--ink3);font-size:13px;margin-top:2px}
+  .side .border{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:14px;margin-top:8px}
+  .side .bo{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--rule2);border-radius:6px;padding:3px 8px}
+  .side .bo i{font-style:normal;font-family:var(--disp);font-size:12px;color:var(--ink3)}
+  .side .bwatch{margin-top:8px;font-size:14px;color:var(--ink2);line-height:1.45}
+  .side .bfocus{margin-top:6px;font-size:14px;font-style:italic;color:var(--ink)}
+  .side .bfocus:empty{display:none}
+  .side .sbox[onclick]{cursor:pointer}
+  @media(min-width:1280px){#r_body.wrap{max-width:1560px}#r_main{display:grid;grid-template-columns:360px minmax(0,1fr);gap:22px;align-items:start}
+    .side{position:sticky;top:76px;max-height:calc(100vh - 90px);overflow:auto;padding-right:2px}}
+  @media print{.side{position:static;max-height:none}}
   .status{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px;background:var(--rule);border:2px solid var(--ink);margin-top:14px}
   .status > div{background:var(--panel);padding:12px 16px;min-width:0}
   .status .label{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
@@ -1072,11 +1077,12 @@ async function selfUpdate(btn){
   tick();
 }
 
-// ---- v0.20.0: the Kurzfassung - one box above the fold. Engine facts only (no AI needed): each exercise of the last
-// session judged against the athlete's own fatigue target and last comparable value, the next session in order, what to
-// watch (the levers first); the coach's focus line joins once a board exists. A tap opens the chapter behind it. ----
-function briefHtml(r){
-  const de=CFG.language==="de", ls=r.last_session, ns=(r.plan||{}).next_session;
+// ---- v0.20.0 / v0.20.2: the compact box - LEFT of the main frame on a wide screen (sticky), above it on a phone (owner: the
+// scrollbar is long enough). Engine facts only, no AI needed: the last session with a symbol, a judgement and the numbers per
+// exercise, today's readiness, the next session in order with what to watch, the load - and the coach's focus line once a
+// board exists. A tap on the last / next box opens the chapter behind it. ----
+function sideHtml(r){
+  const de=CFG.language==="de", ls=r.last_session, ns=(r.plan||{}).next_session, rd=r.readiness;
   const sign=v=>(v>0?"+":"")+v;
   const judge=x=>{
     if(x.effort_capped||x.inroad==null) return {f:"·",c:"var(--ink3)",t:de?"nicht gewertet":"not judged"};
@@ -1087,7 +1093,9 @@ function briefHtml(r){
     if(d!=null&&d<=-2) return {f:"👌",c:"var(--warn)",t:effLabel(x.effort)+" "+x.inroad+" % · "+sign(d)+" %"};
     return {f:"👍",c:"var(--good)",t:effLabel(x.effort)+" "+x.inroad+" %"+(d!=null?" · "+sign(d)+" %":"")};
   };
-  const lastRows=ls?ls.exercises.map(x=>{const j=judge(x);return `<div class="bx"><span class="f">${j.f}</span><b>${esc(x.name)}</b><span style="color:${j.c}">${esc(j.t)}</span></div>`;}).join("")
+  const num=x=>[x.reps!=null?`${x.reps} ${de?"Wdh.":"reps"}`:null, x.seconds!=null?`${Math.round(x.seconds)} s`:null,
+                x.max_kg!=null?`${Math.round(toUser(x.max_kg,"kg"))} ${LKg()}`:null].filter(Boolean).join(" · ");
+  const lastRows=ls?ls.exercises.map(x=>{const j=judge(x);return `<div class="bx"><span class="f">${j.f}</span><div><b>${esc(x.name)}</b> <span style="color:${j.c}">${esc(j.t)}</span><div class="bn">${esc(num(x))}</div></div></div>`;}).join("")
     :`<div class="bx"><span class="f">·</span>${de?"Noch keine Einheit aufgezeichnet.":"No session recorded yet."}</div>`;
   const watch=[];
   // only what CHANGES is named: "5 s/direction", "pauses 0 s" or both - never a measured 5.22 s that stays as it is
@@ -1107,12 +1115,19 @@ function briefHtml(r){
   if(ns&&ns.time_window) watch.push(de?`Zeitfenster: ${ns.time_window.size} statt ${ns.time_window.normal_size} Übungen`:`time window: ${ns.time_window.size} of ${ns.time_window.normal_size} exercises`);
   const when=!ns?"—":(ns.days_from_today===0?(de?"Heute":"Today"):ns.days_from_today===1?(de?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
   const order=ns?ns.exercises.map((x,i)=>`<span class="bo"><i>${i+1}</i>${esc(x.name)}${x.sets>1?` ×${x.sets}`:""}</span>`).join(""):"";
-  return `<section class="brief" id="brief">
-    <div class="bcol" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${lastRows}</div>
-    <div class="bcol" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)} · ≈ ${ns.est_minutes} min`:""}</div>
+  const flagT={overload_risk:[de?"zu wenig Erholung":"too little recovery","var(--accent)"],detraining_risk:[de?"zu lange Pause":"long gap","var(--warn)"],
+    underload:[de?"Reiz zu gering":"under-stimulated","var(--warn)"],ok:[de?"ausgewogen":"balanced","var(--good)"]}[(r.load||{}).flag||"ok"];
+  const bandCol=rd?({go_hard:"var(--good)",moderate:"var(--warn)",light_or_rest:"var(--accent)"}[rd.band]||"var(--ink2)"):"var(--ink3)";
+  const bandTxt=rd?({go_hard:de?"volle Intensität":"go hard",moderate:de?"moderat":"moderate",light_or_rest:de?"leicht oder Pause":"light or rest"}[rd.band]||""):"";
+  return `<aside class="side" id="brief">
+    <div class="sbox" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${ls?`<div class="ss">${ls.working_sets} ${de?"Sätze":"sets"} · ${Math.round(ls.wall_minutes)} min</div>`:""}${lastRows}</div>
+    <div class="sbox"><div class="bhead">${de?"Heute":"Today"}</div><div class="sv" style="color:${bandCol}">${rd&&rd.score!=null?rd.score+" / 100":"Check-in?"}</div><div class="ss">${rd?esc(bandTxt):`<a href="#" onclick="openCheckin('report');return false" style="color:var(--accent)">☀ ${de?"20 Sekunden":"20 seconds"}</a>`}</div></div>
+    <div class="sbox" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)}`:""}</div>${ns?`<div class="ss">${ns.exercises.length} ${de?"Übungen":"exercises"} · ≈ ${ns.est_minutes} min</div>`:""}
       <div class="border">${order||(de?"Kein Termin planbar.":"No session can be planned.")}</div>
       ${watch.length?`<div class="bwatch"><b>${de?"Achten auf":"Watch"}:</b> ${watch.slice(0,3).join(" · ")}</div>`:""}
-      <div class="bfocus" id="brief_focus"></div></div></section>`;
+      <div class="bfocus" id="brief_focus"></div></div>
+    <div class="sbox"><div class="bhead">${de?"Belastung":"Load"}</div><div class="sv" style="color:${flagT[1]}">${flagT[0]}</div><div class="ss">${(r.load||{}).weekly_rate!=null?`${r.load.weekly_rate} ${de?"Einheiten/Woche":"sessions/week"} · ${de?"Ziel":"target"} ${r.sessions_per_week||2}`:""}</div></div>
+  </aside>`;
 }
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
@@ -1139,12 +1154,6 @@ function renderReport(){
     underload:[de0?"Reiz zu gering":"under-stimulated","var(--warn)"],ok:[de0?"ausgewogen":"balanced","var(--good)"]}[(r.load||{}).flag||"ok"];
   const bandCol=rd?({go_hard:"var(--good)",moderate:"var(--warn)",light_or_rest:"var(--accent)"}[rd.band]||"var(--ink2)"):"var(--ink3)";
   const whenTxt=!ns?"—":(ns.days_from_today===0?(de0?"Heute":"Today"):ns.days_from_today===1?(de0?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
-  const status=`<div class="status">
-    <div><div class="label">${de0?'Letzte Einheit':'Last session'}</div><div class="v">${ls?dShort(ls.date):'—'}</div><div class="s">${ls?`${ls.working_sets} ${de0?'Sätze':'sets'} · ${ls.wall_minutes} min`:(de0?'noch keine':'none yet')}</div></div>
-    <div><div class="label">${de0?'Heute':'Today'}</div><div class="v" style="color:${bandCol}">${rd&&rd.score!=null?rd.score+' / 100':'Check-in?'}</div><div class="s">${rd?'':`<a href="#" onclick="openCheckin('report');return false" style="color:var(--accent)">☀ ${de0?'20 Sekunden':'20 seconds'}</a>`}${rd?({go_hard:de0?'volle Intensität':'go hard',moderate:de0?'moderat':'moderate',light_or_rest:de0?'leicht oder Pause':'light or rest'}[rd.band]||''):''}</div></div>
-    <div><div class="label">${de0?'Nächstes Training':'Next training'}</div><div class="v" style="color:var(--accent)">${whenTxt}</div><div class="s">${ns?`${dShort(ns.date)} · ${ns.exercises.length} ${de0?'Übungen':'exercises'} · ≈ ${ns.est_minutes} min`:''}</div></div>
-    <div><div class="label">${de0?'Belastung':'Load'}</div><div class="v" style="color:${flagT[1]}">${flagT[0]}</div><div class="s">${(r.load||{}).weekly_rate!=null?`${r.load.weekly_rate} ${de0?'Einheiten/Woche':'sessions/week'} · ${de0?'Ziel':'target'} ${r.sessions_per_week||2}`:''}</div></div></div>
-    <div id="coach_focus"></div>`;
   const nav=`<nav class="chapnav"><a href="#ch1"><b>1</b><span class="wide">${de0?'Letzte Einheit':'Last session'}</span><span class="narrow">${de0?'Letzte':'Last'}</span></a><a href="#ch2"><b>2</b><span class="wide">${de0?'Nächstes Training':'Next training'}</span><span class="narrow">${de0?'Nächstes':'Next'}</span></a><a href="#ch3"><b>3</b>${de0?'Verlauf':'History'}</a><a href="#" id="navAsk"><b>💬</b>${de0?'Fragen':'Ask'}</a></nav>`;
   const chap=(id,no,title,body)=>`<div class="chapter" id="${id}"><div class="chaphead"><span class="no">${no}</span><h2>${title}</h2></div>${body}</div>`;
   const ch1=lastSessionHtml(r)+`<details class="more"><summary>${de0?'Maschineneinstellungen gegen Empfehlung':'Machine settings vs recommended'}</summary>${settingsHtml(r)}</details>`;
@@ -1158,9 +1167,9 @@ function renderReport(){
   ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
   ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;
-  const main=briefHtml(r)+status+nav+goalLine+goalProgressHtml(r)+restrHtml(r)
+  const main=sideHtml(r)+`<div class="mainframe">`+nav+`<div id="coach_focus"></div>`+goalLine+goalProgressHtml(r)+restrHtml(r)
     +chap("ch1",1,de0?'Letzte Einheit':'Last session',ch1)+chap("ch2",2,de0?'Nächstes Training':'Next training',ch2)
-    +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3);
+    +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3)+`</div>`;
 
   const disc=de0?"Experimentelles Hilfsmittel, keine medizinische oder therapeutische Beratung. Keine Haftung. Alles auf eigene Verantwortung. Bei Beschwerden ärztlichen Rat einholen.":"Experimental aid, not medical or therapeutic advice. No liability. At your own risk. Consult a physician on pain or injury.";
   const footer=`<footer><p class="foot">ARX Insight v${CURVER} · local · ${LKg()}/${LCm()} · <a href="${REPO}" target="_blank" rel="noopener" style="color:var(--accent)">${de0?'GitHub · Hilfe & Infos ↗':'GitHub · help & info ↗'}</a></p><p class="foot" style="margin-top:8px">${disc}</p></footer>`;
@@ -1733,7 +1742,7 @@ function renderCoach(){
   put(2,`<div class="coach">${coachWho(meta)}<p>${esc(H.four_weeks||'')}</p>${H.longer_term?`<p>${esc(H.longer_term)}</p>`:''}
     ${(H.kpi_notes||[]).length?`<div class="verd">${H.kpi_notes.map(k=>`<div><b>${esc(k.exercise)}</b> — ${esc(k.note)}</div>`).join("")}</div>`:''}
     ${(H.anomalies||[]).length?`<ul>${H.anomalies.map(a=>`<li>${esc(a.meaning)}${a.action?` <b style="color:var(--ink)">→ ${esc(a.action)}</b>`:''}</li>`).join("")}</ul>`:''}</div>`);
-  if(bf) bf.innerHTML=b.focus?`🤖 ${esc(b.focus)}`:"";
+  if(bf) bf.innerHTML=(b.focus&&String(b.focus).trim().length>2)?`🤖 ${esc(b.focus)}`:"";   // a stored board from before v0.20.1 may carry a filler
   // status strip: the ONE thing + what to remember at the machine
   put(3,`<div class="coach" style="margin-top:10px">${coachWho(de?'Fokus':'focus')}<p class="then" style="font-size:20px">${esc(b.focus||'')}</p>
     ${(b.key_recommendations||[]).length?`<ul>${b.key_recommendations.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}</div>`);
