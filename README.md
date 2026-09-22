@@ -247,6 +247,14 @@ a newer one overtook stops within seconds; and a plan the rule check rejects is 
 or one small rows-only call instead of a second full board. The static prompt and your payload are cached for the
 next call within minutes (a training partner's board, the repair).
 
+**Is there a short version?** *(v0.20.0)* — yes, at the very top of the report, above the fold: the
+**Kurzfassung** box. Left: every exercise of the last session with one symbol and one line - 👍 target reached,
+⭐ a new best, 👌 reached but lower than last time (or on *go easy*), 👎 below the fatigue target ("half the
+stimulus", with *once more* while you are still on the machine); the words are the engine's own judgement,
+no AI needed. Right: when the next session is, the exercises in their order, and up to three things to watch
+(the levers after a missed target first, then mode suggestions, exercises on *go easy*, a time window) - plus the
+coach's focus line once a board exists. A tap on either half opens the chapter behind it.
+
 **Can I name the days I train on?** *(v0.19.0)* — yes: *Preferred training days* in the profile (optional, e.g.
 Mon / Wed / Fri). They are a preference, not a cage: the plan keeps them while the muscles are ready and the session
 is full, an extra session on another day does not move them (legs on a Tuesday leave Wednesday's upper-body session
