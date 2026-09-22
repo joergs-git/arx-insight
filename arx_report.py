@@ -1877,6 +1877,7 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         "transition": transition,
         # still on the machine? (the last set ended less than VISIT_GAP_MIN minutes ago) - then "once more, now"
         "open": open_session, "minutes_since_last_set": round(minutes_ago) if minutes_ago is not None else None,
+        "last_set_at": last_end.isoformat(timespec="seconds") if last_end else None,   # the app re-reads the age at request time
         "inroad_target": goal_min, "repeat_now": [r["name"] for r in rows if r["repeat_now"]],
         # one plain explanation of the measure, with the athlete's own target (v0.12.3)
         "fatigue_glossary": history.item("fatigue_glossary", {"level": ("tief" if (cfg or {}).get("language") == "de" else "deep") if goal_min >= INROAD_DEEP

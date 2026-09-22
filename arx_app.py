@@ -339,13 +339,18 @@ REPORT_CACHE: dict = {}         # key -> report (without AI fields); a handful o
 REPORT_CACHE_KEEP = 6
 
 
+def sets_signature(con, user_id: int) -> list[str]:
+    """The person's recorded sets in three numbers: count, newest id, newest change - a new set changes it."""
+    cur = con.cursor()
+    cur.execute('select count(*), max(id), max(lastupdate) from "ExerciseSet" where user_id = ?', (user_id,))
+    return [str(x) for x in (cur.fetchone() or ())]
+
+
 def _report_key(con, cfg: dict) -> str:
     """Everything a report depends on: the person's recorded sets (count / newest id / newest
     change), every setting that feeds the engine, today and the app version."""
     import hashlib
-    cur = con.cursor()
-    cur.execute('select count(*), max(id), max(lastupdate) from "ExerciseSet" where user_id = ?', (cfg["user_id"],))
-    sig = [str(x) for x in (cur.fetchone() or ())]
+    sig = sets_signature(con, cfg["user_id"])
     basis = {k: v for k, v in cfg.items() if k not in ("_catalog", "anthropic_api_key")}
     blob = json.dumps([sig, basis, STATE.get("version"), core._today({}).isoformat()], sort_keys=True, default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
@@ -393,6 +398,7 @@ def make_report(user_id: int, cfg_info: tuple | None = None) -> dict:
             report = core.build_report(con, cfg)
             report["created"] = info["created"]
             report["user"] = info
+            report["data_state"] = sets_signature(con, cfg["user_id"])   # what the coach's data signature builds on
             REPORT_CACHE[key] = report
             for old in list(REPORT_CACHE)[:-REPORT_CACHE_KEEP]:
                 REPORT_CACHE.pop(old, None)
@@ -423,6 +429,30 @@ def remember_plan(user_id: int, report: dict) -> None:
 BOARDS, JOBS, CHATS = ai.BoardStore(), ai.JobManager(), ai.ChatManager()
 
 
+def data_signature(report: dict, cfg: dict, model: str, effort: str, with_checkin: bool) -> str:
+    """What a board's content depends on EXCEPT the calendar (v0.18.0): the recorded sets, profile and settings,
+    today's check-in (when asked for), the prompt / app version, model and effort. The same signature on a later
+    day = the same coaching situation - the board made then is still current."""
+    import hashlib
+    skip = ("_catalog", "anthropic_api_key", "alias", "_plan_ledger", "checkin_history", "checkin", "_today", "_now")
+    basis = {k: v for k, v in cfg.items() if k not in skip}
+    blob = json.dumps([report.get("data_state"), basis, cfg.get("checkin") if with_checkin else None,
+                       STATE.get("version"), ai.PROMPT_VERSION, model, effort], sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
+
+
+def minutes_since_last_set(report: dict, cfg: dict) -> float | None:
+    """How old the newest recorded set is, on the app's clock (None without a session)."""
+    at = (report.get("last_session") or {}).get("last_set_at")
+    if not at:
+        return None
+    from datetime import datetime
+    try:
+        return (core._now(cfg) - datetime.fromisoformat(str(at))).total_seconds() / 60.0
+    except (TypeError, ValueError):
+        return None
+
+
 def coach_context(user_id: int) -> dict:
     """Report + payload + key for one person: what a board depends on and what the chat talks about."""
     cfg, info = report_cfg(user_id)
@@ -432,34 +462,48 @@ def coach_context(user_id: int) -> dict:
     payload = ai.build_payload(report, cfg, None)
     key = ai.payload_key(payload, model, effort)
     previous = ai.memory_of([r for r in earlier if r.get("key") != key])
-    return {"cfg": cfg, "info": info, "report": report, "key": key, "previous": previous}
+    return {"cfg": cfg, "info": info, "report": report, "key": key, "previous": previous,
+            "sig": data_signature(report, cfg, model, effort, True), "sig_base": data_signature(report, cfg, model, effort, False)}
 
 
-def coach_state(user_id: int, start: bool = False, allow=None) -> dict:
-    """{state: no_key | none | running | done | error | limit, record?, error?}. start=True begins the
-    job when there is no board for this data state yet (two devices asking get the same job).
-    allow() is asked right before a NEW billed job starts (the daily allowance of an athlete link)."""
+def coach_state(user_id: int, start: bool = False, allow=None, auto: bool = False) -> dict:
+    """{state: no_key | none | waiting | running | done | error | limit, record?, reused?, error?}. start=True begins
+    the job when there is no board for this data state yet (two devices asking get the same job); auto=True marks the
+    page's automatic start: it waits while a session is still going (COACH_SETTLE_MIN after the last set) and never
+    replaces a board whose data is unchanged - a click does both at once. allow() is asked right before a NEW billed
+    job starts (the daily allowance of an athlete link)."""
     ctx = coach_context(user_id)
     cfg, key = ctx["cfg"], ctx["key"]
     if not ai.has_key(cfg):
         return {"state": "no_key"}
+    JOBS.supersede(user_id, key)                        # a job for an older data state of this athlete stops within a chunk
     rec = BOARDS.get(user_id, key)
     if rec:
         return {"state": "done", "record": rec}
     job = JOBS.status(user_id, key)
     if job and job["state"] == "running":
         return {"state": "running", "since": round(time.time() - job["started"])}
+    # the same sets, profile, settings (and check-in) on a later day: the board made then is still current
+    field = "sig" if cfg.get("checkin") else "sig_base"
+    older = BOARDS.latest_for(user_id, field, ctx[field], str(ctx["report"].get("today") or ""))
+    if older and not (start and not auto):
+        return {"state": "done", "record": older, "reused": True}
     if job and job["state"] == "error" and not start:
         return {"state": "error", "error": job["error"]}
     if not start:
         return {"state": "none"}
+    if auto:                                            # the session may still be going: one board at its end, not one per set
+        age = minutes_since_last_set(ctx["report"], cfg)
+        if age is not None and 0 <= age < ai.COACH_SETTLE_MIN:
+            return {"state": "waiting", "minutes_since_last_set": round(age), "retry_s": int((ai.COACH_SETTLE_MIN - age) * 60) + 5}
     if BOARDS.made_today(user_id) >= ai.BOARDS_PER_DAY:
         return {"state": "limit", "error": {"code": "daily_limit", "message": f"{ai.BOARDS_PER_DAY} boards a day"}}
     if allow is not None and not allow():
         return {"state": "limit", "error": {"code": "link_limit", "message": f"{access.ATHLETE_BOARDS_PER_DAY} boards a day on this link"}}
 
     def work():
-        BOARDS.put(user_id, ai.make_board(ctx["report"], cfg, ctx["previous"]))
+        rec = ai.make_board(ctx["report"], cfg, ctx["previous"], should_stop=lambda: JOBS.cancelled(user_id, key))
+        BOARDS.put(user_id, dict(rec, sig=ctx["sig"], sig_base=ctx["sig_base"]))
     JOBS.start(user_id, key, work)
     return {"state": "running", "since": 0}
 
@@ -860,7 +904,7 @@ def p_goal(h, data, who, uid):                          # per-user profile / goa
 @route("POST", "/api/coach/start", "athlete", own_user=True)
 def p_coach_start(h, data, who, uid):                   # begin the board job (billed call) - idempotent per data state
     allow = (lambda: ACCESS.use(uid, "boards")) if who.role == "athlete" else None
-    h._send(coach_state(uid, start=True, allow=allow))
+    h._send(coach_state(uid, start=True, allow=allow, auto=data.get("auto") is True))   # auto: the page, not a click
 
 
 @route("POST", "/api/chat/send", "athlete", own_user=True)

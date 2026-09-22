@@ -301,24 +301,45 @@ class Validation(unittest.TestCase):
 
 
 class MakeBoard(FakeEnv):
-    def test_ok_repair_and_fallback(self):
+    def test_ok_revert_rows_repair_and_fallback(self):
+        """v0.18.0: a change without a reason is reverted to the engine's row (no call); what is left goes to ONE
+        small rows-only call on the cached prefix; only when that fails too the engine's plan applies."""
         report, cfg = make()
-        rec = ai.make_board(report, cfg)
-        self.assertEqual((rec["plan_source"], rec["repaired"], rec["problems"], len(rec["usage"])), ("coach", False, [], 1))
-        os.environ["ARX_AI_FAKE"] = "repair"
-        client = ai.FakeAnthropic("repair")
+        client = ai.FakeAnthropic("ok")
         seen = []
         orig = client.stream
-        client.stream = lambda **kw: (seen.append(copy.deepcopy(kw["messages"])), orig(**kw))[1]
+        client.stream = lambda **kw: (seen.append(copy.deepcopy(kw)), orig(**kw))[1]
         rec = ai.make_board(report, cfg, client=client)
-        self.assertEqual((rec["plan_source"], rec["repaired"], len(rec["usage"])), ("coach", True, 2))
-        self.assertEqual(seen[1][0], seen[0][0])                          # append-only: the first message is untouched
-        self.assertEqual([m["role"] for m in seen[1]], ["user", "assistant", "user"])
-        self.assertIn("target_out_of_bounds", seen[1][2]["content"])
+        self.assertEqual((rec["plan_source"], rec["repaired"], rec["repair"], rec["problems"], len(rec["usage"])), ("coach", False, None, [], 1))
+        self.assertEqual(seen[0]["system"][0]["cache_control"], {"type": "ephemeral"})              # the static prompt is cached
+        self.assertEqual(seen[0]["messages"][0]["content"][0]["cache_control"], {"type": "ephemeral"})   # and so is the payload
+        # a target out of bounds with a filler reason on every row: the engine's rows go back in - still one call
+        os.environ["ARX_AI_FAKE"] = "repair"
+        rec = ai.make_board(report, cfg)
+        self.assertEqual((rec["plan_source"], rec["repaired"], rec["repair"], rec["problems"], rec["changes"], len(rec["usage"])),
+                         ("coach", True, "reverted", [], [], 1))
+        # a duplicated exercise (structural): the rows-only call - one user message, the same payload block first
+        client = ai.FakeAnthropic("repair_rows")
+        seen = []
+        orig = client.stream
+        client.stream = lambda **kw: (seen.append(copy.deepcopy(kw)), orig(**kw))[1]
+        rec = ai.make_board(report, cfg, client=client)
+        self.assertEqual((rec["plan_source"], rec["repaired"], rec["repair"], len(rec["usage"])), ("coach", True, "rows", 2))
+        self.assertEqual([m["role"] for m in seen[1]["messages"]], ["user"])                        # never a replay of the first answer
+        blocks = seen[1]["messages"][0]["content"]
+        self.assertEqual(blocks[0], seen[0]["messages"][0]["content"][0])                           # cache hit on the payload
+        self.assertIn("duplicate_exercise", blocks[2]["text"])
+        self.assertEqual(sorted(seen[1]["output_config"]["format"]["schema"]["properties"]), ["date", "rows", "why_date"])
         os.environ["ARX_AI_FAKE"] = "fallback"
         rec = ai.make_board(report, cfg)
-        self.assertEqual((rec["plan_source"], rec["changes"]), ("engine_fallback", []))
+        self.assertEqual((rec["plan_source"], rec["changes"], len(rec["usage"])), ("engine_fallback", [], 2))
         self.assertTrue(rec["problems"])
+
+    def test_a_superseded_job_stops_the_stream(self):
+        report, cfg = make()
+        with self.assertRaises(ai.AIError) as ctx:
+            ai.make_board(report, cfg, should_stop=lambda: True)
+        self.assertEqual(ctx.exception.code, "superseded")
 
     def test_failures_come_back_as_codes(self):
         report, cfg = make()
@@ -346,6 +367,17 @@ class Memory(unittest.TestCase):
         store.put(1, dict(store.get(1, "k14"), plan_source="engine_fallback"))
         self.assertEqual(len(store.all(1)), ai.BOARDS_KEEP)               # same key: replaced, not doubled
 
+    def test_a_board_stays_current_while_its_data_is_unchanged(self):
+        """v0.18.0: the same sets, profile and settings on a later day = the same board (up to BOARD_REUSE_DAYS)."""
+        store = ai.BoardStore(os.path.join(tempfile.mkdtemp(), "boards.json"))
+        store.put(1, {"key": "k1", "today": "2026-09-20", "created": "2026-09-20T10:00:00", "sig": "S", "sig_base": "B", "board": {}})
+        self.assertEqual(store.latest_for(1, "sig", "S", "2026-09-22")["key"], "k1")
+        self.assertEqual(store.latest_for(1, "sig_base", "B", "2026-09-23")["key"], "k1")
+        self.assertIsNone(store.latest_for(1, "sig", "S", "2026-09-24"))                       # too old to be current
+        self.assertIsNone(store.latest_for(1, "sig", "X", "2026-09-21"))                       # other data
+        self.assertIsNone(store.latest_for(1, "sig", "", "2026-09-21"))
+        self.assertIsNone(store.latest_for(2, "sig", "S", "2026-09-21"))
+
 
 class Jobs(unittest.TestCase):
     def test_one_job_per_key_and_errors_are_kept(self):
@@ -369,6 +401,24 @@ class Jobs(unittest.TestCase):
             time.sleep(0.05)
         self.assertEqual(jobs.status(1, "bad")["error"], {"code": "rate_limit", "message": "slow down"})
         self.assertIsNone(jobs.status(2, "k"))
+
+    def test_a_job_for_an_older_data_state_is_superseded(self):
+        jobs = ai.JobManager()
+
+        def slow():
+            for _ in range(100):
+                if jobs.cancelled(1, "old"):
+                    raise ai.AIError("superseded", "newer data")
+                time.sleep(0.02)
+        jobs.start(1, "old", slow)
+        self.assertEqual(jobs.supersede(1, "old"), 0)                     # the same key: nothing to cancel
+        self.assertEqual(jobs.supersede(2, "new"), 0)                     # another athlete: not touched
+        self.assertEqual(jobs.supersede(1, "new"), 1)
+        for _ in range(60):
+            if jobs.status(1, "old")["state"] != "running":
+                break
+            time.sleep(0.05)
+        self.assertEqual((jobs.status(1, "old")["state"], jobs.status(1, "old")["error"]), ("superseded", None))
 
 
 class Chat(FakeEnv):
@@ -494,6 +544,45 @@ class CoachRoutes(ServerCase):
         self.assertNotIn("Anna", p["text"])
         hist = call(self.port, "/api/chat/history?user_id=1", headers=HDR)[1]
         self.assertEqual((len(hist["turns"]), hist["board"], len(hist["suggested"])), (1, True, 3))
+
+    def test_an_automatic_start_waits_while_the_session_is_still_going(self):
+        """v0.18.0: the page's automatic start waits COACH_SETTLE_MIN after the last set (one board per session,
+        not one per set); a click starts at once."""
+        os.environ["ARX_AI_FAKE"] = "ok"
+        report = app.make_report(1)
+        report["last_session"]["last_set_at"] = "2026-09-18T23:55:00"          # five minutes before the fixture's clock (end of its day)
+        st = call(self.port, "/api/coach/start", method="POST", body={"user_id": 1, "auto": True}, headers=OK)[1]
+        self.assertEqual((st["state"], st["minutes_since_last_set"]), ("waiting", 5))
+        self.assertTrue(120 <= st["retry_s"] <= 200)
+        self.assertEqual(call(self.port, "/api/coach/status?user_id=1", headers=HDR)[1], {"state": "none"})
+        self.assertEqual(call(self.port, "/api/coach/start", method="POST", body={"user_id": 1}, headers=OK)[1]["state"], "running")
+        self.assertEqual(self.wait_done()["state"], "done")
+        report["last_session"]["last_set_at"] = None
+
+    def test_a_new_day_alone_does_not_make_a_new_board_but_a_checkin_does(self):
+        """v0.18.0: unchanged sets, profile and settings on the next day = the board of yesterday, marked as reused; a
+        click refreshes it; a new check-in is new data."""
+        os.environ["ARX_AI_FAKE"] = "ok"
+        call(self.port, "/api/coach/start", method="POST", body={"user_id": 1}, headers=OK)
+        first = self.wait_done()["record"]
+        report2, cfg2 = make(today="2026-09-19")                                # the next day, the same sets
+        info = {"name": "Anna Example", "created": None}
+        app.report_cfg = lambda uid: (dict(cfg2, user_id=uid), info)
+        app.make_report = lambda uid, cfg_info=None: report2
+        st = call(self.port, "/api/coach/status?user_id=1", headers=HDR)[1]
+        self.assertEqual((st["state"], st.get("reused"), st["record"]["key"], st["record"]["created"]), ("done", True, first["key"], first["created"]))
+        auto = call(self.port, "/api/coach/start", method="POST", body={"user_id": 1, "auto": True}, headers=OK)[1]
+        self.assertEqual((auto["state"], auto.get("reused")), ("done", True))         # automatic: no new job
+        click = call(self.port, "/api/coach/start", method="POST", body={"user_id": 1}, headers=OK)[1]
+        self.assertEqual(click["state"], "running")                                   # a click refreshes
+        fresh = self.wait_done()
+        self.assertEqual((fresh["state"], fresh.get("reused")), ("done", None))
+        self.assertNotEqual(fresh["record"]["key"], first["key"])
+        # the same day with a check-in: new data (the readiness changed) - no reuse
+        report3, cfg3 = make(today="2026-09-19", checkin={"date": "2026-09-19", "sleep": "ok", "energy": "high", "soreness": {}})
+        app.report_cfg = lambda uid: (dict(cfg3, user_id=uid), info)
+        app.make_report = lambda uid, cfg_info=None: report3
+        self.assertEqual(call(self.port, "/api/coach/status?user_id=1", headers=HDR)[1], {"state": "none"})
 
     def test_an_api_failure_is_a_state_not_a_crash(self):
         os.environ["ARX_AI_FAKE"] = "invalid_key"

@@ -42,7 +42,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 22
+PROMPT_VERSION = 23
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -63,6 +63,10 @@ CHAT_QUESTION_MAX = 1000       # characters
 SERIES_POINTS = 12             # comparable-day points per exercise in the payload
 WEEKS_IN_PAYLOAD = 13
 WHY_MIN_CHARS = 20             # a change against the proposal needs at least a sentence of reason
+# v0.18.0 - what a board waits for and how long it stays current (owner: a board per recorded set and per new day was
+# the wait he felt, not the report and not the payload size)
+COACH_SETTLE_MIN = 8           # an AUTOMATIC board waits until the last set is this old (a session in progress made one per set)
+BOARD_REUSE_DAYS = 3           # a board made on an earlier day stays current while the data behind it is unchanged
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -460,7 +464,7 @@ last_session: headline (max 90 characters, the one thing that defines the sessio
 
 next_training: readiness (one sentence: check-in verdict or "no check-in", what is recovered) - date and why_date - rows - rest_note - grip_note (helper muscles / aids; empty string when nothing is worth saying) - week_outlook (one or two sentences) - changes_vs_previous (what differs from previous_recommendations and why; empty list when nothing).
 VOCABULARY: a set's mode is movement/ending (dynamic or static hold; ended by reps, by the clock = "Countdown", by a person in the original's "Inroad-Modus" (it shows a zone - a high-water mark of the momentary force - and never ends a set by itself), by arx-free's fatigue target = "fatigue", or unknown) plus a phase when only one direction carried work (negative-only / positive-only); "Output" is the impulse of a set and the progress figure of timed sets ("beat your gray line"); inroad_machine_pct is the machine's OWN inroad scale (best rep peak to last rep peak, what its Inroad Mode uses) - call it "Maschinen-Inroad" / "machine inroad" and never confuse it with the fatigue in the set. A hold or a single-phase set is never compared with a dynamic both-phase set. A hold's fatigue in the set comes from the shared hold rule (contract hold-1): the held force of the last three seconds against the sustained force, only a drop that lasted a second counts, letting go is not fatigue - the same rule ends a hold live on arx-free. The within-set force decline (inroad_pct) is called "fatigue in the set" / "Ermüdung im Satz" to the athlete - levels deep / medium / light ("tief / mittel / leicht"); the goal's minimum is the "fatigue target" / "Ermüdungsziel". Never say "inroad" or "Kraftabfall" to the athlete; a set below the target is "a real load, but half the stimulus", never "no stimulus".
-THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. why of an UNCHANGED row = one sentence why the row stays as it is (what it measures or does now) - never a filler word such as "Platzhalter" or "placeholder". You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
+THE PLAN: planner.proposal is a valid plan. Keeping it is usually right - then copy its rows (exercise, sets, target, effort, rest_before_min) in its order. HARD LIMITS the server enforces: between bounds.rows_min and bounds.rows_max rows, every exercise at most once, only candidates of the chosen date, targets inside bounds.target_pct, effort never above effort_cap - a board that breaks one loses its plan changes. why of an UNCHANGED row = one sentence why the row stays as it is (what it measures or does now) - never a filler word such as "Platzhalter" or "placeholder". You MAY change it inside planner.decision_space: another date from dates[]; exercises from THAT date's candidates; the order (an exercise whose target muscle is another exercise's helper comes AFTER it - Row before Biceps Curl, press before Triceps Pressdown); a target within bounds.target_pct of the proposal's target for that exercise (an exercise listed in decision_space.target_floor_pct may go that many percent BELOW it - first session after weeks away); sets from 1 to bounds.sets_max; rest_before_min from 0 to bounds.rest_max_min; effort never above effort_cap. Candidates with status "limited", restriction "careful" or new = true are only allowed with effort "submax" and target 0. target 0 always means "no number - by feel". Every change against the proposal needs a concrete reason from the data in that row's why (at least one full sentence); an unchanged row gets a short why in your own words. The server validates the rows; an invalid plan is replaced by the engine's proposal. tempo: reps, seconds per direction and pauses from the row's settings, as one short string. cue: one technique or intent cue, max 80 characters.
 
 history: four_weeks (what the last weeks show: sessions against the target, hard sets, strength index, effort hit rate - with numbers) - longer_term (quarter / year; empty string while history.availability says these views are not available) - kpi_notes: for the 2 to 5 exercises where it matters, what the progress status means and what follows - anomalies: the findings that deserve attention, each with its ref from history.findings, the meaning and the action.
 
@@ -488,25 +492,44 @@ def system_prompt(kind: str = "board") -> list[dict]:
 RATINGS = ("better", "same", "worse", "first", "not_comparable")
 
 
-def board_schema(report: dict) -> dict:
-    plan = report.get("plan") or {}
-    space = plan.get("decision_space") or {}
+_S = {"type": "string"}
+_obj = lambda props: {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+_arr = lambda items: {"type": "array", "items": items}
+
+
+def _space_enums(report: dict) -> tuple[list[str], list[str]]:
+    """The dates a session may be planned for and the exercises that may appear in the rows (the decision space)."""
+    space = (report.get("plan") or {}).get("decision_space") or {}
     dates = [d["date"] for d in space.get("dates", [])] or [report.get("today") or "1970-01-01"]
     cands = sorted({c["name"] for d in space.get("dates", []) for c in d["candidates"]}) or ["-"]
+    return dates, cands
+
+
+def _row_schema(cands: list[str]) -> dict:
+    return _obj({"exercise": {"type": "string", "enum": cands}, "sets": {"type": "integer"}, "target": {"type": "number"},
+                 "effort": {"type": "string", "enum": ["deep", "moderate", "submax"]}, "rest_before_min": {"type": "number"},
+                 "tempo": _S, "cue": _S, "why": _S})
+
+
+def rows_schema(report: dict) -> dict:
+    """The answer of the rows-only repair call (v0.18.0): next_training's date, why_date and rows - nothing else is
+    generated a second time."""
+    dates, cands = _space_enums(report)
+    return _obj({"date": {"type": "string", "enum": dates}, "why_date": _S, "rows": _arr(_row_schema(cands))})
+
+
+def board_schema(report: dict) -> dict:
+    dates, cands = _space_enums(report)
     done = [x["name"] for x in (report.get("last_session") or {}).get("exercises", [])] or ["-"]
     known = sorted({e["name"] for e in report.get("exercises", []) if not e.get("excluded")}) or ["-"]    # not: switched-off exercises
     refs = [f["id"] for f in ((report.get("history") or {}).get("findings") or {}).get("all", [])[:12]]
-    S = {"type": "string"}
-    obj = lambda props: {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
-    arr = lambda items: {"type": "array", "items": items}
+    S, obj, arr = _S, _obj, _arr
     return obj({
         "last_session": obj({"headline": S, "meaning": S, "consequence": S,
                              "verdicts": arr(obj({"exercise": {"type": "string", "enum": done}, "rating": {"type": "string", "enum": list(RATINGS)}, "note": S})),
                              "bullets": arr(S)}),
         "next_training": obj({"readiness": S, "date": {"type": "string", "enum": dates}, "why_date": S,
-                              "rows": arr(obj({"exercise": {"type": "string", "enum": cands}, "sets": {"type": "integer"}, "target": {"type": "number"},
-                                               "effort": {"type": "string", "enum": ["deep", "moderate", "submax"]}, "rest_before_min": {"type": "number"},
-                                               "tempo": S, "cue": S, "why": S})),
+                              "rows": arr(_row_schema(cands)),
                               "rest_note": S, "grip_note": S, "week_outlook": S, "changes_vs_previous": arr(S)}),
         "history": obj({"four_weeks": S, "longer_term": S,
                         "kpi_notes": arr(obj({"exercise": {"type": "string", "enum": known}, "note": S})),
@@ -600,6 +623,46 @@ def is_filler(text) -> bool:
     return not w or w in FILLERS or any(w.startswith(f) for f in ("platzhalter", "placeholder"))
 
 
+REVERTABLE = ("change_without_reason", "filler_why")     # problems the engine's own row settles without another call
+
+
+def engine_row(x: dict) -> dict:
+    """The proposal's row (as the payload carries it) in the board's row format."""
+    s = x.get("settings") or {}
+    why = x.get("why")
+    why = " ".join(str(w) for w in why) if isinstance(why, list) else str(why or "")
+    tempo = f"{s.get('reps') or ''} x {s.get('seconds_per_direction') or ''} s, {s.get('pause_end_s') or 0}/{s.get('pause_return_s') or 0} s" if s else ""
+    return {"exercise": x["exercise"], "sets": int(x.get("sets") or 1), "target": float(x.get("target") or 0), "effort": x.get("effort") or "deep",
+            "rest_before_min": float(x.get("rest_before_min") or 0), "tempo": tempo, "cue": "", "why": (why or "The engine's row.")[:300]}
+
+
+def revert_unreasoned(board: dict, problems: list[dict], payload: dict) -> list[str]:
+    """A change the coach could not give a reason for is not a coaching decision (the J-rule) - so the engine's row
+    goes back in instead of asking the model a second time (v0.18.0: half of all boards used to pay a full second
+    call for this). Returns what was reverted ('date' or exercise names); the caller validates again."""
+    prop = (payload.get("planner") or {}).get("proposal") or {}
+    by_name = {str(x.get("exercise")).lower(): x for x in prop.get("rows") or []}
+    nt = board.setdefault("next_training", {})
+    reverted = []
+    for p in problems:
+        if p.get("code") not in REVERTABLE:
+            continue
+        rows = nt.get("rows") or []
+        if p.get("exercise") is None:
+            if p.get("detail") == "why_date" and prop.get("date"):
+                why = prop.get("why_this_date") or []
+                nt["date"], nt["why_date"] = prop["date"], " ".join(str(w) for w in (why if isinstance(why, list) else [why]))
+                reverted.append("date")
+            continue
+        name = str(p["exercise"]).lower()
+        if name in by_name:                                # back to the engine's row, in the coach's position
+            nt["rows"] = [engine_row(by_name[name]) if str(r.get("exercise")).lower() == name else r for r in rows]
+        else:                                              # added without a reason: the row goes
+            nt["rows"] = [r for r in rows if str(r.get("exercise")).lower() != name]
+        reverted.append(p["exercise"])
+    return reverted
+
+
 def unverified_forces(board: dict, payload_text: str, unit: str) -> list[str]:
     """Force values in the board's texts (a number followed by the force unit) that do not occur in
     the payload (within rounding). A diagnostic, not a gate: the plan rows are validated on their own."""
@@ -643,10 +706,11 @@ def make_client(cfg: dict):
 
 
 def stream_message(client, *, model: str, system: list, messages: list, max_tokens: int, effort: str,
-                   schema: dict | None = None, on_text=None, cache: bool = False):
+                   schema: dict | None = None, on_text=None, cache: bool = False, should_stop=None):
     """One streamed request -> the final message. Tries the server-side refusal fallback first
     (beta); a 400 on that attempt is retried once without it (an account or model that does not
-    know the beta must not lose the coach)."""
+    know the beta must not lose the coach). should_stop() is asked at every streamed event
+    (thinking included): a job that a newer data state replaced stops within one chunk."""
     output_config = {"effort": effort}
     if schema:
         output_config["format"] = {"type": "json_schema", "schema": schema}
@@ -659,9 +723,12 @@ def stream_message(client, *, model: str, system: list, messages: list, max_toke
         ctx = (client.beta.messages.stream(betas=[FALLBACK_BETA], fallbacks="default", **params) if with_fallbacks
                else client.messages.stream(**params))
         with ctx as stream:
-            if on_text:
-                for chunk in stream.text_stream:
-                    on_text(chunk)
+            if on_text or should_stop:
+                for event in stream:
+                    if should_stop and should_stop():
+                        raise AIError("superseded", "a newer data state replaced this job")
+                    if on_text and getattr(event, "type", None) == "text":
+                        on_text(event.text)
             return stream.get_final_message()
     try:
         try:
@@ -710,9 +777,13 @@ def _parse_board(msg) -> dict:
     return board
 
 
-def make_board(report: dict, cfg: dict, previous: list[dict] | None = None, client=None) -> dict:
-    """Payload -> request -> validation -> (one repair round) -> the board record to store and show:
-    {key, created, today, model, effort, board, plan_source, changes, problems, usage, unverified}."""
+def make_board(report: dict, cfg: dict, previous: list[dict] | None = None, client=None, should_stop=None) -> dict:
+    """Payload -> request -> validation -> repair -> the board record to store and show:
+    {key, created, today, model, effort, board, plan_source, repaired, repair, changes, problems, usage, unverified}.
+    Repair (v0.18.0), cheapest first: a change without a reason is reverted to the engine's row (no call); what is
+    left (a duplicated exercise, a wrong count, a bound) goes to ONE small rows-only call on the same cached prefix -
+    never a replay of the first answer, never a second full board. The system prompt and the payload carry cache
+    marks: the next board within minutes (a training partner) and the repair call read them from the cache."""
     payload = build_payload(report, cfg, previous)
     leaks = lint_payload(payload)
     if leaks:                                         # a programming error - never send it
@@ -720,34 +791,43 @@ def make_board(report: dict, cfg: dict, previous: list[dict] | None = None, clie
     model, effort = model_of(cfg), effort_of(cfg, "ai_effort_board", BOARD_EFFORT_DEFAULT)
     text = dumps_payload(payload)
     client = client or make_client(cfg)
-    schema = board_schema(report)
-    messages = [{"role": "user", "content": text}]
-    msg = stream_message(client, model=model, system=system_prompt("board"), messages=messages,
-                         max_tokens=BOARD_MAX_TOKENS, effort=effort, schema=schema)
+    system = [dict(b, cache_control={"type": "ephemeral"}) for b in system_prompt("board")]
+    payload_block = {"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}
+    msg = stream_message(client, model=model, system=system, messages=[{"role": "user", "content": [payload_block]}],
+                         max_tokens=BOARD_MAX_TOKENS, effort=effort, schema=board_schema(report), should_stop=should_stop)
     board = _parse_board(msg)
     usage = [usage_of(msg)]
     problems, changes = validate_board(board, report, cfg)
-    repaired = False
+    repair = None
+    if problems and revert_unreasoned(board, problems, payload):
+        problems, changes = validate_board(board, report, cfg)
+        repair = "reverted"
     if problems:
-        # append-only repair: the first answer (thinking blocks unchanged) + what the rule check found
-        messages = messages + [{"role": "assistant", "content": content_as_dicts(msg)},
-                               {"role": "user", "content": "The server's rule check rejected next_training.rows:\n" + dumps_payload(problems)
-                                + "\nReturn the complete board again with valid rows. When in doubt keep the proposal's rows unchanged."}]
+        ask = [payload_block, {"type": "text", "text": "THE BOARD YOU DELIVERED\n" + dumps_payload(board)},
+               {"type": "text", "text": "The server's rule check rejected next_training.rows:\n" + dumps_payload(problems)
+                + "\nReturn next_training's date, why_date and rows only, valid this time. When in doubt keep the proposal's rows unchanged."}]
         try:
-            msg2 = stream_message(client, model=model, system=system_prompt("board"), messages=messages,
-                                  max_tokens=BOARD_MAX_TOKENS, effort=effort, schema=schema)
-            board2 = _parse_board(msg2)
+            msg2 = stream_message(client, model=model, system=system, messages=[{"role": "user", "content": ask}],
+                                  max_tokens=BOARD_MAX_TOKENS, effort=effort, schema=rows_schema(report), should_stop=should_stop)
+            fix = _parse_board(msg2)
             usage.append(usage_of(msg2))
+            nt = dict(board.get("next_training") or {})
+            nt.update({k: fix[k] for k in ("date", "why_date", "rows") if fix.get(k) is not None})
+            board2 = dict(board, next_training=nt)
             problems2, changes2 = validate_board(board2, report, cfg)
+            if problems2 and revert_unreasoned(board2, problems2, payload):
+                problems2, changes2 = validate_board(board2, report, cfg)
             if not problems2:
-                board, problems, changes, repaired = board2, [], changes2, True
-        except AIError:
+                board, problems, changes, repair = board2, [], changes2, "rows"
+        except AIError as exc:
+            if exc.code == "superseded":
+                raise
             pass                                       # keep the first board's texts, fall back to the engine's plan
     plan_source = "coach" if not problems else "engine_fallback"
     unit = payload["meta"]["units"]["force"]
     return {"key": payload_key(payload, model, effort), "created": time.strftime("%Y-%m-%dT%H:%M:%S"), "today": report.get("today"),
             "model": getattr(msg, "model", None) or model, "effort": effort, "board": board, "plan_source": plan_source,
-            "repaired": repaired, "changes": changes if plan_source == "coach" else [], "problems": problems,
+            "repaired": repair is not None, "repair": repair, "changes": changes if plan_source == "coach" else [], "problems": problems,
             "unverified": unverified_forces(board, text, unit), "usage": usage, "payload_sha": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}
 
 
@@ -797,6 +877,22 @@ class BoardStore:
     def get(self, user_id, key: str) -> dict | None:
         return next((r for r in reversed(self.all(user_id)) if r.get("key") == key), None)
 
+    def latest_for(self, user_id, field: str, value: str, today: str, days: int = BOARD_REUSE_DAYS) -> dict | None:
+        """The newest board whose data signature (`sig` with the check-in, `sig_base` without) still matches: the same
+        sets, profile and settings - only the calendar moved on (v0.18.0). Older than `days`: no longer current."""
+        if not value:
+            return None
+        for r in reversed(self.all(user_id)):
+            if r.get(field) != value or not r.get("today"):
+                continue
+            try:
+                age = (date.fromisoformat(str(today)[:10]) - date.fromisoformat(str(r["today"])[:10])).days
+            except ValueError:
+                continue
+            if 0 <= age <= days:
+                return r
+        return None
+
     def put(self, user_id, record: dict) -> None:
         with _STORE_LOCK:
             data = _read(self.path)
@@ -810,7 +906,9 @@ class BoardStore:
 
 
 class JobManager:
-    """One background job per (athlete, key); two devices asking for the same board share it."""
+    """One background job per (athlete, key); two devices asking for the same board share it. A job for an OLDER
+    data state of the same athlete is superseded as soon as a newer one is asked for (v0.18.0): its stream stops
+    within a chunk instead of finishing a board nobody will see."""
     def __init__(self):
         self._lock = threading.Lock()
         self._jobs: dict = {}
@@ -819,6 +917,21 @@ class JobManager:
         with self._lock:
             j = self._jobs.get((str(user_id), key))
             return dict(j) if j else None
+
+    def supersede(self, user_id, key: str) -> int:
+        """Flag every running job of this athlete that is not for `key`; returns how many."""
+        n = 0
+        with self._lock:
+            for (u, k), j in self._jobs.items():
+                if u == str(user_id) and k != key and j["state"] == "running" and not j.get("cancel"):
+                    j["cancel"] = True
+                    n += 1
+        return n
+
+    def cancelled(self, user_id, key: str) -> bool:
+        with self._lock:
+            j = self._jobs.get((str(user_id), key))
+            return bool(j and j.get("cancel"))
 
     def start(self, user_id, key: str, fn) -> dict:
         with self._lock:
@@ -835,7 +948,8 @@ class JobManager:
                 fn()
                 state, err = "done", None
             except Exception as exc:                   # AIError or anything unexpected - the app stays up
-                state, err = "error", classify_ai_error(exc).info()
+                info = classify_ai_error(exc)
+                state, err = ("superseded", None) if info.code == "superseded" else ("error", info.info())
             with self._lock:
                 self._jobs[k].update(state=state, error=err, finished=time.time())
         threading.Thread(target=run, daemon=True).start()
@@ -947,7 +1061,7 @@ class ChatManager:
 
 # =============================================================================
 # A deterministic stand-in for the API (tests, screenshots, demos): ARX_AI_FAKE=<scenario>
-#   ok | repair | fallback | refusal | truncated | rate_limit | network | invalid_key | slow
+#   ok | repair | repair_rows | fallback | refusal | truncated | rate_limit | network | invalid_key | slow
 # =============================================================================
 class _Block:
     def __init__(self, text):
@@ -966,6 +1080,11 @@ class _Message:
         self.content, self.stop_reason, self.usage, self.model = [_Block(text)], stop, _Usage(), "fake-coach"
 
 
+class _Event:
+    def __init__(self, text):
+        self.type, self.text = "text", text
+
+
 class _Stream:
     def __init__(self, text, stop="end_turn", delay=0.0):
         self._text, self._stop, self._delay = text, stop, delay
@@ -975,6 +1094,10 @@ class _Stream:
 
     def __exit__(self, *a):
         return False
+
+    def __iter__(self):                                  # the SDK's event stream: text events carry the chunk
+        for chunk in self.text_stream:
+            yield _Event(chunk)
 
     @property
     def text_stream(self):
@@ -987,8 +1110,10 @@ class _Stream:
         return _Message(self._text, self._stop)
 
 
-def fake_board(payload: dict, broken: bool = False) -> dict:
-    """A plausible board made from the payload itself (proposal rows kept; 'broken' violates a bound)."""
+def fake_board(payload: dict, broken: bool = False, structural: bool = False) -> dict:
+    """A plausible board made from the payload itself (proposal rows kept). 'broken' = a target out of bounds with a
+    filler reason (the engine's row goes back in without a call); 'structural' = the first exercise once more (only
+    a rows-only call can settle that - or nothing, in the fallback scenario)."""
     de = (payload.get("meta") or {}).get("language") == "de"
     unit = ((payload.get("meta") or {}).get("units") or {}).get("force", "kg")
     ls, pl = payload.get("last_session") or {}, (payload.get("planner") or {})
@@ -1001,6 +1126,8 @@ def fake_board(payload: dict, broken: bool = False) -> dict:
                      "tempo": f"{s.get('reps') or 8} x {round(s.get('seconds_per_direction') or 5)} s, {s.get('pause_end_s') or 0}/{s.get('pause_return_s') or 0} s",
                      "cue": "Volle Kraft ab Wiederholung 1" if de else "Full force from rep 1",
                      "why": "Platzhalter" if broken else (x.get("why") or [("Plan der Engine übernommen." if de else "Engine plan kept.")])[0][:200]})
+    if structural and rows:
+        rows = rows + [dict(rows[0], why="The same exercise once more for the volume - measured on this athlete (n = 2).")]
     verdicts = [{"exercise": x["exercise"], "rating": ("not_comparable" if not (x.get("vs_previous") or {}).get("same_settings") else
                                                        ("better" if ((x["vs_previous"].get("concentric_change_pct") or 0) > 1) else "same")) if x.get("vs_previous") else "first",
                  "note": f"{x.get('concentric_top3')} / {x.get('eccentric_top3')} {unit}, inroad {x.get('inroad_pct')} %"} for x in ls.get("exercises", [])]
@@ -1042,7 +1169,11 @@ class FakeAnthropic:
             return _Stream(f"(Testmodus) Du hast gefragt: {q} - mit API-Schlüssel antwortet hier der Coach auf Basis deiner Daten.", delay=0.01 if sc == "slow" else 0.0)
         first = kw["messages"][0]["content"]
         payload = json.loads(first if isinstance(first, str) else first[0]["text"])
-        broken = sc == "fallback" or (sc == "repair" and len(kw["messages"]) == 1)
+        if "last_session" not in (schema.get("properties") or {}):     # the rows-only repair call (v0.18.0)
+            nt = fake_board(payload, structural=(sc == "fallback"))["next_training"]
+            return _Stream(json.dumps({k: nt[k] for k in ("date", "why_date", "rows")}, ensure_ascii=False))
         if sc == "slow":
             time.sleep(1.5)
-        return _Stream(json.dumps(fake_board(payload, broken), ensure_ascii=False))
+        # repair: a target out of bounds with a filler reason - reverted without a call; repair_rows: a duplicated row -
+        # one rows-only call settles it; fallback: the duplicate comes back on every call
+        return _Stream(json.dumps(fake_board(payload, broken=(sc == "repair"), structural=(sc in ("fallback", "repair_rows"))), ensure_ascii=False))

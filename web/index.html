@@ -1622,9 +1622,10 @@ const coachWho=(extra)=>`<div class="who">🤖 Coach${extra?` <small>${extra}</s
 async function pollCoach(first){
   clearTimeout(COACH_T); if(!CUR||!REPORT||REPORT.error) return;
   let st; try{ st=await api("/api/coach/status?user_id="+CUR.id); }catch(e){ st={state:"error",error:{code:"app_offline"}}; }
-  if(st.state==="none"&&first&&AI.auto){ try{ st=await post("/api/coach/start",{user_id:CUR.id}); }catch(e){} }
+  if(st.state==="none"&&first&&AI.auto){ try{ st=await post("/api/coach/start",{user_id:CUR.id,auto:true}); }catch(e){} }   // auto: the server may answer "waiting" while the session is still going
   COACH=st; renderCoach();
   if(st.state==="running") COACH_T=setTimeout(()=>pollCoach(false),2500);
+  if(st.state==="waiting") COACH_T=setTimeout(()=>pollCoach(true),Math.min(60,Math.max(5,st.retry_s||30))*1000);
   // deep link ...&chat=1 opens the conversation as soon as the board is there (kiosk, checks)
   if(st.state==="done"&&!CHAT_LINKED&&new URLSearchParams(location.search).get("chat")==="1"){ CHAT_LINKED=true; openChat(); }
 }
@@ -1637,12 +1638,15 @@ function renderCoach(){
   slots.forEach((s,i)=>put(i,""));
   if(st.state==="no_key"){ put(0,`<div class="coach skel">${coachWho()}${de?`Der KI-Coach kommentiert jedes Kapitel, passt den Plan an und beantwortet Rückfragen - sobald ${ACCESS.role==="local"?'unter ⚙ Einstellungen':'am ARX-PC'} ein Anthropic-API-Schlüssel hinterlegt ist. Alle Zahlen, Auffälligkeiten und der Plan funktionieren auch ohne.`:`The AI coach comments on every chapter, adjusts the plan and answers follow-up questions - once an Anthropic API key is stored ${ACCESS.role==="local"?'under ⚙ Settings':'at the ARX PC'}. All figures, findings and the plan work without it.`} ${ACCESS.role==="local"?`<a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent)">${de?'Schlüssel holen ↗':'get a key ↗'}</a>`:''}</div>`); return; }
   if(st.state==="none"){ put(0,`<div class="coach skel">${coachWho()}${de?'Noch keine Coach-Analyse für diesen Datenstand.':'No coach analysis for this data state yet.'} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Coach fragen':'Ask the coach'}</button></div>`); return; }
+  if(st.state==="waiting"){ put(0,`<div class="coach skel">${coachWho(de?'wartet':'waiting')}${de?`Die Session läuft noch (letzter Satz vor ${st.minutes_since_last_set} Min) - die Analyse startet von selbst, sobald sie vorbei ist.`:`The session is still going (last set ${st.minutes_since_last_set} min ago) - the analysis starts by itself once it is over.`} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Jetzt analysieren':'Analyse now'}</button></div>`); return; }
   if(st.state==="running"){ const sk=`<div class="coach skel">${coachWho(de?'denkt nach …':'thinking …')}<div class="bar" style="width:72%"></div><div class="bar" style="width:94%"></div><div class="bar" style="width:58%"></div></div>`; put(0,sk); put(1,sk); put(2,sk); return; }
   if(st.state==="error"||st.state==="limit"){ put(0,`<div class="coach" style="border-left-color:var(--warn)">${coachWho(de?'nicht verfügbar':'unavailable')}<p>${esc(aiErrText(st.error))}</p>${st.error&&st.error.message&&st.error.code!=="daily_limit"?`<p class="foot">${esc(st.error.message)}</p>`:''}${st.state==="error"?`<button class="btn" style="min-height:44px;font-size:16px" onclick="startCoach()">${de?'Erneut versuchen':'Try again'}</button>`:''}<p class="foot" style="margin-top:8px">${de?'Der Report darunter ist vollständig - er braucht die KI nicht.':'The report below is complete - it does not need the AI.'}</p></div>`); return; }
   const rec=st.record, b=rec.board||{}, meta=`${esc(rec.model||'')} · ${esc((rec.created||'').replace('T',' ').slice(0,16))}`;
   // chapter 1 - last session
   const L=b.last_session||{}, icon={better:"▲",same:"＝",worse:"▼",first:"★",not_comparable:"≠"}, icol={better:"var(--good)",worse:"var(--accent)"};
-  put(0,`<div class="coach">${coachWho(meta)}<h3>${esc(L.headline||'')}</h3><p>${esc(L.meaning||'')}</p><p class="then">→ ${esc(L.consequence||'')}</p>
+  // a board from an earlier day whose data is unchanged stays current (v0.18.0) - said so, with the way to refresh it
+  const reused=st.reused?`<p class="foot">${de?'Analyse vom':'Analysis of'} ${esc(dFull(String(rec.today||'')))} - ${de?'seitdem keine neuen Sätze, Check-ins oder Einstellungen. Der Plan darunter ist der aktuelle der Engine.':'no new sets, check-ins or settings since. The plan below is the current engine plan.'} <button class="btn" style="min-height:36px;font-size:14px;margin-left:6px" onclick="startCoach()">${de?'Neu analysieren':'Analyse again'}</button></p>`:'';
+  put(0,`<div class="coach">${coachWho(meta)}<h3>${esc(L.headline||'')}</h3><p>${esc(L.meaning||'')}</p><p class="then">→ ${esc(L.consequence||'')}</p>${reused}
     ${(L.verdicts||[]).length?`<div class="verd">${L.verdicts.map(v=>`<div><b style="color:${icol[v.rating]||'var(--ink2)'}">${icon[v.rating]||'•'} ${esc(v.exercise)}</b> — ${esc(v.note)}</div>`).join("")}</div>`:''}
     ${(L.bullets||[]).length?`<ul>${L.bullets.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}</div>`);
   // chapter 2 - next training (texts here, the rows go into the plan of record below)
