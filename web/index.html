@@ -165,6 +165,21 @@
   /* grid/flex children default to min-width:auto, so a wide table or chart would push the whole
      page wider than a phone screen - cap them, inner tables/charts scroll on their own */
   #r_main,.kpi,.excard,.panel,.verdict > *{min-width:0}
+  /* v0.20.0: the Kurzfassung - one box above the fold: the last session judged per exercise, what comes next and what to watch */
+  .brief{display:grid;grid-template-columns:1fr 1.2fr;margin-top:14px;border:2px solid var(--ink);background:var(--panel)}
+  .brief .bcol{padding:12px 16px;min-width:0;cursor:pointer}
+  .brief .bcol+.bcol{border-left:2px solid var(--rule)}
+  .brief .bhead{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+  .brief .bx{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:15px;line-height:1.35}
+  .brief .bx .f{font-size:18px;width:26px;text-align:center;flex:none}
+  .brief .bx b{flex:none}
+  .brief .border{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:15px}
+  .brief .bo{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--rule2);border-radius:6px;padding:3px 8px}
+  .brief .bo i{font-style:normal;font-family:var(--disp);font-size:12px;color:var(--ink3)}
+  .brief .bwatch{margin-top:8px;font-size:14px;color:var(--ink2);line-height:1.45}
+  .brief .bfocus{margin-top:6px;font-size:14px;font-style:italic;color:var(--ink)}
+  .brief .bfocus:empty{display:none}
+  @media(max-width:700px){.brief{grid-template-columns:1fr}.brief .bcol+.bcol{border-left:0;border-top:2px solid var(--rule)}}
   .status{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px;background:var(--rule);border:2px solid var(--ink);margin-top:14px}
   .status > div{background:var(--panel);padding:12px 16px;min-width:0}
   .status .label{font-family:var(--disp);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
@@ -1057,6 +1072,48 @@ async function selfUpdate(btn){
   tick();
 }
 
+// ---- v0.20.0: the Kurzfassung - one box above the fold. Engine facts only (no AI needed): each exercise of the last
+// session judged against the athlete's own fatigue target and last comparable value, the next session in order, what to
+// watch (the levers first); the coach's focus line joins once a board exists. A tap opens the chapter behind it. ----
+function briefHtml(r){
+  const de=CFG.language==="de", ls=r.last_session, ns=(r.plan||{}).next_session;
+  const sign=v=>(v>0?"+":"")+v;
+  const judge=x=>{
+    if(x.effort_capped||x.inroad==null) return {f:"·",c:"var(--ink3)",t:de?"nicht gewertet":"not judged"};
+    if(x.restriction==="careful") return {f:"👌",c:"var(--ink2)",t:(de?"schonen · ":"go easy · ")+effLabel(x.effort)+" "+x.inroad+" %"};
+    const hit=x.inroad>=(x.inroad_target||0)-2, d=(x.delta_comparable&&x.delta_pct!=null)?x.delta_pct:null;
+    if(!hit) return {f:"👎",c:"var(--accent)",t:(de?"nur ":"only ")+x.inroad+" % · "+(de?"halber Reiz":"half the stimulus")+(x.repeat_now?(de?" · nochmal":" · once more"):"")};
+    if(x.is_pb) return {f:"⭐",c:"var(--good)",t:(de?"Bestwert · ":"new best · ")+effLabel(x.effort)+" "+x.inroad+" %"};
+    if(d!=null&&d<=-2) return {f:"👌",c:"var(--warn)",t:effLabel(x.effort)+" "+x.inroad+" % · "+sign(d)+" %"};
+    return {f:"👍",c:"var(--good)",t:effLabel(x.effort)+" "+x.inroad+" %"+(d!=null?" · "+sign(d)+" %":"")};
+  };
+  const lastRows=ls?ls.exercises.map(x=>{const j=judge(x);return `<div class="bx"><span class="f">${j.f}</span><b>${esc(x.name)}</b><span style="color:${j.c}">${esc(j.t)}</span></div>`;}).join("")
+    :`<div class="bx"><span class="f">·</span>${de?"Noch keine Einheit aufgezeichnet.":"No session recorded yet."}</div>`;
+  const watch=[];
+  // only what CHANGES is named: "5 s/direction", "pauses 0 s" or both - never a measured 5.22 s that stays as it is
+  const setup=d=>{const p=[]; if(d.reps) p.push(`${d.reps.to} ${de?"Wdh.":"reps"}`); if(d.tempo_s) p.push(`${Math.round(d.tempo_s.to*10)/10} s/${de?"Richtung":"dir"}`);
+    const k=Object.keys(d).find(k=>k==="pause_end_s"||k==="pause_return_s"); if(k) p.push(`${de?"Pausen":"pauses"} ${d[k].to} s`); return p.join(", ");};
+  (ns?ns.exercises:[]).forEach(it=>{
+    const c=(it.interp||{}).code||"";
+    if(c.startsWith("plan_effort_")&&c!=="plan_effort_below_best"&&it.settings_change) watch.push(`⚙ ${esc(it.name)}: ${setup(it.settings_change)}`);
+    else if(c==="plan_hold_effort_choice"&&it.settings_alternative) watch.push(`${esc(it.name)}: ${de?"ab Wdh. 1 alles - oder":"all-out from rep 1 - or"} ${setup(it.settings_alternative)}`);
+    else if(c==="plan_hold_effort"||c==="plan_beginner_row") watch.push(`${esc(it.name)}: ${de?"ab Wdh. 1 alles geben":"all-out from rep 1"}`);
+    if(it.mode_hint) watch.push(`◎ ${esc(it.name)}: ${esc(modeHintLabel(it.mode_hint))}`);
+    if(it.effort_note) watch.push(`${esc(it.name)}: ${de?"Einsatz, nicht Protokoll":"effort, not the protocol"}`);
+    if(it.restriction==="careful"||it.careful_today) watch.push(`${esc(it.name)}: ${de?"schonen, kein Zielwert":"go easy, no target"}`);
+    else if(it.status==="limited") watch.push(`${esc(it.name)}: ${de?"eingeschränkt":"limited"} (${(it.limited_by||[]).map(mname).join(", ")})`);
+  });
+  if(ls&&(ls.repeat_now||[]).length) watch.unshift(`${de?"Nochmal, richtig":"Once more, properly"}: ${ls.repeat_now.map(esc).join(", ")}`);
+  if(ns&&ns.time_window) watch.push(de?`Zeitfenster: ${ns.time_window.size} statt ${ns.time_window.normal_size} Übungen`:`time window: ${ns.time_window.size} of ${ns.time_window.normal_size} exercises`);
+  const when=!ns?"—":(ns.days_from_today===0?(de?"Heute":"Today"):ns.days_from_today===1?(de?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
+  const order=ns?ns.exercises.map((x,i)=>`<span class="bo"><i>${i+1}</i>${esc(x.name)}${x.sets>1?` ×${x.sets}`:""}</span>`).join(""):"";
+  return `<section class="brief" id="brief">
+    <div class="bcol" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${lastRows}</div>
+    <div class="bcol" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)} · ≈ ${ns.est_minutes} min`:""}</div>
+      <div class="border">${order||(de?"Kein Termin planbar.":"No session can be planned.")}</div>
+      ${watch.length?`<div class="bwatch"><b>${de?"Achten auf":"Watch"}:</b> ${watch.slice(0,3).join(" · ")}</div>`:""}
+      <div class="bfocus" id="brief_focus"></div></div></section>`;
+}
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
   if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+esc(r.error)+(r.detail?' — '+esc(r.detail):'')+'</p>';return;}
@@ -1101,7 +1158,7 @@ function renderReport(){
   ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
   ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;
-  const main=status+nav+goalLine+goalProgressHtml(r)+restrHtml(r)
+  const main=briefHtml(r)+status+nav+goalLine+goalProgressHtml(r)+restrHtml(r)
     +chap("ch1",1,de0?'Letzte Einheit':'Last session',ch1)+chap("ch2",2,de0?'Nächstes Training':'Next training',ch2)
     +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3);
 
@@ -1646,6 +1703,7 @@ function renderCoach(){
   const put=(i,html)=>{ if(slots[i]) slots[i].innerHTML=html; };
   $("#chatFab").style.display="none";
   slots.forEach((s,i)=>put(i,""));
+  const bf=$("#brief_focus"); if(bf) bf.innerHTML="";                                  // the Kurzfassung's coach line (v0.20.0)
   if(st.state==="no_key"){ put(0,`<div class="coach skel">${coachWho()}${de?`Der KI-Coach kommentiert jedes Kapitel, passt den Plan an und beantwortet Rückfragen - sobald ${ACCESS.role==="local"?'unter ⚙ Einstellungen':'am ARX-PC'} ein Anthropic-API-Schlüssel hinterlegt ist. Alle Zahlen, Auffälligkeiten und der Plan funktionieren auch ohne.`:`The AI coach comments on every chapter, adjusts the plan and answers follow-up questions - once an Anthropic API key is stored ${ACCESS.role==="local"?'under ⚙ Settings':'at the ARX PC'}. All figures, findings and the plan work without it.`} ${ACCESS.role==="local"?`<a href="${KEY_URL}" target="_blank" rel="noopener" style="color:var(--accent)">${de?'Schlüssel holen ↗':'get a key ↗'}</a>`:''}</div>`); return; }
   if(st.state==="none"){ put(0,`<div class="coach skel">${coachWho()}${de?'Noch keine Coach-Analyse für diesen Datenstand.':'No coach analysis for this data state yet.'} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Coach fragen':'Ask the coach'}</button></div>`); return; }
   if(st.state==="waiting"){ put(0,`<div class="coach skel">${coachWho(de?'wartet':'waiting')}${de?`Die Session läuft noch (letzter Satz vor ${st.minutes_since_last_set} Min) - die Analyse startet von selbst, sobald sie vorbei ist.`:`The session is still going (last set ${st.minutes_since_last_set} min ago) - the analysis starts by itself once it is over.`} <button class="btn" style="min-height:44px;font-size:16px;margin-left:8px" onclick="startCoach()">${de?'Jetzt analysieren':'Analyse now'}</button></div>`); return; }
@@ -1674,6 +1732,7 @@ function renderCoach(){
   put(2,`<div class="coach">${coachWho(meta)}<p>${esc(H.four_weeks||'')}</p>${H.longer_term?`<p>${esc(H.longer_term)}</p>`:''}
     ${(H.kpi_notes||[]).length?`<div class="verd">${H.kpi_notes.map(k=>`<div><b>${esc(k.exercise)}</b> — ${esc(k.note)}</div>`).join("")}</div>`:''}
     ${(H.anomalies||[]).length?`<ul>${H.anomalies.map(a=>`<li>${esc(a.meaning)}${a.action?` <b style="color:var(--ink)">→ ${esc(a.action)}</b>`:''}</li>`).join("")}</ul>`:''}</div>`);
+  if(bf) bf.innerHTML=b.focus?`🤖 ${esc(b.focus)}`:"";
   // status strip: the ONE thing + what to remember at the machine
   put(3,`<div class="coach" style="margin-top:10px">${coachWho(de?'Fokus':'focus')}<p class="then" style="font-size:20px">${esc(b.focus||'')}</p>
     ${(b.key_recommendations||[]).length?`<ul>${b.key_recommendations.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:''}</div>`);

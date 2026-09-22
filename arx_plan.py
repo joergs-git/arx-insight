@@ -1190,16 +1190,17 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     chg = out.get("settings_change") or {}
     alt, cur = out.get("settings_alternative") or {}, out["settings"] or {}
     pause_of = lambda d, default: next((v["to"] for k, v in d.items() if k in ("pause_end_s", "pause_return_s")), default)
+    r1 = lambda v: round(v, 1) if isinstance(v, (int, float)) else v      # a measured tempo (4.22 s) is shown to one decimal
     out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
                                 "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
                                 "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days,
                                 # the parameter change after repeated misses (v0.10.0)
                                 "misses": misses, "tempo_from": (chg.get("tempo_s") or {}).get("from"),
-                                "tempo_to": (chg.get("tempo_s") or {}).get("to", cur.get("tempo_s")),
+                                "tempo_to": r1((chg.get("tempo_s") or {}).get("to", cur.get("tempo_s"))),
                                 "pause_to": pause_of(chg, cur.get("pause_end_s") or 0),
                                 "reps_from": (chg.get("reps") or {}).get("from"), "reps_to": (chg.get("reps") or {}).get("to"),
                                 # the same change as the alternative after the first miss (v0.19.1)
-                                "alt_tempo_to": (alt.get("tempo_s") or {}).get("to", cur.get("tempo_s")),
+                                "alt_tempo_to": r1((alt.get("tempo_s") or {}).get("to", cur.get("tempo_s"))),
                                 "alt_pause_to": pause_of(alt, cur.get("pause_end_s") or 0)}, cfg)
     return out
 
