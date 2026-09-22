@@ -24,6 +24,16 @@
    }
   },
   {
+   "name": "hold",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "did the static hold produce fatigue - rule (held force vs sustained force, persistence, letting go ends the hold, live ending) and shared test vectors incl. the owner's real test hold",
+   "files": {
+    "hold-1.md": "4f33f42572c712c087c7c40aedf254c37823432a0572ef385bb6e58f668f1eca",
+    "hold-1-vectors.json": "ab53c7c06e5dfa7b1b3a81615cd5a6be1df68b79a33a083c51af04179c120e53"
+   }
+  },
+  {
    "name": "vocabulary",
    "version": 1,
    "owner": "arx-insight",
@@ -39,7 +49,7 @@
    "what": "a set's mode (movement x ending x phase), Output and the machine's own inroad scale - definitions and field names; v2 added the ending 'fatigue'; v3: a person ends an Inroad set (the original never ends a set by itself and judges nothing for a hold - owner's own test 2026-09-22), a recommended hold = static/time with a fatigue target (arx-free: static/fatigue), ONE hold rule to come (hold-1)",
    "files": {
     "modes-2.md": "b3fd0d8784e64be5797ff98078fd6cab4c97dbb49e58ceec3e6f592b3f4241e1",
-    "modes-3.md": "f2a42d5f63829c954c6c4def5812270573de8468761ecd2fd921d7cb9fa85232"
+    "modes-3.md": "6f0bf91d3b5f63bf902b29cfb9dbd03c99b2aa441548258dd2be7707ba2d6208"
    }
   },
   {

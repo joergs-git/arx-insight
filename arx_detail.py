@@ -45,7 +45,7 @@ from arx_base import data_dir, blob_bytes, _ts, LB_TO_KG, IN_TO_CM
 
 # Bump DETAIL_ALGO_VERSION whenever a formula below changes: the cache is keyed per set and would
 # otherwise serve stale readings forever (a recorded set never changes, our reading of it may).
-DETAIL_ALGO_VERSION = 2        # v2: 'phase' (both | positive | negative | hold), single-phase sets get no fatigue judgement
+DETAIL_ALGO_VERSION = 3        # v3: static holds judged by the shared hold rule (contract hold-1) instead of six time slices
 EFFORT_ALGO_VERSION = 3        # effort v3 (see effort_v3); v2 was the whole-rep-peak inroad
 
 PHASE_SETTLE_S = 1.0           # start of a phase that still carries the previous phase's force
@@ -58,8 +58,23 @@ DROP_EDGE_END_S = 0.7          # ... and the last 0.7 s of a moving phase ...
 DROP_MIN_KG = 27.0             # ... at a force level that is more than noise
 WEAK_THIRD_REL = 0.75          # a third below this share of the strongest third ...
 WEAK_THIRD_REPS = 0.75         # ... in at least this share of the reps = the weak range
-STATIC_SLICES = 6              # a static (isometric) set is read as this many equal time slices
 SINGLE_PHASE_SHARE = 0.15      # a phase with less than this share of the other phase's mean force carried no work (modes-1)
+
+# Contract hold-1 (v0.17.0): ONE rule for the fatigue of a static hold - Insight's judgement from the recording and
+# arx-free's live ending use the same definitions, read on a HOLD_STEP_S grid from HOLD_SETTLE_S + HOLD_WINDOW_S on.
+# The REFERENCE is the sustained force: the lowest raw force inside a full HOLD_WINDOW_S, at its best (running maximum) -
+# a spike of any height that lasts less than the window cannot raise it (the original's Inroad zone follows such a
+# spike, which is why it says nothing for a hold). The HELD force is the time-weighted mean over the last HOLD_WINDOW_S;
+# its depth below the reference counts as fatigue only when it lasted HOLD_PERSIST_S. Letting go is not fatigue: the hold
+# is over at the FIRST full HOLD_PERSIST_S in which the raw force stayed below HOLD_RELEASE_SHARE of the reference so far
+# (what follows - a re-grab, a push, a rest on the handle - is not the hold; the owner's own test showed exactly that),
+# and the judged part ends with the last full HOLD_PERSIST_S before it in which the force stayed above that share.
+HOLD_SETTLE_S = 2.0            # the force is still building up
+HOLD_WINDOW_S = 3.0            # the window of the sustained force and of the held force
+HOLD_PERSIST_S = 1.0           # a depth counts when it lasted this long (and the live rule ends the hold after it)
+HOLD_STEP_S = 0.1              # the grid the rule is evaluated on (independent of the sampling rate)
+HOLD_RELEASE_SHARE = 0.5       # raw force below this share of the reference for a full HOLD_PERSIST_S = let go
+HOLD_JUDGE_MIN_S = HOLD_SETTLE_S + HOLD_WINDOW_S + HOLD_PERSIST_S       # 6 s: a shorter hold gets no judgement
 
 INROAD_DEEP = 20               # effort v3 >= this -> the set reached deep fatigue
 INROAD_MODERATE = 10           # ... >= this -> moderate; below -> sub-maximal
@@ -329,6 +344,67 @@ def effort_v3(con: list, ecc: list) -> dict:
     return out
 
 
+def _hold_grid(t_last: float) -> list[float]:
+    """The evaluation grid of the hold rule: from the first full window to the last sample, HOLD_STEP_S apart."""
+    first = HOLD_SETTLE_S + HOLD_WINDOW_S
+    if t_last + 1e-9 < first:
+        return []
+    n = int(math.floor((t_last - first) / HOLD_STEP_S + 1e-9))
+    return [round(first + i * HOLD_STEP_S, 6) for i in range(n + 1)]
+
+
+def hold_v1(t: list, f: list) -> dict:
+    """Contract hold-1: the fatigue of a static hold from its force curve (t in seconds from the first sample, f in
+    any unit - ratios). Reference = the sustained force (lowest raw force inside a full window, at its best);
+    fatigue = the deepest drop of the held force (window mean) below the reference known at that moment that lasted
+    HOLD_PERSIST_S, in percent; the release at the end is not fatigue. live_end_s = when arx-free's live rule would
+    have ended the hold for the two goal targets (held force below reference x (1 - target) for more than
+    HOLD_PERSIST_S), None = never."""
+    out = {"valid": False, "reason": None, "reference": None, "end_mean": None, "inroad_hold": None, "effort": "unknown",
+           "borderline": False, "judged_s": None, "released_s": None,
+           "live_end_s": {str(INROAD_MODERATE): None, str(INROAD_DEEP): None}}
+    if len(t) < 2 or t[-1] < HOLD_JUDGE_MIN_S:
+        out["reason"] = "too_short"
+        return out
+    n_p = int(round(HOLD_PERSIST_S / HOLD_STEP_S))
+    grid = _hold_grid(t[-1])
+    means = [tw_mean(t, f, g - HOLD_WINDOW_S, g) for g in grid]
+    refs, best = [], None
+    for g in grid:                                  # the sustained force so far: running maximum of the window minimum
+        low = min(_window(t, f, g - HOLD_WINDOW_S, g)[1])
+        best = low if best is None else max(best, low)
+        refs.append(best)
+    if not refs[-1] or refs[-1] <= 0:
+        out["reason"] = "no_force"
+        return out
+    # let go = the FIRST full persistence span with the raw force entirely below the release share of the reference so
+    # far; the judged part ends with the last full span before it in which the force stayed at or above that share
+    spans = [_window(t, f, grid[i] - HOLD_PERSIST_S, grid[i])[1] for i in range(len(grid))]
+    release = next((i for i in range(n_p, len(grid)) if max(spans[i]) < HOLD_RELEASE_SHARE * refs[i]), None)
+    end = None
+    for i in range(n_p, len(grid) if release is None else release):
+        if min(spans[i]) >= HOLD_RELEASE_SHARE * refs[i]:
+            end = i
+    if end is None:
+        out["reason"] = "too_short"                 # let go before a full depth span existed
+        return out
+    out["released_s"] = grid[release] if release is not None else None
+    depth = [(1 - m / r) * 100 for m, r in zip(means[:end + 1], refs[:end + 1])]
+    fatigue, live = 0.0, {}
+    for i in range(n_p, end + 1):
+        low = min(depth[i - n_p:i + 1])             # the depth held for a full persistence span ending at i
+        fatigue = max(fatigue, low)
+        for target in (INROAD_MODERATE, INROAD_DEEP):
+            if low > target and target not in live:
+                live[target] = grid[i]
+    inroad = max(0, round(fatigue))
+    out.update({"valid": True, "reference": round(refs[end], 1), "end_mean": round(means[end], 1), "inroad_hold": inroad,
+                "effort": "deep" if inroad >= INROAD_DEEP else ("moderate" if inroad >= INROAD_MODERATE else "submax"),
+                "borderline": min(abs(inroad - INROAD_DEEP), abs(inroad - INROAD_MODERATE)) <= BORDERLINE,
+                "judged_s": grid[end], "live_end_s": {str(k): live.get(k) for k in (INROAD_MODERATE, INROAD_DEEP)}})
+    return out
+
+
 def _legacy_inroad(t, f, events) -> tuple[int | None, str]:
     """The v2 figure exactly as versions <= 0.3.x computed it (arx_report.rep_segments / _inroad /
     classify_effort): BeginRep/EndRep pairs by position, highest SAMPLE of each rep (force rounded
@@ -355,7 +431,7 @@ def _legacy_inroad(t, f, events) -> tuple[int | None, str]:
 def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | None = None) -> dict:
     """All detail metrics of one decoded set (see the module docstring). Forces in kg, lengths in
     cm, times in seconds. 'method' says how the effort figure was obtained:
-    phases (normal) | static | reps (no phase markers: whole-rep peaks) | none."""
+    phases (normal) | hold (a static set, contract hold-1) | reps (no phase markers: whole-rep peaks) | none."""
     t, f, pos, scheme = raw["t"], raw["f"], raw["pos"], raw["scheme"]
     out = {"v": DETAIL_ALGO_VERSION, "method": "none", "reps": [], "n_reps": 0, "tail": None}
     if len(t) < 5:
@@ -367,17 +443,13 @@ def set_detail(raw: dict, intensity_lb: float | None = None, seconds: float | No
     out["arx_output"] = round(intensity_lb * seconds / 10.0) if (intensity_lb and seconds) else None
 
     out["phase"] = "both"                          # which phase carried the work (modes-1): both | positive | negative | hold
-    if raw.get("static"):                         # isometric set: no reps, no phases - time slices
+    if raw.get("static"):                         # isometric hold: no reps, no phases - the shared hold rule (contract hold-1)
         out["phase"] = "hold"
-        edges = [last_t * i / STATIC_SLICES for i in range(STATIC_SLICES + 1)]
-        slices = [tw_mean(t, f, edges[i], edges[i + 1]) for i in range(STATIC_SLICES)]
-        ref = max(slices[:STATIC_SLICES // 2])
-        change = (slices[-1] / ref - 1) * 100 if ref else 0.0
-        inroad = max(0, round(-change))
-        out.update({"method": "static", "static_slices_kg": [_r(x) for x in slices],
-                    "inroad_v3": inroad, "output_change_pct": round(change, 1),
-                    "effort": "deep" if inroad >= INROAD_DEEP else ("moderate" if inroad >= INROAD_MODERATE else "submax"),
-                    "borderline": min(abs(inroad - INROAD_DEEP), abs(inroad - INROAD_MODERATE)) <= BORDERLINE,
+        h = hold_v1(t, f)
+        inroad = h["inroad_hold"] if h["valid"] else None
+        out.update({"method": "hold", "hold": h, "inroad_v3": inroad,        # the set's fatigue slot, like a dynamic set's
+                    "output_change_pct": round((h["end_mean"] / h["reference"] - 1) * 100, 1) if (h["valid"] and h["reference"]) else None,
+                    "effort": h["effort"], "borderline": h["borderline"],
                     "tut": {"con_s": 0.0, "ecc_s": 0.0, "hold_s": round(last_t, 1), "total_s": round(last_t, 1)},
                     "peak_kg": _r(max(f)), "inroad_legacy": None, "effort_legacy": "unknown"})
         return out

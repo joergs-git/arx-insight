@@ -211,8 +211,8 @@ def load_sets(con, user_id: int) -> list[dict]:
         mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
         status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
         if static and status == "short" and sec >= STATIC_MIN_SECONDS and c > 0 and has_events:
-            # an isometric hold (ARX "Static" mode) has no reps by design: real work - a working set with its own
-            # effort method (time slices), compared only with other holds at the same position (v0.14.0)
+            # an isometric hold (ARX "Static" mode) has no reps by design: real work - a working set judged by the
+            # shared hold rule (contract hold-1, v0.17.0), compared only with other holds at the same position (v0.14.0)
             status, reason = "working", f"isometric hold, {sec:.0f} s"
         if status == "working" and r.get("HIDEFROMSTATS"):
             # hidden from the statistics in the ARX app itself: not training in the athlete's
@@ -1630,7 +1630,8 @@ DETAIL_FIELDS = ("phase", "con_top3_kg", "ecc_top3_kg", "con_avg_kg", "ecc_avg_k
                  "fatigue_con_pct", "fatigue_ecc_pct", "output_change_pct", "pacing_deficit_pct", "best_rep",
                  "hold_kg", "hold_rel", "hold_end_kg", "hold_end_rel", "hold_start_kg", "drops_mid", "tut", "tempo",
                  "arx_output", "borderline",
-                 "con_thirds_kg", "ecc_thirds_kg", "con_weak_third", "ecc_weak_third", "first_half")
+                 "con_thirds_kg", "ecc_thirds_kg", "con_weak_third", "ecc_weak_third", "first_half",
+                 "hold")                           # a static set's hold-1 block (reference / end_mean in kg)
 
 
 def attach_detail(s: dict, d: dict) -> None:

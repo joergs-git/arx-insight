@@ -198,7 +198,7 @@ A set has a **mode**: the movement (dynamic, or a *static* hold - `StartPosition
 (a repetition count, the clock = *Countdown*, the original's *Inroad Mode* - it shows a zone, a high-water mark of the momentary force, and a person ends the set; the original never ends a set by itself -,
 arx-free's fatigue target, or an unknown code that is shown as unknown, never silently treated as reps), plus the phase that carried the work when only one direction did
 (negative-only / positive-only reps get no fatigue judgement - the rule needs both phases). Since v0.14.0 holds are
-working sets with their own effort method (six time slices) and load the muscles like any set; only the same mode
+working sets judged by the shared hold rule (contract `hold-1`, see the FAQ) and load the muscles like any set; only the same mode
 is ever compared (a hold with holds at the same position, a Countdown set with Countdown sets of the same
 duration), and chapter 3 says which modes an exercise's history contains. Timed sets progress by **Output**
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
@@ -227,12 +227,21 @@ and under a **maintain** goal the plan walks the ARX ladder: start at the calibr
 your strength holds, one up when it drops, never below the setting that maps to the moderate line. Without a usable
 fit the plan says nothing about machine values — it never guesses one.
 
+**How is a static hold judged?** *(v0.17.0)* — by one rule both products share (`contracts/hold-1.md`): the
+**held force** is the mean of the last 3 s, the **reference** the *sustained* force - the lowest force inside a full
+3-s window, at its best - so a one-second push cannot raise it (the original's Inroad zone follows exactly such a
+push); the **fatigue** is the deepest drop of the held force below the reference that lasted a full second, in
+percent, with the same lines as any set (deep 20 / medium 10); **letting go** - below half the reference for a
+second - ends the hold, and what follows (a re-grab, a push, a rest on the handle) is not the hold. arx-free ends a
+hold live with the same rule at your fatigue target; the shared test vectors include the owner's own test hold on the
+original (about 29 lb held for 40 s, let go at 8 % - while the original showed a zone of 47-52 lb).
+
 ## The sibling project: arx-free
 
 `../arx-free` is the owner's independent control software for the same machine (motion, live coach, set recording).
 ARX Insight stays the single planning engine; the two share what they must agree on as **contracts** in `contracts/`
 (`README.md` there lists them: the history export `arx-export-1` - `tools/export_for_arx_free.py` writes it from a
-read-only copy of the database -, the fatigue rule `effort-v3` with shared test vectors, and the words a person reads
+read-only copy of the database -, the fatigue rule `effort-v3` and the hold rule `hold-1` with shared test vectors, and the words a person reads
 `vocabulary-1`). Every contract file carries a SHA-256 in `contracts/MANIFEST.json`, the copy here is byte-identical
 to the one in arx-free, and `python tools/contracts.py` (also part of the test suite) fails when the folder drifts
 from its manifest, when our own fatigue rule stops matching the vectors, or - with arx-free checked out next to this
