@@ -40,6 +40,14 @@ class CleanProfile(unittest.TestCase):
         past = app.clean_profile({"target": {"kind": "waist", "value": 90, "date": "2020-01-01"}}, CATALOG, TODAY)
         self.assertIsNone(past["target"]["date"])                                     # a date in the past is no deadline
 
+    def test_preferred_training_days_are_weekday_numbers(self):
+        """v0.19.0: 0 = Monday .. 6 = Sunday, unique and sorted; anything else means 'none chosen'."""
+        self.assertEqual(app.clean_profile({"training_days": [4, 0, 2, 2]}, CATALOG, TODAY)["training_days"], [0, 2, 4])
+        self.assertEqual(app.clean_profile({"training_days": [7, -1, True, "1", 6]}, CATALOG, TODAY)["training_days"], [6])
+        self.assertIsNone(app.clean_profile({"training_days": []}, CATALOG, TODAY)["training_days"])
+        self.assertIsNone(app.clean_profile({"training_days": "mon,wed"}, CATALOG, TODAY)["training_days"])
+        self.assertNotIn("training_days", app.clean_profile({}, CATALOG, TODAY))
+
     def test_switched_off_exercises_are_catalog_codes_with_a_known_reason(self):
         got = app.clean_profile({"excluded_exercises": {"11": "elsewhere", 19: "unwanted", "3": "too boring", "99": "unwanted",
                                                         "23": None, "10": ["elsewhere"], "4": "injury", "26": "careful"}}, CATALOG, TODAY)

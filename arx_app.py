@@ -251,7 +251,7 @@ BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200)
                "thigh_cm": (20, 120), "fat_pct": (2, 70)}
 BODY_KEEP = 400                 # entries kept per person
 PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids", "structure",
-                "next_groups", "excluded_exercises", "partner")
+                "next_groups", "excluded_exercises", "partner", "training_days")
 
 
 def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
@@ -316,6 +316,10 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
         out["excluded_exercises"] = clean_exclusions(data.get("excluded_exercises"), catalog) or None
     if "partner" in data:                          # trains in turns with a partner (v0.8.0): the change-over time in the
         out["partner"] = True if data.get("partner") is True else None     # data is the partner's set, not set-up time
+    if "training_days" in data:                    # preferred weekdays, 0 = Monday (v0.19.0); anything else = none
+        days = data.get("training_days")
+        clean = sorted({d for d in days if isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6}) if isinstance(days, list) else []
+        out["training_days"] = clean or None
     return out
 
 

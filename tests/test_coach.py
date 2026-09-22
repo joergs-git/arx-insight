@@ -68,6 +68,12 @@ class Payload(unittest.TestCase):
         self.assertIn("effort_cap", p["planner"]["decision_space"])
         self.assertEqual(p["previous_recommendations"], [])
 
+    def test_the_coach_knows_the_athletes_preferred_weekdays(self):
+        report, cfg = make(training_days=[0, 2, 4])
+        self.assertEqual(ai.build_payload(report, cfg)["profile"]["preferred_weekdays"], ["monday", "wednesday", "friday"])
+        report, cfg = make()
+        self.assertEqual(ai.build_payload(report, cfg)["profile"]["preferred_weekdays"], [])
+
     def test_the_coach_is_told_that_a_muscle_needs_its_weekly_stimulus(self):
         report, cfg = make(sessions_per_week=1, structure="split")
         planner_block = ai.build_payload(report, cfg)["planner"]
