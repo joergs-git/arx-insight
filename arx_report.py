@@ -101,7 +101,7 @@ IDEAL_SETTINGS = {
 # =============================================================================
 PROTOCOL_LABELS = {3: "reps", 1: "countdown", 0: "inroad"}   # ExerciseSet.PROTOCOL: what ends the set (legacy label)
 # contract modes-1 (v0.14.0): a set's mode = movement (dynamic | static) x ending (what stops the set). PROTOCOL is
-# the ending only - the owner's data has static holds ended by the clock and by the inroad rule. Any other code is
+# the ending only - the owner's data has static holds ended by the clock and (by hand) under the Inroad protocol. Any other code is
 # "unknown" and shown as such, never silently "reps".
 ENDINGS = {3: "reps", 1: "time", 0: "inroad", 4: "fatigue"}     # 4 = arx-free's fatigue-target protocol (never from the original)
 STATIC_POS_TOLERANCE_IN = 1.0  # static holds compare only at the same position (+- this many inches)

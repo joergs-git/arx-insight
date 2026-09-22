@@ -199,7 +199,7 @@ BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate
 CONDITIONING_SHARE = 0.3       # conditioning share of the goal from which timed (Countdown) sets are suggested
 COUNTDOWN_SECONDS = 90         # length of a suggested Countdown set (inside the 60-120 s the ARX practice uses)
 OUTPUT_STEP_PCT = 2.0          # the Output target of a timed set: last comparable Output + this
-STATIC_HOLD_S = 40             # a suggested static hold (in Inroad Mode the software ends the set when the zone is missed)
+STATIC_HOLD_S = 40             # a suggested static hold (a Countdown - the original never ends a set by itself; arx-free ends a hold by the fatigue target)
 # the machine's Inroad Mode setting calibrated to the fatigue target (v0.16.0): a straight line through the athlete's
 # own sets, fatigue in the set (effort-v3) against the machine's inroad scale (best rep peak -> last rep peak)
 CALIB_MIN_SETS = 6             # sets needed for a fit
@@ -994,8 +994,9 @@ def mode_of(s: dict | None) -> str | None:
 
 def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool, commitment: str = "") -> dict | None:
     """A mode SUGGESTION for the row - never a silent change of its target (v0.15.0). The athlete's goal first,
-    then the situation: a static hold (ended by the machine's Inroad Mode) for an exercise to go easy on and for
-    the first session after months away; Countdown with an Output target on the big exercises when the goal
+    then the situation: a static hold (a Countdown - the original ends nothing by itself and judges nothing for a
+    hold; arx-free ends it by the fatigue target) for an exercise to go easy on and for the first session after
+    months away; Countdown with an Output target on the big exercises when the goal
     carries a conditioning share; negative-only repetitions as a plateau lever under a strength goal. A mode
     change restarts the comparison basis - every text says so. Nothing for beginners or new exercises."""
     if beginner_phase(cfg) or c["new"]:
@@ -1006,7 +1007,11 @@ def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool, commitment:
     machine = machine_setting(cal, effort["inroad_min"]) if effort.get("inroad_min") else None
     if c["restriction"] == "careful" or returning:
         code = "mode_static_careful" if c["restriction"] == "careful" else "mode_static_return"
-        return {"mode": "static/inroad", "settings": {"hold_s": STATIC_HOLD_S, "inroad_machine_pct": machine}, "interp": item(code, {"seconds": STATIC_HOLD_S}, cfg)}
+        # a Countdown hold (contract modes-3): the original's Inroad zone is a high-water mark of the momentary force and
+        # judges nothing for a hold (owner's own test, 2026-09-22), so the clock ends it there; arx-free maps a hint that
+        # carries a fatigue target to static/fatigue. No machine value: the calibration is fitted on dynamic sets only.
+        return {"mode": "static/time", "settings": {"hold_s": STATIC_HOLD_S, "fatigue_target_pct": effort.get("inroad_min") or None},
+                "interp": item(code, {"seconds": STATIC_HOLD_S}, cfg)}
     # maintain (outcome or profile): the ARX ladder - the least machine inroad that still holds strength, one step at a time;
     # needs the athlete's own calibration (the machine's scale is not ours)
     if (cfg.get("outcome") == "maintain" or commitment == "maintain") and machine is not None:
@@ -1108,7 +1113,7 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         code = ("plan_effort_reps" if "reps" in change else "plan_effort_pauses" if "tempo_s" not in change
                 else "plan_effort_tempo" if keep_pauses else "plan_effort_reset")
         # the fourth lever (v0.16.0): let the machine's Inroad Mode show when the set is done - at the machine-scale value
-        # the athlete's own calibration maps to the fatigue target; the software stops the set when the zone is missed
+        # the athlete's own calibration maps to the fatigue target; a person ends the set when the zone is missed (the original never does)
         cal = ((cfg.get("_calibration") or {}).get("exercises") or {}).get(c["name"]) or (cfg.get("_calibration") or {}).get("all")
         machine = machine_setting(cal, effort["inroad_min"])
         if machine is not None:

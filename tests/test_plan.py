@@ -454,8 +454,11 @@ class ModeHints(unittest.TestCase):
         rows = history([ROW, PRESS, SQUAT], factors=[1.0, 1.02, 1.04, 1.06, 1.08], decline=0.05)
         sess = report(rows, "2026-09-19", excluded_exercises={"23": "careful"})["plan"]["next_session"]
         press = next(it for it in sess["exercises"] if it["name"] == "Horizontal Press")
-        self.assertEqual((press["mode_hint"]["mode"], press["mode_hint"]["interp"]["code"], press["mode_hint"]["settings"]["hold_s"]),
-                         ("static/inroad", "mode_static_careful", planner.STATIC_HOLD_S))
+        # a Countdown hold (modes-3): the original ends nothing by itself; a careful row has no fatigue number (by feel)
+        self.assertEqual((press["mode_hint"]["mode"], press["mode_hint"]["interp"]["code"], press["mode_hint"]["settings"]["hold_s"],
+                          press["mode_hint"]["settings"]["fatigue_target_pct"]),
+                         ("static/time", "mode_static_careful", planner.STATIC_HOLD_S, None))
+        self.assertNotIn("inroad_machine_pct", press["mode_hint"]["settings"])
         self.assertTrue(all(it.get("mode_hint") is None for it in sess["exercises"] if it["name"] != "Horizontal Press"))   # balanced goal: reps
         # months away: the first session back
         far = report(rows, "2027-04-01")["plan"]["next_session"]

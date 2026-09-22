@@ -1132,11 +1132,11 @@ function modeLabel(x){ const de=CFG.language==="de"; if(!x) return ""; const par
   if(x.phase==="negative") parts.push(de?"nur negativ":"negative only"); else if(x.phase==="positive") parts.push(de?"nur positiv":"positive only");
   return parts.join(" · "); }
 function modeHintLabel(h){ const de=CFG.language==="de"; if(!h) return ""; const s=h.settings||{};
-  if(h.mode==="static/inroad") return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'}`;
+  if(h.mode==="static/time") return `Static ${s.hold_s||''} s · Countdown`+(s.fatigue_target_pct?` · ${de?'Ermüdungsziel':'fatigue target'} ${s.fatigue_target_pct} %`:'');
+  if(h.mode==="static/inroad") return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'}`;   // hints stored before v0.16.3
   if(h.mode==="dynamic/time") return `Countdown ${s.seconds||''} s`+(s.output_target_kg_s?` · Output ≥ ${Math.round(s.output_target_kg_s*(CFG.units==="imperial"?2.20462:1))} ${LKg()}·s`:'');
   if(h.mode==="dynamic/reps/negative") return de?"nur negative Wiederholungen (1 Einheit)":"negative-only repetitions (1 session)";
   if(h.mode==="dynamic/inroad") return `${de?'Inroad-Modus':'Inroad Mode'} ${s.inroad_machine_pct!=null?s.inroad_machine_pct+' %':''}`;
-  if(h.mode==="static/inroad"&&s.inroad_machine_pct!=null) return `Static ${s.hold_s||''} s · ${de?'Inroad-Modus':'Inroad Mode'} ${s.inroad_machine_pct} %`;
   return h.mode; }
 // one vocabulary for the measure (v0.12.3): "Ermüdung im Satz" - tief / mittel / leicht (deep / medium / light)
 const effLabel=e=>{const de=CFG.language==="de";return {deep:de?"tief":"deep",moderate:de?"mittel":"medium",submax:de?"leicht":"light",unknown:"—"}[e]||'';};
