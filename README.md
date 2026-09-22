@@ -244,8 +244,10 @@ automatic analysis starts about 8 minutes after your last set (one board per ses
 now* starts it at once); a board whose data has not changed (no new set, check-in or setting) stays current for up
 to three days even when the calendar moved on - it says so and offers *Analyse again*; a board for a data state that
 a newer one overtook stops within seconds; and a plan the rule check rejects is repaired with the engine's own row
-or one small rows-only call instead of a second full board. The static prompt and your payload are cached for the
-next call within minutes (a training partner's board, the repair).
+or one small rows-only call instead of a second full board. (Prompt caching does not help board calls: with
+structured output the schema is part of the cached prefix and differs per athlete and per call, so v0.20.1 sends
+no cache marks there; the chat, without a schema, keeps its one-hour cache.) A board that leaves whole sections as
+placeholders is not shown at all - the job fails with a code and *Try again* is offered *(v0.20.1)*.
 
 **Is there a short version?** *(v0.20.0)* — yes, at the very top of the report, above the fold: the
 **Kurzfassung** box. Left: every exercise of the last session with one symbol and one line - 👍 target reached,
