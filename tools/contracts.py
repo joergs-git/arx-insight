@@ -11,7 +11,9 @@ copy here is byte-identical to ``arx-free/contracts/``; a change of a contract h
 2. our own rule agrees with the shared test vectors (``arx_detail.effort_v3`` against ``effort-v3-vectors.json`` -
    ARX Insight OWNS that rule, so this is the guard against changing it without a new contract version),
 3. when the sibling is checked out next to this one (``../arx-free``): every contract file both carry is identical,
-   every contract the sibling lists is adopted here, and the exercise catalogue agrees code by code.
+   every contract the sibling lists is adopted here - except an older file of a contract ARX Insight OWNS that arx-free
+   still carries after we retired it (history, not drift: the owner decides what the current version contains) -,
+   and the exercise catalogue agrees code by code.
 
     ./.venv/bin/python tools/contracts.py            check (exit code 1 on a difference)
     ./.venv/bin/python tools/contracts.py --update   after a DELIBERATE change of a contract: write the new hashes
@@ -86,11 +88,15 @@ def sibling_problems(sibling: str = SIBLING, root: str = ROOT) -> list[str] | No
     if not os.path.isdir(os.path.join(sibling, "contracts")):
         return None
     problems = []
-    ours = {name: digest for c in load_manifest()["contracts"] for name, digest in c["files"].items()}
+    manifest = load_manifest()
+    ours = {name: digest for c in manifest["contracts"] for name, digest in c["files"].items()}
+    owned = {c["name"] for c in manifest["contracts"] if c.get("owner") == "arx-insight"}
     theirs_manifest = load_manifest(os.path.join(sibling, "contracts", "MANIFEST.json"))
     for contract in theirs_manifest["contracts"]:
         for name, digest in contract["files"].items():
             if name not in ours:
+                if contract["name"] in owned:
+                    continue                # a superseded version of OUR contract that arx-free still carries (modes-1 after modes-2)
                 problems.append(f"{name}: arx-free lists this contract file, it is not adopted here yet (copy it and add it to the manifest)")
             elif ours[name] != digest:
                 problems.append(f"{name}: the two projects carry different versions of this contract file")

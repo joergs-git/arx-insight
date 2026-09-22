@@ -1,7 +1,7 @@
 """The contracts with the sibling project arx-free (v0.13.0): the folder matches its manifest, our own fatigue rule
 agrees with the shared vectors (we own it - a change needs a new contract version), and when arx-free is checked out
 next to this repository, both carry the same contract files and the same exercise catalogue."""
-import os, unittest
+import json, os, tempfile, unittest
 
 import tests                                   # noqa: F401
 from tools import contracts
@@ -25,6 +25,23 @@ class Contracts(unittest.TestCase):
     @unittest.skipUnless(os.path.isdir(os.path.join(contracts.SIBLING, "contracts")), "arx-free is not checked out next to this repository")
     def test_the_sibling_carries_the_same_contracts_and_catalogue(self):
         self.assertEqual(contracts.sibling_problems(), [])
+
+    def test_a_superseded_file_of_our_own_contract_at_the_sibling_is_history_not_drift(self):
+        """v0.16.2: arx-free may still carry an older file of a contract ARX Insight owns (modes-1 after modes-2 was
+        adopted and modes-1 retired here) - nothing to adopt. A file of a contract arx-free OWNS that we lack is still
+        'not adopted here yet'."""
+        ours = contracts.load_manifest()
+        modes = next(c["files"] for c in ours["contracts"] if c["name"] == "modes")
+        theirs = {"contracts": [
+            {"name": "modes", "version": 2, "owner": "arx-insight", "files": {"modes-0.md": "0" * 64, **modes}},
+            {"name": "exercise-coaching", "version": 9, "owner": "arx-free", "files": {"exercise-coaching-9.json": "0" * 64}},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            os.mkdir(os.path.join(tmp, "contracts"))
+            with open(os.path.join(tmp, "contracts", "MANIFEST.json"), "w", encoding="utf-8") as fh:
+                json.dump(theirs, fh)
+            self.assertEqual(contracts.sibling_problems(sibling=tmp),
+                             ["exercise-coaching-9.json: arx-free lists this contract file, it is not adopted here yet (copy it and add it to the manifest)"])
 
 
 if __name__ == "__main__":
