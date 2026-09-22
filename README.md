@@ -236,6 +236,15 @@ second - ends the hold, and what follows (a re-grab, a push, a rest on the handl
 hold live with the same rule at your fatigue target; the shared test vectors include the owner's own test hold on the
 original (about 29 lb held for 40 s, let go at 8 % - while the original showed a zone of 47-52 lb).
 
+**Why does the coach sometimes wait, and why does it show yesterday's analysis?** *(v0.18.0)* — a board costs
+the model two to three minutes of thinking and writing, so the app spends them only when they buy something: an
+automatic analysis starts about 8 minutes after your last set (one board per session, not one per set - *Analyse
+now* starts it at once); a board whose data has not changed (no new set, check-in or setting) stays current for up
+to three days even when the calendar moved on - it says so and offers *Analyse again*; a board for a data state that
+a newer one overtook stops within seconds; and a plan the rule check rejects is repaired with the engine's own row
+or one small rows-only call instead of a second full board. The static prompt and your payload are cached for the
+next call within minutes (a training partner's board, the repair).
+
 ## The sibling project: arx-free
 
 `../arx-free` is the owner's independent control software for the same machine (motion, live coach, set recording).
