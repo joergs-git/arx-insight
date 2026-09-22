@@ -650,6 +650,26 @@
    "de": "Ein fester Tag macht das Dranbleiben leichter."
   }
  },
+ "date_preferred_day": {
+  "meaning": {
+   "en": "{weekday} is one of the training days you chose in your profile.",
+   "de": "{weekday} ist einer der Trainingstage, die du im Profil gewählt hast."
+  },
+  "action": {
+   "en": "Your days come first as long as the muscles are ready and the session is full - an extra session on another day does not move them.",
+   "de": "Deine Tage haben Vorrang, solange die Muskeln erholt sind und die Einheit voll ist - eine Extra-Einheit an einem anderen Tag verschiebt sie nicht."
+  }
+ },
+ "date_off_preferred": {
+  "meaning": {
+   "en": "{weekday} is not one of the training days you chose: on the nearest of your days the muscles were not ready yet, the session would have been smaller, or it lies too far from your rhythm.",
+   "de": "{weekday} ist keiner deiner gewählten Trainingstage: am nächsten deiner Tage waren die Muskeln noch nicht erholt, die Einheit wäre kleiner gewesen oder er liegt zu weit von deinem Rhythmus."
+  },
+  "action": {
+   "en": "Train on it anyway or wait for your day - the plan follows what you record.",
+   "de": "Trainiere trotzdem oder warte auf deinen Tag - der Plan folgt dem, was du aufzeichnest."
+  }
+ },
  "date_fuller_later": {
   "meaning": {
    "en": "On {later_date} a fuller session is possible ({k} instead of {k_now} exercises).",

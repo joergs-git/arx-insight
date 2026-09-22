@@ -89,7 +89,10 @@ MIN_READY_EXERCISES = 2        # fewer ready exercises are not worth a session
 CADENCE_W = 0.35               # date score: deviation from the ideal gap (in ideal gaps) ...
 CADENCE_FREE_DAYS = 0.5        # ... beyond this many days
 SPLIT_EVENNESS_W = 0.01        # a split session SOONER than the rhythm while the week still needs sessions: only a
-                               # tie-breaker towards even spacing - consecutive days are what a split is for
+                               # tie-breaker - towards the EARLIER day (v0.19.0; owner: a rested group trains now. v0.8.6 broke
+                               # the tie towards even spacing and moved a rested upper-body day from Wednesday to Thursday)
+PREF_DAY_W = 0.20              # date score: one of the athlete's preferred weekdays (profile, v0.19.0) - a preference, so it
+                               # beats the rhythm's tie-breakers and a mild cadence deviation, never a fuller or a readier day
 WEEK_W = 0.15                  # date score: the week's session target is still open ...
 WEEK_LAST_W = 0.15             # ... and this is one of the last days on which it can still be met
 HABIT_W = 0.10                 # date score: the athlete's usual weekday (only with a real pattern)
@@ -1344,6 +1347,14 @@ def aid_hints(session: dict, budget: dict, cfg: dict, possible: dict) -> list[di
 # =============================================================================
 # The plan
 # =============================================================================
+def training_days(cfg: dict) -> list[int]:
+    """The athlete's preferred weekdays from the profile (0 = Monday), a soft preference (v0.19.0): readiness and a
+    full session come first, the sessions-per-week target stays the target - and an extra session on another day
+    does not move the preferred ones. Explicit days replace the inferred weekday habit."""
+    days = cfg.get("training_days") or []
+    return sorted({int(d) for d in days if isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6}) if isinstance(days, list) else []
+
+
 def weekday_habit(days: list[str], spw: int) -> list[int]:
     """The athlete's usual weekdays (0 = Monday) - only when a real pattern exists."""
     if len(days) < HABIT_MIN_DAYS:
@@ -1413,7 +1424,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     days = sorted({s["date"][:10] for s in work})
     last_day = date.fromisoformat(days[-1]) if days else None
     ideal_gap = 7.0 / spw
-    habit = weekday_habit(days, spw)
+    pref = training_days(cfg)                      # the athlete's own days beat an inferred habit
+    habit = [] if pref else weekday_habit(days, spw)
     week_counts: dict = {}
     for d in days:
         key = date.fromisoformat(d).isocalendar()[:2]
@@ -1504,15 +1516,17 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
             # Too rare is always measured against the rhythm. Too SOON only holds a full-body session back: a split
             # session trains other muscles than the last one - consecutive days are its point (science.json:
             # split_vs_full_body) - so while the week still needs sessions it costs next to nothing (v0.8.6; before,
-            # the legs waited three days although they were rested, and the week fell short of its target)
+            # the legs waited three days although they were rested, and the week fell short of its target), and the
+            # tie goes to the EARLIER day: a rested group trains now (v0.19.0; owner - the rhythm is not a reason
+            # to let a rested group wait a day)
             if gap is not None and gap < ideal_gap and sel["theme"] is not None and open_week:
-                cadence = SPLIT_EVENNESS_W * (ideal_gap - gap) / ideal_gap
+                cadence = SPLIT_EVENNESS_W * (gap - 1) / ideal_gap
             else:
                 cadence = CADENCE_W * off
             score = (fill - cadence + (WEEK_W if open_week else 0.0) + (WEEK_LAST_W if last_chance else 0.0)
-                     + (HABIT_W if d.weekday() in habit else 0.0))
+                     + (HABIT_W if d.weekday() in habit else 0.0) + (PREF_DAY_W if d.weekday() in pref else 0.0))
             out.append(dict(sel, band=b, gap_days=gap, open_week=open_week, last_chance=last_chance, habit=d.weekday() in habit,
-                            score=round(score, 3), fill_effective=round(fill, 2)))
+                            pref=d.weekday() in pref, score=round(score, 3), fill_effective=round(fill, 2)))
         return out
 
     opts = options(earliest, last_day, state, week_counts, pool, True)
@@ -1520,6 +1534,7 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                    "sessions_per_week": spw, "session_minutes": round(minutes), "session_minutes_auto": minutes_auto,
                    "focus_regions": focus, "structure": structure, "split_factor": split_factor(spw, structure, real_spw),
                    "real_sessions_per_week": real_spw,
+                   "training_days": pref,          # the athlete's preferred weekdays (0 = Monday), [] = none set
                    "next_groups": chosen_groups, "groups": sorted({c["group"] for c in pool if not c["new"] and c["group"] != "?"}), "age_guard": age if age in MINOR_BANDS + OLDER_BANDS else None,
                    "supervision": age in MINOR_BANDS, "transition_min": transition, "transition_measured": transition_measured,
                    "exercises_per_session": size_for(None),
@@ -1580,6 +1595,10 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         why.append(item("date_week_last_chance", {"spw": spw, "done": wk_done}, cfg))
     if best["habit"]:
         why.append(item("date_habit", {"weekday": d1.weekday()}, cfg))
+    if best.get("pref"):                           # one of the athlete's own days (v0.19.0)
+        why.append(item("date_preferred_day", {"weekday": d1.weekday()}, cfg))
+    elif pref:                                     # he named days, this is not one of them - say why it lost anyway
+        why.append(item("date_off_preferred", {"weekday": d1.weekday()}, cfg))
     fuller = next((o for o in opts if o["date"] > d1 and o["fill"] >= best.get("fill_limited", best["fill"]) + 0.25), None)
     if fuller:
         session["fuller_option"] = item("date_fuller_later", {"later_date": fuller["date"].isoformat(), "k": len(fuller["chosen"]),

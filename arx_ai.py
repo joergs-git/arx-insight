@@ -42,7 +42,7 @@ from datetime import date
 from arx_base import data_dir, write_json_atomic
 import arx_plan as planner
 
-PROMPT_VERSION = 24
+PROMPT_VERSION = 25
 MODELS = (("claude-opus-5", "Claude Opus 5"), ("claude-fable-5-1", "Claude Fable 5.1"))
 DEFAULT_MODEL = "claude-opus-5"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -61,6 +61,7 @@ CHAT_TURNS_MAX = 100           # turns per conversation (one conversation per de
 CHAT_TURNS_PER_DAY = 100
 CHAT_QUESTION_MAX = 1000       # characters
 SERIES_POINTS = 12             # comparable-day points per exercise in the payload
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 WEEKS_IN_PAYLOAD = 13
 WHY_MIN_CHARS = 20             # a change against the proposal needs at least a sentence of reason
 # v0.18.0 - what a board waits for and how long it stays current (owner: a board per recorded set and per new day was
@@ -166,6 +167,8 @@ def build_payload(report: dict, cfg: dict, previous: list[dict] | None = None) -
         "sessions_per_week_target": report.get("sessions_per_week"), "session_minutes": pp.get("session_minutes"),
         "commitment_profile": pp.get("commitment"), "commitment_chosen_by_athlete": pp.get("commitment_chosen"),
         "session_structure": pp.get("structure"), "focus_regions": {k: v for k, v in (pp.get("focus_regions") or {}).items() if v != "normal"},
+        # the athlete's preferred weekdays (v0.19.0) - a preference the engine's date already honours where it could
+        "preferred_weekdays": [WEEKDAYS[d] for d in (pp.get("training_days") or []) if isinstance(d, int) and 0 <= d <= 6],
         "restrictions": report.get("restrictions_saved") or {}, "pain_today": report.get("pain_today") or [],
         "grip_aids": {k: v.get("aids") for k, v in (report.get("aids") or {}).items()},
         "supervision_required_minor": bool(pp.get("supervision")),
@@ -445,7 +448,7 @@ HOW TO JUDGE - non-negotiable:
 3. Never invent numbers. Every force, percentage, date, count or minute you write must be in the payload (rounding is fine). If something is not there, say so in words.
 4. Safety first: restrictions (careful / avoid), pain today, the minors guard and a poor check-in outrank progress. You are not a doctor: no diagnosis, no medical advice.
 5. Minimum effective dose: the athlete's time is part of the goal. Never add volume "to be safe"; respect the chosen time-vs-effort profile (you may recommend another one when intent and delivered effort diverge - with its price in time).
-6. Frequency is a floor: a muscle needs a training stimulus at least about once a week to grow. One session a week therefore means full body with the big push, pull and leg exercises; a split only makes sense from two, better three sessions a week. If planner.frequency_warnings names a muscle, or your own change would leave a trained muscle without a stimulus for more than about 8 days, say so and fix it - never recommend alternating muscle groups at one session a week.
+6. Frequency is a floor: a muscle needs a training stimulus at least about once a week to grow. One session a week therefore means full body with the big push, pull and leg exercises; a split only makes sense from two, better three sessions a week. If planner.frequency_warnings names a muscle, or your own change would leave a trained muscle without a stimulus for more than about 8 days, say so and fix it - never recommend alternating muscle groups at one session a week. profile.preferred_weekdays are the days the athlete wants to train on: the engine's date honours them where the muscles are ready and the session is full (an extra session on another day does not move them); when the proposal falls on another day, planner.proposal.why_this_date says why - keep to the athlete's days unless readiness says otherwise, and never call an extra session on another day a mistake.
 7. Breaks: planner.training_break tells you when the athlete has been away (short = up to about four weeks, long = more, very_long = more than half a year). Up to about three weeks nothing is lost: simply continue and hold the numbers. After a longer break expect lower values, treat what is reached as the new starting point and say that it comes back much faster than it was built. NEVER try to "catch up": no extra sets, no extra sessions, no harder session than the profile asks for - and no split just because of the break (the structure follows the sessions per week the athlete really trains, see planner.real_sessions_per_week). After everything is recovered the big push, pull and leg exercise come first: that is the best use of the athlete's time.
 8. Stay consistent: keep your earlier line unless the data changed. When you change something, name it and give the reason.
 9. Every statement answers two questions for the athlete: what does this mean for me, and what do I do next. No filler, no praise without a number behind it, no generic gym advice the data does not support.

@@ -247,6 +247,13 @@ a newer one overtook stops within seconds; and a plan the rule check rejects is 
 or one small rows-only call instead of a second full board. The static prompt and your payload are cached for the
 next call within minutes (a training partner's board, the repair).
 
+**Can I name the days I train on?** *(v0.19.0)* — yes: *Preferred training days* in the profile (optional, e.g.
+Mon / Wed / Fri). They are a preference, not a cage: the plan keeps them while the muscles are ready and the session
+is full, an extra session on another day does not move them (legs on a Tuesday leave Wednesday's upper-body session
+where it was), and when the proposal falls on another day the plan says why. Without chosen days the rhythm is
+*sessions per week* - and since v0.19.0 a rested group trains the next day instead of waiting for the "even" gap
+(the owner's rule: three a week means every other day, never a rested group waiting for the calendar).
+
 ## The sibling project: arx-free
 
 `../arx-free` is the owner's independent control software for the same machine (motion, live coach, set recording).

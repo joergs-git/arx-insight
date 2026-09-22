@@ -475,6 +475,31 @@ class ModeHints(unittest.TestCase):
         sess = report(rows[:2], "2026-09-19", experience="new", excluded_exercises={"23": "careful"})["plan"]["next_session"]
         self.assertTrue(all(it.get("mode_hint") is None for it in sess["exercises"]))
 
+    def test_a_rested_group_trains_the_next_day_and_preferred_weekdays_hold(self):
+        """v0.19.0 (owner, 2026-09-22): upper body trained Sat 20.09 (deep -> ready Tue), legs Mon 21 + an unplanned leg
+        session Tue 22 - the upper-body day is Wednesday, not Thursday (v0.8.6's tie-breaker preferred the gap nearer
+        the 7/3 rhythm). Preferred weekdays are a soft preference on top: Mon/Wed/Fri keeps Wednesday, Thursday alone
+        moves it to Thursday with the reason, Saturday alone waits for Saturday, a day that is too far loses with a
+        note - never a day whose muscles are not ready."""
+        rows = [fx.make_set(1, ROW, datetime(2026, 9, 20, 10, 0), con=(150, 0.05), ecc=(240, 0.05)),
+                fx.make_set(2, PRESS, datetime(2026, 9, 20, 10, 6), con=(150, 0.05), ecc=(240, 0.05)),
+                fx.make_set(3, SQUAT, datetime(2026, 9, 21, 10, 0), con=(300, 0.05), ecc=(420, 0.05)),
+                fx.make_set(4, SQUAT, datetime(2026, 9, 22, 8, 0), con=(300, 0.05), ecc=(420, 0.05)),
+                fx.make_set(5, DEADLIFT, datetime(2026, 9, 22, 8, 6), con=(300, 0.05), ecc=(420, 0.05))]
+        base = dict(sessions_per_week=3, structure="split")
+        sess = report(rows, "2026-09-22", **base)["plan"]["next_session"]
+        self.assertEqual(sess["date"], "2026-09-23")
+        self.assertTrue({"Row", "Horizontal Press"} <= set(names(sess)) and "Belt Squat" not in names(sess))
+        for days, want, code in (([0, 2, 4], "2026-09-23", "date_preferred_day"), ([3], "2026-09-24", "date_preferred_day"),
+                                 ([5], "2026-09-26", "date_preferred_day"), ([1], "2026-09-23", "date_off_preferred")):
+            p = report(rows, "2026-09-22", training_days=days, **base)["plan"]
+            codes = [w["code"] for w in p["next_session"]["why_this_date"]]
+            self.assertEqual((p["next_session"]["date"], code in codes, p["profile"]["training_days"]), (want, True, days), days)
+        # a preferred day whose muscles are not ready never wins: Thursday for the legs is not on offer, the upper body is
+        p = report(rows, "2026-09-22", training_days=[3], **base)["plan"]
+        self.assertNotIn("Belt Squat", names(p["next_session"]))
+        self.assertEqual(planner.training_days({"training_days": [6, 0, 0, 9, True, "2"]}), [0, 6])
+
     def test_recovery_knows_a_hold_and_a_negative_only_set(self):
         hold = fx.make_static_set(1, ROW, datetime(2026, 9, 20, 10, 0), seconds=60, start_force=300, end_force=180)   # a deep hold
         r = report([hold], "2026-09-21")
