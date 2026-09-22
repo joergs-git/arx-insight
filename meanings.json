@@ -510,6 +510,36 @@
    "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Noch einmal so, und die Einstellungen ändern sich."
   }
  },
+ "plan_hold_effort_choice": {
+  "meaning": {
+   "en": "The last set stopped at a {last_pct} fatigue in the set - below the {effort_pct} your goal asks for. The force is there, the set was not finished.",
+   "de": "Der letzte Satz endete bei {last_pct} Ermüdung im Satz - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
+  },
+  "action": {
+   "en": "Two ways, your choice - same force ({target_kg}): all-out from the first repetition, the force built fast but smoothly, the set ending when the force breaks down, not when the repetitions are over; OR change the set-up now: pauses at the turnarounds {alt_pause_to} s, {alt_tempo_to} s per direction (the comparison basis starts anew). A second miss and the set-up changes anyway.",
+   "de": "Zwei Wege, deine Wahl - gleiche Kraft ({target_kg}): ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind; ODER jetzt schon die Einstellungen ändern: Pausen an den Umkehrpunkten {alt_pause_to} s, {alt_tempo_to} s je Richtung (die Vergleichsbasis beginnt neu). Ein zweiter Fehlversuch, und die Einstellungen ändern sich ohnehin."
+  }
+ },
+ "plan_effort_below_best": {
+  "meaning": {
+   "en": "Your force here stands at {share_pct} of your best comparable value ({best_kg}) - and the set still did not fatigue you.",
+   "de": "Deine Kraft liegt hier bei {share_pct} deines besten vergleichbaren Werts ({best_kg}) - und der Satz hat dich trotzdem nicht ermüdet."
+  },
+  "action": {
+   "en": "That gap is effort, not the protocol: no harder set-up until the number is back near your best - people talk themselves into an easy set without meaning to.",
+   "de": "Diese Lücke ist Einsatz, nicht das Protokoll: kein härteres Set-up, bis die Zahl wieder nahe deiner Bestleistung ist - man redet sich einen leichten Satz schön, ohne es zu wollen."
+  }
+ },
+ "mode_fatigue_session": {
+  "meaning": {
+   "en": "The harder way: a set that ends by the fatigue target itself - you stand at {share_pct} of your best and are experienced enough for it.",
+   "de": "Der härtere Weg: ein Satz, der am Ermüdungsziel von selbst endet - du liegst bei {share_pct} deiner Bestleistung und bist erfahren genug dafür."
+  },
+  "action": {
+   "en": "On arx-free the fatigue-target protocol ends the set at {target_pct}; on the original set the repetitions high ({reps_high}) and end the set yourself only when the force no longer comes back - the app judges the fatigue afterwards. The comparison basis starts anew.",
+   "de": "Auf arx-free beendet das Ermüdungsziel-Protokoll den Satz bei {target_pct}; am Original stell die Wiederholungen hoch ({reps_high}) und beende den Satz erst, wenn die Kraft nicht mehr zurückkommt - die App bewertet die Ermüdung hinterher. Die Vergleichsbasis beginnt neu."
+  }
+ },
  "plan_plateau_add_set": {
   "meaning": {
    "en": "Flat for {span_days} days although your sets are hard enough - more of the same will not move it.",
@@ -1426,8 +1456,8 @@
    "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
-   "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to 0 - or two repetitions more instead. The comparison basis starts anew.",
-   "de": "Gleiche Kraft ({target_kg}) und gleiches Tempo ({tempo_to} s je Richtung ist die Grenze): die Pausen an den Umkehrpunkten fallen weg - oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
+   "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to {pause_to} s - or two repetitions more instead. The comparison basis starts anew.",
+   "de": "Gleiche Kraft ({target_kg}) und gleiches Tempo ({tempo_to} s je Richtung ist die Grenze): die Pausen an den Umkehrpunkten gehen auf {pause_to} s - oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
   }
  },
  "plan_effort_reps": {
@@ -1496,8 +1526,8 @@
    "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
   },
   "action": {
-   "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction; your pauses at the turnarounds stay - they serve the tension a strength goal wants. Or two repetitions more instead. The comparison basis starts anew.",
-   "de": "Gleiche Kraft ({target_kg}), neue Einstellung: {tempo_from} → {tempo_to} s je Richtung; deine Pausen an den Umkehrpunkten bleiben - sie dienen der Spannung, die ein Kraftziel will. Oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
+   "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction, pauses at the turnarounds {pause_to} s - a strength goal keeps a short, defined turnaround; longer pauses restore nothing worth mentioning. Or two repetitions more instead. The comparison basis starts anew.",
+   "de": "Gleiche Kraft ({target_kg}), neue Einstellung: {tempo_from} → {tempo_to} s je Richtung, Pausen an den Umkehrpunkten {pause_to} s - ein Kraftziel behält einen kurzen, definierten Umkehrpunkt; längere Pausen bringen keine nennenswerte Erholung. Oder stattdessen zwei Wiederholungen mehr. Die Vergleichsbasis beginnt neu."
   }
  },
  "fatigue_glossary": {

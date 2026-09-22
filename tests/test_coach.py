@@ -74,6 +74,15 @@ class Payload(unittest.TestCase):
         report, cfg = make()
         self.assertEqual(ai.build_payload(report, cfg)["profile"]["preferred_weekdays"], [])
 
+    def test_the_coach_sees_the_alternative_after_a_miss_and_the_share_of_best(self):
+        report, cfg = make()
+        p = ai.build_payload(report, cfg)
+        exs = p["history"]["exercises"]
+        first = exs[0] if isinstance(exs, list) else next(iter(exs.values()))
+        self.assertIn("share_of_best_pct", first)
+        row = p["planner"]["proposal"]["rows"][0]
+        self.assertIn("settings_alternative", row); self.assertIn("effort_note", row)
+
     def test_the_coach_is_told_that_a_muscle_needs_its_weekly_stimulus(self):
         report, cfg = make(sessions_per_week=1, structure="split")
         planner_block = ai.build_payload(report, cfg)["planner"]

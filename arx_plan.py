@@ -195,6 +195,14 @@ EFFORT_TEMPO_STEP_S = 1.0      # seconds per direction added per change
 EFFORT_TEMPO_MAX_S = 5.0       # ... never beyond this (10 s per repetition)
 EFFORT_REPS_STEP = 2           # the alternative lever once tempo and pauses are exhausted
 EFFORT_STREAK_DAYS = 42        # lookback for the streak, from the exercise's last training day
+# v0.19.1 (owner): the set-up change is offered as the ALTERNATIVE after the first miss already; a strength goal keeps a
+# defined turnaround of EFFORT_PAUSE_KEEP_S (a few seconds let the muscle go slack, restore nothing worth mentioning -
+# science.json: rest_between_repetitions); the harder way - a set ended by the fatigue target - only for an experienced
+# athlete whose last comparable force is at least FATIGUE_SESSION_SHARE of his best: below that the gap is effort
+EFFORT_PAUSE_KEEP_S = 2.0      # seconds of pause a strength goal keeps at the turnarounds
+FATIGUE_SESSION_SHARE = 0.8    # share of the athlete's best comparable force needed for the fatigue-session suggestion
+FATIGUE_SESSION_REPS = 12      # on the original: the repetition count set high, the athlete ends the set by fatigue
+ADVANCED_MIN_DAYS = 12         # training days that count as experienced when the profile does not say so
 REPEAT_SOON_DAYS = 2           # a fruitless session's exercises back in the plan within this many days -> "again, properly" (v0.11.0)
 BEGINNER_SESSIONS = 2          # a new athlete's first sessions: effort moderate, the athlete sets the level, nothing is a miss (v0.12.0)
 # mode suggestions (v0.15.0, contract modes-1): the athlete's goal first, then the situation - a line on the row, never a
@@ -222,6 +230,7 @@ SCIENCE = {
     "STATIC_HOLD_S": "isometric_training", "INROAD_LADDER_STEP": "minimum_dose",
     "STEP_RANGE_PCT": "progression", "COVER_DAYS": "weekly_volume", "COMMITMENT.plateau_set": "weekly_volume",
     "DUE_INTERVAL_RANGE": "frequency", "SPLIT_EVENNESS_W": "split_vs_full_body", "MINOR_BANDS": "youth", "OLDER_BANDS": "older_adults",
+    "EFFORT_PAUSE_KEEP_S": "rest_between_repetitions", "FATIGUE_SESSION_SHARE": "proximity_to_failure", "FATIGUE_SESSION_REPS": "proximity_to_failure",
     "best_order": "exercise_order", "aid_hints": "grip_and_straps", "BAND_FILL": "autoregulation",
     "LIGHT_DAY_SHARE": "autoregulation", "REST_SCORE_BELOW": "autoregulation", "TRANSITION_TARGET_MIN": "paired_sets",
     "STRUCTURES": "split_vs_full_body", "split_factor": "split_vs_full_body", "theme_groups": "split_vs_full_body",
@@ -947,8 +956,14 @@ def effort_reset_settings(settings: dict | None, keep_pauses: bool = False) -> d
     if t and t < EFFORT_TEMPO_MAX_S - 0.25:        # a quarter second below the cap is "at the cap" already
         out["tempo_s"] = {"from": round(t, 1), "to": float(min(EFFORT_TEMPO_MAX_S, round(t) + EFFORT_TEMPO_STEP_S))}
     for k in ("pause_end_s", "pause_return_s"):
-        if not keep_pauses and (settings.get(k) or 0) > 0:
-            out[k] = {"from": settings[k], "to": 0}
+        cur = settings.get(k) or 0
+        # a pause of a few seconds lets the muscle go slack but restores nothing worth mentioning (science.json:
+        # rest_between_repetitions) - a strength goal keeps a defined turnaround of EFFORT_PAUSE_KEEP_S, everyone else 0
+        if keep_pauses:
+            if cur > EFFORT_PAUSE_KEEP_S:
+                out[k] = {"from": cur, "to": EFFORT_PAUSE_KEEP_S}
+        elif cur > 0:
+            out[k] = {"from": cur, "to": 0}
     if not out and settings.get("reps"):
         out["reps"] = {"from": settings["reps"], "to": settings["reps"] + EFFORT_REPS_STEP}
     return out or None
@@ -1042,6 +1057,14 @@ def mode_hint_for(c: dict, effort: dict, cfg: dict, returning: bool, commitment:
         code = "mode_countdown_output" if target else "mode_countdown_conditioning"
         return {"mode": "dynamic/time", "settings": {"seconds": COUNTDOWN_SECONDS, "output_target_kg_s": target},
                 "interp": item(code, {"seconds": COUNTDOWN_SECONDS, "output": shown, "unit": "lb·s" if imperial else "kg·s", "step_pct": OUTPUT_STEP_PCT}, cfg)}
+    # the harder way after a missed target (v0.19.1) - for an experienced athlete near his own best only: below
+    # FATIGUE_SESSION_SHARE of the best the gap is effort, not the protocol (owner: people talk themselves into an easy
+    # set without meaning to). arx-free's fatigue-target protocol ends the set itself; the original needs a high count
+    advanced = cfg.get("experience") == "experienced" or (cfg.get("_n_days") or 0) >= ADVANCED_MIN_DAYS
+    share = e.get("share_of_best_pct")
+    if (e.get("effort_misses") or 0) >= 1 and advanced and effort.get("inroad_min") and share is not None and share >= FATIGUE_SESSION_SHARE * 100:
+        return {"mode": "dynamic/fatigue", "settings": {"fatigue_target_pct": effort["inroad_min"], "reps_high": FATIGUE_SESSION_REPS},
+                "interp": item("mode_fatigue_session", {"target_pct": effort["inroad_min"], "share_pct": share, "reps_high": FATIGUE_SESSION_REPS}, cfg)}
     if goal_effort(goal) == "moderate" and (goal.get("conditioning") or 0) < CONDITIONING_SHARE and (c.get("progress") or {}).get("status") == "plateau":
         return {"mode": "dynamic/reps/negative", "settings": {"sessions": 1}, "interp": item("mode_negative_plateau", {}, cfg)}
     return None
@@ -1106,8 +1129,18 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     # changes - for the benchmark exercise as well: a clean measurement that never fatigues is half a stimulus (v0.10.0)
     beginner = beginner_phase(cfg)                 # first sessions: nothing is a miss, nothing escalates (v0.12.0)
     streak = effort_streak(occ, effort["inroad_min"], planned_minima(cfg.get("_plan_ledger"), c["name"])) if (room and not beginner) else None
-    keep_pauses = goal_effort(cfg.get("goal") or {}) == "moderate"     # a strength goal keeps the rest-pause (tension)
+    keep_pauses = goal_effort(cfg.get("goal") or {}) == "moderate"     # a strength goal keeps a defined turnaround (tension)
     change = effort_reset_settings(out["settings"], keep_pauses) if (streak and streak["misses"] >= EFFORT_RESET_AFTER) else None
+    # after ONE miss the same change is offered as the alternative to the intent cue (owner, v0.19.1: not "all-out
+    # from rep 1" twice - the athlete may change the set-up at once); the second miss makes it the plan
+    alternative = effort_reset_settings(out["settings"], keep_pauses) if (streak and not change) else None
+    if alternative:
+        out["settings_alternative"] = alternative
+    # a missed target far below the athlete's own best is effort, not the protocol (owner: people talk themselves into
+    # an easy set without meaning to) - said on the row, and no harder set-up is suggested there
+    share = (c.get("series") or {}).get("share_of_best_pct")
+    if room and not beginner and share is not None and share < FATIGUE_SESSION_SHARE * 100:
+        out["effort_note"] = item("plan_effort_below_best", {"share_pct": share, "best_kg": (c.get("series") or {}).get("pb_comparable")}, cfg)
     if prog.get("status") == "progressing" and may_step and not room:
         per_session = abs(prog.get("change_pct") or 0.0) / max(1, (prog.get("n") or 2) - 1)
         step = min(STEP_RANGE_PCT[1], max(STEP_RANGE_PCT[0], per_session))
@@ -1127,8 +1160,8 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
         rule, code = "hold_reach_effort", "plan_beginner_row"
     elif is_bench:                                                    # today's clean measurement
         rule, code = "retest_fresh", ("plan_retest_fresh" if c["last_fresh"] else "plan_retest_first")
-    elif room:
-        rule, code = "hold_reach_effort", "plan_hold_effort"          # the set stopped short: effort before force
+    elif room:                                     # the set stopped short: effort before force - with the set-up alternative
+        rule, code = "hold_reach_effort", ("plan_hold_effort_choice" if out.get("settings_alternative") else "plan_hold_effort")
     elif after_break:
         rule, code = "hold", "plan_hold_after_break"
     elif prog.get("status") == "plateau" and (hit is None or hit >= HIT_RATE_OK):
@@ -1155,13 +1188,19 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     if len(comparable) >= 3 and base.get("con_top3_kg"):
         out["target_con_mean_kg"] = round(base["con_top3_kg"] * factor, 1)
     chg = out.get("settings_change") or {}
+    alt, cur = out.get("settings_alternative") or {}, out["settings"] or {}
+    pause_of = lambda d, default: next((v["to"] for k, v in d.items() if k in ("pause_end_s", "pause_return_s")), default)
     out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
                                 "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
                                 "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days,
                                 # the parameter change after repeated misses (v0.10.0)
                                 "misses": misses, "tempo_from": (chg.get("tempo_s") or {}).get("from"),
-                                "tempo_to": (chg.get("tempo_s") or {}).get("to", (out["settings"] or {}).get("tempo_s")),
-                                "reps_from": (chg.get("reps") or {}).get("from"), "reps_to": (chg.get("reps") or {}).get("to")}, cfg)
+                                "tempo_to": (chg.get("tempo_s") or {}).get("to", cur.get("tempo_s")),
+                                "pause_to": pause_of(chg, cur.get("pause_end_s") or 0),
+                                "reps_from": (chg.get("reps") or {}).get("from"), "reps_to": (chg.get("reps") or {}).get("to"),
+                                # the same change as the alternative after the first miss (v0.19.1)
+                                "alt_tempo_to": (alt.get("tempo_s") or {}).get("to", cur.get("tempo_s")),
+                                "alt_pause_to": pause_of(alt, cur.get("pause_end_s") or 0)}, cfg)
     return out
 
 

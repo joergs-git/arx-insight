@@ -1957,6 +1957,10 @@ def build_report(con, cfg: dict) -> dict:
     for e in exercises:
         stk = planner.effort_streak(e["occ"], goal_min, planner.planned_minima(cfg.get("_plan_ledger"), e["name"]))
         e["effort_misses"], e["effort_last_inroad"], e["effort_target_inroad"] = stk["misses"], stk["last_inroad"], goal_min
+        # where the last comparable force stands against the athlete's own best (v0.19.1): a missed target far below
+        # the best is effort, not the protocol - the harder set-up is only for someone near his best
+        comp = [o for o in e["occ"] if o.get("comparable") and o.get("kg")]
+        e["share_of_best_pct"] = round(comp[-1]["kg"] / e["pb_comparable"] * 100) if (comp and e.get("pb_comparable")) else None
     for e in exercises:                       # annotate each exercise with its restriction
         e["restriction"] = exercise_restriction(e["name"], restrictions, e.get("joints"), careful)
         # switched off in the profile: its history stays (it is data), but it has no say in anything that looks
