@@ -8,8 +8,9 @@ copy here is byte-identical to ``arx-free/contracts/``; a change of a contract h
 (new version), then ``--update`` there and the identical copy in the other project. The test suite checks:
 
 1. what lies in ``contracts/`` is what the manifest says (nobody edits a contract in passing),
-2. our own rule agrees with the shared test vectors (``arx_detail.effort_v3`` against ``effort-v3-vectors.json`` -
-   ARX Insight OWNS that rule, so this is the guard against changing it without a new contract version),
+2. our own rules agree with the shared test vectors (``arx_detail.effort_v3`` against ``effort-v3-vectors.json``,
+   ``arx_detail.hold_v1`` against ``hold-1-vectors.json`` - ARX Insight OWNS both rules, so this is the guard against
+   changing one without a new contract version),
 3. when the sibling is checked out next to this one (``../arx-free``): every contract file both carry is identical,
    every contract the sibling lists is adopted here - except an older file of a contract ARX Insight OWNS that arx-free
    still carries after we retired it (history, not drift: the owner decides what the current version contains) -,
@@ -30,6 +31,7 @@ FOLDER = os.path.join(ROOT, "contracts")
 MANIFEST = os.path.join(FOLDER, "MANIFEST.json")
 SIBLING = os.path.join(os.path.dirname(ROOT), "arx-free")
 VECTORS = os.path.join(FOLDER, "effort-v3-vectors.json")
+HOLD_VECTORS = os.path.join(FOLDER, "hold-1-vectors.json")
 
 
 def sha256(path: str) -> str:
@@ -74,6 +76,16 @@ def rule_problems() -> list[str]:
         for key, expected in case["expected"].items():
             if got.get(key) != expected:
                 problems.append(f"vector '{case['name']}' / {key}: expected {expected}, got {got.get(key)}")
+    if os.path.isfile(HOLD_VECTORS):                                     # contract hold-1: the same for static holds
+        with open(HOLD_VECTORS, encoding="utf-8") as fh:
+            holds = json.load(fh)
+        problems += [f"{k}: contract hold-1 says {v}, arx_detail says {getattr(detail, k, None)}"
+                     for k, v in holds["constants"].items() if getattr(detail, k, None) != v]
+        for case in holds["cases"]:
+            got = detail.hold_v1(case["t"], case["f"])
+            for key, expected in case["expected"].items():
+                if got.get(key) != expected:
+                    problems.append(f"hold vector '{case['name']}' / {key}: expected {expected}, got {got.get(key)}")
     return problems
 
 

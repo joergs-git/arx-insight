@@ -6,8 +6,8 @@ the original NEVER ends a set by itself - the hold ran more than 20 s far below 
 1:22; the zone is a high-water mark of the momentary force (a one-second spike to 52 lb pushed it to 47-52 lb while
 about 30 lb were held); and the original evaluates nothing for a hold. The "automatic ending" in modes-2 was the
 owner's wish for the product, written down as the original's behaviour - arx-free's fatigue target (ending `4`)
-delivers it. New in v3: how a recommended hold is run on each product, and that ONE hold rule (owner: ARX Insight)
-will judge holds on both sides. Nothing else changed; `modes-2.md` stays in both folders until arx-free has adopted
+delivers it. New in v3: how a recommended hold is run on each product, and that ONE hold rule (owner: ARX Insight,
+contract `hold-1`) judges holds on both sides. Nothing else changed; `modes-2.md` stays in both folders until arx-free has adopted
 this version. **Owner: ARX Insight** (analysis and planning); arx-free adopts the definitions for its set records, its
 live view and its live coach. Units in data: imperial (lb, inch, seconds) as stored by the original.
 
@@ -58,10 +58,9 @@ Insight recommends a hold as `static/time` with `hold_s` (the length) and `fatig
 target; `null` = no number, by feel). On the original it is run as a Countdown of `hold_s`: the clock ends it, a
 person may end it earlier - the Inroad zone is no stop signal for a hold. On arx-free it is run as `static/fatigue`:
 the hold ends by itself when the shared hold rule reaches `fatigue_target_pct` (`hold_s` is then the upper limit; a
-hint without a target runs as `static/time` there too). Both products judge the fatigue of a hold with ONE rule that
-ARX Insight owns and publishes as its own contract (`hold-1`: windows, reference, persistence, live ending, vectors
-generated with Insight's function; arx-free ports it). Until that contract exists, Insight's six-slice hold method
-is provisional and arx-free ends no hold by fatigue.
+hint without a target runs as `static/time` there too). Both products judge the fatigue of a hold with ONE rule,
+contract `hold-1` (owner ARX Insight: the held force against the sustained force, persistence, letting go ends the
+hold, the live ending; vectors generated with Insight's function - arx-free ports it and ends a hold live with it).
 
 ## Field names (payloads, exports, views)
 

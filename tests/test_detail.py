@@ -107,12 +107,44 @@ class EffortV3(unittest.TestCase):
 
 
 class StaticSets(unittest.TestCase):
-    def test_isometric_set_is_read_as_time_slices(self):
+    def test_isometric_set_is_judged_by_the_hold_rule(self):
+        """Contract hold-1 (v0.17.0): a hold fading from 300 to 180 lb over 60 s - reference = the sustained force of the
+        first full window (its lowest point, 290 lb at 5 s), the end about 183 lb -> fatigue about 36 %, deep."""
         d = detail_of(fx.make_static_set(1, SQUAT, datetime(2026, 9, 1, 10), seconds=60, start_force=300, end_force=180))
-        self.assertEqual(d["method"], "static")
-        self.assertEqual(len(d["static_slices_kg"]), detail.STATIC_SLICES)
-        self.assertEqual(d["effort"], "deep")
+        self.assertEqual((d["method"], d["phase"], d["effort"]), ("hold", "hold", "deep"))
+        h = d["hold"]
+        self.assertTrue(h["valid"])
+        self.assertAlmostEqual(h["reference"], 290 * LB_TO_KG, delta=1.0)
+        self.assertAlmostEqual(h["end_mean"], 183 * LB_TO_KG, delta=1.0)
+        self.assertTrue(34 <= d["inroad_v3"] == h["inroad_hold"] <= 40)
+        self.assertAlmostEqual(h["judged_s"], 60.0, delta=0.15)
+        self.assertLess(h["live_end_s"]["10"], h["live_end_s"]["20"])              # arx-free would have ended it earlier at 10
         self.assertAlmostEqual(d["tut"]["hold_s"], 60.0, delta=0.2)
+
+    def test_hold_rule_ignores_a_spike_and_the_release_and_needs_seven_seconds(self):
+        hz = 20
+        t = [i / hz for i in range(40 * hz + 1)]
+        steady = [60.0] * len(t)
+        r = detail.hold_v1(t, steady)
+        self.assertEqual((r["valid"], r["inroad_hold"], r["effort"]), (True, 0, "submax"))
+        # a one-second spike to 52 lb over a 30 lb hold (the owner's test on the original) raises no reference
+        spike = [30.0 + (22.0 if 10.0 <= x < 11.0 else 0.0) for x in t]
+        r = detail.hold_v1(t, spike)
+        self.assertAlmostEqual(r["reference"], 30.0, delta=0.3)
+        self.assertEqual(r["inroad_hold"], 0)
+        # letting go at the end is not fatigue: the judged part ends before the release
+        release = [60.0 if x < 30.0 else max(0.0, 60.0 - 60.0 * (x - 30.0)) for x in t]
+        r = detail.hold_v1(t, release)
+        self.assertEqual(r["inroad_hold"], 0)
+        self.assertLess(r["judged_s"], 31.0)
+        # a real fade to 70 % reads deep and the live rule fires at 10 before 20
+        fade = [60.0 if x < 3.0 else 60.0 - 18.0 * (x - 3.0) / 37.0 for x in t]
+        r = detail.hold_v1(t, fade)
+        self.assertEqual(r["effort"], "deep")
+        self.assertTrue(r["live_end_s"]["10"] < r["live_end_s"]["20"] < 40.0)
+        # too short for a judgement
+        short = detail.hold_v1(t[:6 * hz], steady[:6 * hz])
+        self.assertEqual((short["valid"], short["reason"]), (False, "too_short"))
 
 
 class ReportIntegration(unittest.TestCase):
