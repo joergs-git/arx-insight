@@ -173,7 +173,8 @@
   .side .ss{color:var(--ink2);font-size:14px;margin-top:2px}
   .side .bx{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:15px;line-height:1.3}
   .side .bx .f{font-size:18px;width:26px;text-align:center;flex:none}
-  .side .bx > div{min-width:0}
+  .side .bx > div{min-width:0;flex:1}
+  .side .spk{flex:none;width:110px!important;height:30px!important;margin-left:6px;margin-top:3px}   /* the page's responsive svg rule must not blow it up */
   .side .bn{color:var(--ink3);font-size:13px;margin-top:2px}
   .side .border{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:14px;margin-top:8px}
   .side .bo{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--rule2);border-radius:6px;padding:3px 8px}
@@ -1081,6 +1082,17 @@ async function selfUpdate(btn){
 // scrollbar is long enough). Engine facts only, no AI needed: the last session with a symbol, a judgement and the numbers per
 // exercise, today's readiness, the next session in order with what to watch, the load - and the coach's focus line once a
 // board exists. A tap on the last / next box opens the chapter behind it. ----
+// the last six training days of an exercise as a sparkline (v0.20.3): the day's best peak force, hollow = another set-up /
+// not comparable; the y-axis spans the data (never flatter than 3 % of the top value) so a real trend fills the box
+function spark(e){
+  const pts=((e&&e.occ)||[]).slice(-6).filter(o=>o.kg!=null); if(pts.length<2) return "";
+  const W=110,H=30,P=4, vs=pts.map(o=>o.kg), lo=Math.min(...vs), hi=Math.max(...vs), span=Math.max(hi-lo, hi*0.03), base=lo-(span-(hi-lo))/2;
+  const x=i=>P+i*(W-2*P)/(pts.length-1), y=v=>H-P-(v-base)/span*(H-2*P);
+  const d=pts.map((o,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(o.kg).toFixed(1)}`).join(" ");
+  const col=vs[vs.length-1]>=vs[0]*1.005?"var(--good)":vs[vs.length-1]<=vs[0]*0.995?"var(--warn)":"var(--ink2)";
+  const title=`${pts.map(o=>Math.round(toUser(o.kg,"kg"))).join(" → ")} ${LKg()}`;
+  return `<svg class="spk" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${title}"><title>${title}</title><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6"/>${pts.map((o,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(o.kg).toFixed(1)}" r="${i===pts.length-1?3:2.2}" fill="${o.comparable?col:"var(--panel)"}" stroke="${col}" stroke-width="1.4"/>`).join("")}</svg>`;
+}
 function sideHtml(r){
   const de=CFG.language==="de", ls=r.last_session, ns=(r.plan||{}).next_session, rd=r.readiness;
   const sign=v=>(v>0?"+":"")+v;
@@ -1095,7 +1107,8 @@ function sideHtml(r){
   };
   const num=x=>[x.reps!=null?`${x.reps} ${de?"Wdh.":"reps"}`:null, x.seconds!=null?`${Math.round(x.seconds)} s`:null,
                 x.max_kg!=null?`${Math.round(toUser(x.max_kg,"kg"))} ${LKg()}`:null].filter(Boolean).join(" · ");
-  const lastRows=ls?ls.exercises.map(x=>{const j=judge(x);return `<div class="bx"><span class="f">${j.f}</span><div><b>${esc(x.name)}</b> <span style="color:${j.c}">${esc(j.t)}</span><div class="bn">${esc(num(x))}</div></div></div>`;}).join("")
+  const byName={}; (r.exercises||[]).forEach(e=>{byName[String(e.name).toLowerCase()]=e;});
+  const lastRows=ls?ls.exercises.map(x=>{const j=judge(x);return `<div class="bx"><span class="f">${j.f}</span><div><b>${esc(x.name)}</b> <span style="color:${j.c}">${esc(j.t)}</span><div class="bn">${esc(num(x))}</div></div>${spark(byName[String(x.name).toLowerCase()])}</div>`;}).join("")
     :`<div class="bx"><span class="f">·</span>${de?"Noch keine Einheit aufgezeichnet.":"No session recorded yet."}</div>`;
   const watch=[];
   // only what CHANGES is named: "5 s/direction", "pauses 0 s" or both - never a measured 5.22 s that stays as it is
@@ -1115,18 +1128,13 @@ function sideHtml(r){
   if(ns&&ns.time_window) watch.push(de?`Zeitfenster: ${ns.time_window.size} statt ${ns.time_window.normal_size} Übungen`:`time window: ${ns.time_window.size} of ${ns.time_window.normal_size} exercises`);
   const when=!ns?"—":(ns.days_from_today===0?(de?"Heute":"Today"):ns.days_from_today===1?(de?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
   const order=ns?ns.exercises.map((x,i)=>`<span class="bo"><i>${i+1}</i>${esc(x.name)}${x.sets>1?` ×${x.sets}`:""}</span>`).join(""):"";
-  const flagT={overload_risk:[de?"zu wenig Erholung":"too little recovery","var(--accent)"],detraining_risk:[de?"zu lange Pause":"long gap","var(--warn)"],
-    underload:[de?"Reiz zu gering":"under-stimulated","var(--warn)"],ok:[de?"ausgewogen":"balanced","var(--good)"]}[(r.load||{}).flag||"ok"];
-  const bandCol=rd?({go_hard:"var(--good)",moderate:"var(--warn)",light_or_rest:"var(--accent)"}[rd.band]||"var(--ink2)"):"var(--ink3)";
-  const bandTxt=rd?({go_hard:de?"volle Intensität":"go hard",moderate:de?"moderat":"moderate",light_or_rest:de?"leicht oder Pause":"light or rest"}[rd.band]||""):"";
   return `<aside class="side" id="brief">
     <div class="sbox" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${ls?`<div class="ss">${ls.working_sets} ${de?"Sätze":"sets"} · ${Math.round(ls.wall_minutes)} min</div>`:""}${lastRows}</div>
-    <div class="sbox"><div class="bhead">${de?"Heute":"Today"}</div><div class="sv" style="color:${bandCol}">${rd&&rd.score!=null?rd.score+" / 100":"Check-in?"}</div><div class="ss">${rd?esc(bandTxt):`<a href="#" onclick="openCheckin('report');return false" style="color:var(--accent)">☀ ${de?"20 Sekunden":"20 seconds"}</a>`}</div></div>
     <div class="sbox" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)}`:""}</div>${ns?`<div class="ss">${ns.exercises.length} ${de?"Übungen":"exercises"} · ≈ ${ns.est_minutes} min</div>`:""}
       <div class="border">${order||(de?"Kein Termin planbar.":"No session can be planned.")}</div>
       ${watch.length?`<div class="bwatch"><b>${de?"Achten auf":"Watch"}:</b> ${watch.slice(0,3).join(" · ")}</div>`:""}
       <div class="bfocus" id="brief_focus"></div></div>
-    <div class="sbox"><div class="bhead">${de?"Belastung":"Load"}</div><div class="sv" style="color:${flagT[1]}">${flagT[0]}</div><div class="ss">${(r.load||{}).weekly_rate!=null?`${r.load.weekly_rate} ${de?"Einheiten/Woche":"sessions/week"} · ${de?"Ziel":"target"} ${r.sessions_per_week||2}`:""}</div></div>
+    ${restrHtml(r,true)}
   </aside>`;
 }
 function renderReport(){
@@ -1167,7 +1175,7 @@ function renderReport(){
   ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
   ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;
-  const main=sideHtml(r)+`<div class="mainframe">`+nav+`<div id="coach_focus"></div>`+goalLine+goalProgressHtml(r)+restrHtml(r)
+  const main=sideHtml(r)+`<div class="mainframe">`+nav+`<div id="coach_focus"></div>`+goalLine+goalProgressHtml(r)
     +chap("ch1",1,de0?'Letzte Einheit':'Last session',ch1)+chap("ch2",2,de0?'Nächstes Training':'Next training',ch2)
     +chap("ch3",3,de0?'Verlauf, Trends & Auffälligkeiten':'History, trends & what stands out',ch3)+`</div>`;
 
@@ -1363,7 +1371,7 @@ function readinessHtml(l){
     <p class="foot" style="margin:10px 0 0">${de?'Je Muskel: Ruhezeit nach der letzten harten Belastung (tief 3 Tage, moderat 2, submaximal 1); ein Check-in mit Muskelkater überstimmt den Kalender.':'Per muscle: rest after its last hard load (deep 3 days, moderate 2, sub-max 1); a check-in with soreness overrides the calendar.'}</p>
   </div>`;
 }
-function restrHtml(r){
+function restrHtml(r,compact){
   // one concept (v0.9.0): today's flags from the check-in (with the body parts behind them), the lasting choices from
   // the profile, the legacy body-part levels while they still exist - and the mirror of the last 14 days
   const de=CFG.language==="de", checks=r.restriction_checks||[];
@@ -1378,14 +1386,19 @@ function restrHtml(r){
      ...todayEx.map(([n,l])=>chip(`${esc(n)}: ${lvWord(l)}`,col(l)))]]);
   if(lasting.length||legacy.length) groups.push([de?"Dauerhaft (Profil)":"For good (profile)","openProfile('gExclBox')",
     [...lasting.map(([n,l])=>chip(`${esc(n)}: ${lvWord(l)}`,col(l))),...legacy.map(([k,v])=>chip(`${partName(k)}: ${rlabel(v)}`,col(v)))]]);
-  if(!groups.length&&!checks.length) return "";
+  if(!groups.length&&!checks.length&&!compact) return "";
   let checksHtml="";
   if(checks.length){
     const issueT={trained_avoid:de?'trainiert trotz „auslassen“':'trained despite "leave out"',hard_on_careful:de?'hart trotz „schonen“':'hard despite "go easy"',eccentric_jump:de?'Exzentrik-Sprung trotz „schonen“':'eccentric jump despite "go easy"'};
-    const rows=checks.slice(-8).map(c=>`<tr><td>${c.date}</td><td>${c.exercise}</td><td>${issueT[c.issue]||c.issue}</td><td class="num">${c.issue==='eccentric_jump'?`+${c.jump_pct} % (${uKg(c.prev_eccentric_kg)}→${uKg(c.eccentric_kg)} ${LKg()})`:(c.inroad!=null?c.inroad+'% '+effLabel(c.effort):'')}</td></tr>`).join("");
+    const rows=checks.slice(-8).map(c=>`<tr><td>${dShort(c.date)}</td><td>${c.exercise}</td><td>${issueT[c.issue]||c.issue}</td><td class="num">${c.issue==='eccentric_jump'?`+${c.jump_pct} % (${uKg(c.prev_eccentric_kg)}→${uKg(c.eccentric_kg)} ${LKg()})`:(c.inroad!=null?c.inroad+'% '+effLabel(c.effort):'')}</td></tr>`).join("");
     checksHtml=`<div class="panel" style="margin-top:10px"><div class="eyebrow" style="color:var(--warn);margin-bottom:6px">${de?'Einschränkungen eingehalten? (letzte 14 Tage)':'Restrictions respected? (last 14 days)'}${checks.length>8?` · ${checks.length}`:''}</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:16px;white-space:nowrap">${rows}</table></div>
       <p class="foot" style="margin:8px 0 0">${de?'Ein Spiegel, keine Diagnose: „schonen“ heißt submaximal und ohne Sprünge in der Exzentrik.':'A mirror, not a diagnosis: "go easy" means sub-max and no jumps in the eccentric.'}</p></div>`;
+  }
+  if(compact){                                    // the side column's box (v0.20.3): chips + the links, the mirror folded away
+    const body=groups.length?groups.map(([h,link,chips])=>`<div style="margin-top:6px"><span class="foot">${h}</span> <span style="display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:middle">${chips.join(" ")}</span> <a href="#" onclick="${link};return false" style="color:var(--accent)">${de?'ändern':'edit'}</a></div>`).join("")
+      :`<div class="ss">${de?'Keine.':'None.'} <a href="#" onclick="openCheckin('report');return false" style="color:var(--accent)">Check-in</a> · <a href="#" onclick="openProfile('gExclBox');return false" style="color:var(--accent)">${de?'Profil':'Profile'}</a></div>`;
+    return `<div class="sbox"><div class="bhead" style="color:var(--warn)">${de?'Einschränkungen':'Restrictions'}</div>${body}${checks.length?`<details class="more" style="margin-top:8px"><summary>${de?'Eingehalten? (14 Tage)':'Respected? (14 days)'} · ${checks.length}</summary>${checksHtml}</details>`:''}</div>`;
   }
   return `<section><div class="eyebrow" style="color:var(--warn)">${de?'Einschränkungen':'Restrictions'}</div>
     <div class="verdict" style="border-left-color:var(--warn);background:var(--warn-bg)">
@@ -1562,8 +1575,10 @@ function interpHtml(it,cls){ if(!it||!it.text||!it.text.meaning) return "";
   return `<div class="interp ${cls||''}">${esc(it.text.meaning)}<span class="act">→ ${esc(it.text.action)}</span></div>`; }
 const WD=()=>CFG.language==="de"?["Mo","Di","Mi","Do","Fr","Sa","So"]:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const WDL=()=>CFG.language==="de"?["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"]:["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const dShort=d=>CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.`:d.slice(5);
-const dFull=d=>CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}`:d.slice(0,10);
+// every date carries its weekday in short form (owner, v0.20.3): "Mi 23.09." / "Wed 09-23"; index 0 = Monday like the engine
+const wdOf=d=>WD()[(new Date(String(d).slice(0,10)+"T12:00:00").getDay()+6)%7];
+const dShort=d=>`${wdOf(d)} ${CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.`:d.slice(5)}`;
+const dFull=d=>`${wdOf(d)} ${CFG.language==="de"?`${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}`:d.slice(0,10)}`;
 function sessionRowsHtml(sess){ const de=CFG.language==="de";
   return `<ol class="plan">`+sess.exercises.map(x=>{
     const sub=x.effort_target.label==="submax";
@@ -1619,7 +1634,7 @@ function planHtml(r){ const de=CFG.language==="de", plan=r.plan; if(!plan) retur
       ${WD()[d.weekday]}<b>${d.date.slice(8,10)}</b>${d.session?`<div style="color:var(--accent);font-weight:600">${d.session.exercises.length} ${de?'Üb.':'ex.'}</div>`:'<div>&nbsp;</div>'}
       <div class="dots">${REGIONS.map(([k])=>`<i class="${d.readiness_by_region[k]}" title="${rname(k)}"></i>`).join("")}</div></div>`).join("")}</div>
     <p class="foot" style="margin-top:8px">${de?'Punkte':'Dots'}: ${REGIONS.map(([k])=>rname(k)).join(' · ')} — <span style="color:var(--good)">●</span> ${de?'erholt':'recovered'} · <span style="color:var(--warn)">■</span> ${de?'teilweise':'partly'} · <span style="color:var(--accent)">○</span> ${de?'in Erholung':'recovering'}</p>`;
-  const week=(plan.week_plan||[]).slice(1).map(w=>`<div class="foot">${WD()[w.weekday]} ${dShort(w.date)} · ${w.session_type==="split"?w.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body')} · ${w.exercises.map(esc).join(' · ')}${w.benchmark?` · ◎ ${esc(w.benchmark)}`:''}</div>`).join("");
+  const week=(plan.week_plan||[]).slice(1).map(w=>`<div class="foot">${dShort(w.date)} · ${w.session_type==="split"?w.regions.map(rname).join(' + '):(de?'Ganzkörper':'Full body')} · ${w.exercises.map(esc).join(' · ')}${w.benchmark?` · ◎ ${esc(w.benchmark)}`:''}</div>`).join("");
   // one-time choice: only these movement groups next time (order, targets and rests are still planned)
   const GN={Push:de?"Drücken · Brust, Schultern, Trizeps":"Push · chest, shoulders, triceps",Pull:de?"Ziehen · Rücken, Bizeps":"Pull · back, biceps",Drive:de?"Beine · Hüfte":"Legs · hips"};
   const act=pr.next_groups||[];
