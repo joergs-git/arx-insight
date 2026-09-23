@@ -48,7 +48,6 @@
    "owner": "arx-insight",
    "what": "a set's mode (movement x ending x phase), Output and the machine's own inroad scale - definitions and field names; v2 added the ending 'fatigue'; v3: a person ends an Inroad set (the original never ends a set by itself and judges nothing for a hold - owner's own test 2026-09-22), a recommended hold = static/time with a fatigue target (arx-free: static/fatigue), ONE hold rule to come (hold-1)",
    "files": {
-    "modes-2.md": "b3fd0d8784e64be5797ff98078fd6cab4c97dbb49e58ceec3e6f592b3f4241e1",
     "modes-3.md": "6f0bf91d3b5f63bf902b29cfb9dbd03c99b2aa441548258dd2be7707ba2d6208"
    }
   },

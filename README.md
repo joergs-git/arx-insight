@@ -204,7 +204,7 @@ duration), and chapter 3 says which modes an exercise's history contains. Timed 
 (force × time under load, "beat your gray line"), shown per day with the change at equal duration. The machine's
 own inroad scale (the original computes it live as the momentary force against the maximum reached so far in the set -
 any repetition, no averaging; Insight reads the same scale from the recording as best rep peak → last rep peak) is shown next to the fatigue in the set
-as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-2.md`; the next steps
+as *machine inroad* - a different scale, never mixed. Definitions live in `contracts/modes-3.md`; the next steps
 are done (v0.15.0 / v0.16.0, see the FAQ).
 
 **Which mode does the plan suggest, and when?** *(v0.15.0)* — a suggestion on the row (◎), never a silent change of
