@@ -1169,6 +1169,49 @@ class TimeWindow(unittest.TestCase):
         after = self.plan(15)["week_plan"][1]["exercises"]
         self.assertTrue(set(self.plan(15)["next_session"]["time_window"]["left_out"]) & set(after))
 
+    def test_a_tight_window_on_a_split_day_keeps_the_big_exercises_too(self):
+        # owner 2026-09-23: three sessions a week (split), upper-body day, fifteen minutes -> Biceps Curl + Triceps
+        # Pressdown, because nothing was urgent and the benchmark bonus / a high due value beat every press and row
+        upper = [ROW, PRESS, CURL, PRESSDOWN, PULLDOWN, DECLINE]
+        rows = history(upper)                                                # upper body on the 1st, 4th, 8th, 11th, 15th ...
+        for n, d in enumerate((2, 5, 9, 12, 16)):                            # ... legs the day after: a split like the owner's
+            rows += session(datetime(2026, 9, d, 10), [SQUAT, DEADLIFT], first_id=1000 * (n + 1))
+        base = report(rows, "2026-09-18", sessions_per_week=3, structure="split", session_minutes=40)["plan"]
+        day = base["next_session"]["date"]
+        normal = report(rows, day, sessions_per_week=3, structure="split", session_minutes=40)["plan"]["next_session"]
+        self.assertEqual((normal["date"], sorted(normal["theme"])), (day, ["Pull", "Push"]))   # the upper-body day of the split
+        self.assertIn("Biceps Curl", names(normal))                          # the arms are in the full session
+        p = report(rows, day, sessions_per_week=3, structure="split", session_minutes=40,
+                   checkin={"date": day, "minutes": 15})["plan"]
+        sess = p["next_session"]
+        self.assertEqual((sess["date"], sess["time_window"]["interp"]["code"]), (day, "window_applied"))
+        self.assertLess(len(sess["exercises"]), len(normal["exercises"]))
+        big = [it for it in sess["exercises"] if it["kind"] == "compound"]
+        self.assertEqual({it["group"] for it in big}, {"Push", "Pull"})                   # a press AND a pull are in ...
+        self.assertLessEqual(len(sess["exercises"]) - len(big), len(sess["exercises"]) - 2)   # ... before any arm exercise
+        self.assertLessEqual(set(names(sess)), set(names(normal)))
+        # the normal session is the plan of record; the window is a note on it
+        self.assertEqual(names(p["window_record"]), names(normal))
+        entries, changed = planner.update_ledger([], p, date.fromisoformat(day))
+        self.assertTrue(changed)
+        self.assertEqual([x["name"] for x in entries[-1]["exercises"]], names(normal))
+        self.assertEqual(entries[-1]["window"], {"minutes": 15, "kept": names(sess), "left_out": sess["time_window"]["left_out"]})
+        # the same plan without the window replaces the note, nothing else
+        again, changed = planner.update_ledger(entries, report(rows, day, sessions_per_week=3, structure="split", session_minutes=40)["plan"],
+                                               date.fromisoformat(day))
+        self.assertTrue(changed)
+        self.assertEqual((len(again), "window" in again[-1]), (1, False))
+        # what the window left out is not "skipped" when the athlete did what fitted
+        codes = {"Row": ROW, "Horizontal Press": PRESS, "Biceps Curl": CURL, "Triceps Pressdown": PRESSDOWN, "Pull Down": PULLDOWN, "Decline Press": DECLINE}
+        later = datetime.fromisoformat(day + "T10:00:00")
+        rows2 = rows + session(later, [codes[n] for n in names(sess)], first_id=900)
+        made_before, _ = planner.update_ledger([], p, date.fromisoformat(day) - timedelta(days=1))   # a plan made BEFORE the training day
+        pva = report(rows2, (later + timedelta(days=1)).date().isoformat(), sessions_per_week=3, structure="split", session_minutes=40,
+                     _plan_ledger=made_before)["plan_vs_actual"]
+        self.assertEqual((pva["skipped"], sorted(pva["left_for_time"]), pva["window_minutes"], pva["interp"]["code"]),
+                         ([], sorted(sess["time_window"]["left_out"]), 15, "pva_followed"))
+        self.assertNotIn("window_record", json.dumps(p["next_session"]))              # the record is not part of the delivered session
+
     def test_extra_sets_go_before_exercises(self):
         normal = self.plan(commitment="more_time_less_brutal", session_minutes=30)["next_session"]
         self.assertIn(2, [it["sets"] for it in normal["exercises"]])

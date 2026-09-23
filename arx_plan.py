@@ -695,7 +695,8 @@ def theme_groups(cands: list[dict], pool: list[dict], spw: int, structure: str =
     return sorted(sorted(best, key=lambda g: (-best[g], g))[:k])
 
 
-def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, max_new: int = 1) -> tuple[list[dict], list[dict]]:
+def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, max_new: int = 1,
+           tight: bool = False) -> tuple[list[dict], list[dict]]:
     """Greedy pick with a redundancy penalty: after each pick the remaining scores shrink by the
     overlap of their target muscles with it (halved on a focus region or in a themed session).
     Twins are skipped in a full-body session; at most max_new never-performed exercises (one - a
@@ -704,7 +705,12 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
     The big slot: in a full-body session the best big exercise of every movement group is picked
     first; WHICH one is decided by the urgent muscles it reaches (see score_candidates), then by
     readiness and score - so an Overhead Press cannot take the chest's turn when the chest would
-    wait two weeks. A split day gets such a pick only when a muscle of the group is urgent.
+    wait two weeks. A split day gets such a pick only when a muscle of the group is urgent - or
+    when the session is TIGHT (a time window shrank it, v0.23.1): with two or three slots the
+    exercises that reach the most muscles come first, and an isolation exercise never takes a
+    compound's place (owner 2026-09-23: 15 minutes gave Biceps Curl + Triceps Pressdown because the
+    benchmark bonus and a high due value beat every press and row on the score). In a tight session
+    the group's big pick is one that can be trained at full effort (restriction ok) before a careful one.
     The other slots: an exercise that is the first of the session to reach an urgent muscle goes
     before one whose muscles can wait (calves once a week before a second arm exercise); with
     nothing urgent the score alone decides, as it always did."""
@@ -719,10 +725,13 @@ def select(cands: list[dict], size: int, focus: dict, theme: list[str] | None, m
     # limited, then the score: with nothing urgent that is exactly the old choice.
     for g in sorted({c["group"] for c in left if c["group"] != "?"}):
         big = [c for c in left if c["group"] == g and not c["new"] and c["kind"] == "compound" and c["score"] > 0]
-        if theme is not None and not any(c.get("urgent") for c in big):
+        if theme is not None and not tight and not any(c.get("urgent") for c in big):
             continue                               # a split day keeps its freedom unless a muscle would wait too long
         plain = max(big, key=lambda c: (c["status"] == "ready", c["score"], c["name"]), default=None)
-        best = max(big, key=lambda c: (c.get("urgent_weight", 0.0), c["status"] == "ready", c["score"], c["name"]), default=None)
+        if tight:                                  # a window: the one big exercise of the group must be a full-effort one
+            best = max(big, key=lambda c: (c.get("urgent_weight", 0.0), c["status"] == "ready", c["restriction"] == "ok", c["score"], c["name"]), default=None)
+        else:
+            best = max(big, key=lambda c: (c.get("urgent_weight", 0.0), c["status"] == "ready", c["score"], c["name"]), default=None)
         if best:
             best["score"] += COVER_FIRST[0] if best["status"] == "ready" else COVER_FIRST[1]
             best["cover_group"] = g
@@ -1244,18 +1253,19 @@ def manual_groups(cfg: dict, work: list[dict]) -> list[str] | None:
 
 def select_session(day: date, pool: list[dict], state: dict, cfg: dict, focus: dict, spw: int, size: int,
                    today: date, only_groups: list[str] | None = None, comeback: bool = False,
-                   min_ex: int | None = None) -> dict | None:
+                   min_ex: int | None = None, tight: bool = False) -> dict | None:
     """What could be trained on that day (no order yet) + how complete that session would be.
     only_groups = the athlete's one-time choice for this session (beats the automatic theme);
     comeback = first session after weeks away: back to the known exercises first, nothing new;
     min_ex = a floor for the session size that replaces the usual minimum (today under the check-in's
-    limits: what the athlete left in is his session, even a single eased exercise - v0.9.0)."""
+    limits: what the athlete left in is his session, even a single eased exercise - v0.9.0);
+    tight = the size was cut by the check-in's time window: the big exercises first (select, v0.23.1)."""
     cands = score_candidates(pool, state, day, focus, spw, cfg, today)
     theme = only_groups or theme_groups(cands, pool, spw, structure_of(cfg), cfg.get("_real_spw"))
     # no history yet: a first session. Judged on the HISTORY (cfg["_starter"], see build_plan) as well: an
     # experienced athlete who switched off most of his exercises must not get a beginner session full of new ones
     starter = cfg.get("_starter", True) and sum(1 for c in pool if not c["new"]) < SESSION_MIN_EX
-    chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1))
+    chosen, dropped = select(cands, size, focus, theme, max_new=size if starter else (0 if comeback else 1), tight=tight)
     ready = [c for c in chosen if c["status"] == "ready"]
     usable = sum(1 for c in pool if c["restriction"] != "avoid" and (starter or not c["new"]))
     # a day on which everything is only "limited" (a helper not fresh) is still a possible day - a sub-maximal one,
@@ -1482,12 +1492,14 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
     earliest = today + timedelta(days=1) if (trained_today or rest_today) else today
 
     # --- today under a time window: the normal plan when it fits; else extra sets go first, then the session gets
-    # smaller (never below WINDOW_MIN_EX) - judged on the FINISHED session, because rests can be longer than the pace
+    # smaller (never below WINDOW_MIN_EX) - judged on the FINISHED session, because rests can be longer than the pace.
+    # A smaller session is selected TIGHT: the big exercise of each group first (select), so that fifteen minutes buy a
+    # press and a row, not two arm exercises (owner 2026-09-23). The normal session stays the plan of record (ledger).
     fit = None
     if window and earliest == today:
         def plan_today(size: int, single: bool):
             sel = select_session(today, pool, state, cfg, focus, spw, size, today, chosen_groups,
-                                 comeback=bool(last_day) and (today - last_day).days >= BREAK_LONG_DAYS)
+                                 comeback=bool(last_day) and (today - last_day).days >= BREAK_LONG_DAYS, tight=single)
             return sel and finish_session(sel, cfg, ev, commitment, band, age, transition, repeat_loss, single_sets=single)
         normal = plan_today(size_for(band), False)
         if normal and normal["est_minutes"] > window:
@@ -1497,7 +1509,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                 size -= 1
                 cur = plan_today(size, True)
             if cur:
-                fit = {"size": size, "normal": [it["name"] for it in normal["exercises"]], "normal_minutes": normal["est_minutes"]}
+                fit = {"size": size, "normal": [it["name"] for it in normal["exercises"]], "normal_minutes": normal["est_minutes"],
+                       "session": normal}
 
     def finish(o: dict, b: str | None) -> dict:
         """finish_session + what the time window did to a session planned for today (said openly)."""
@@ -1534,16 +1547,17 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
         for k in range(DATE_SEARCH_DAYS + 1):
             d = start + timedelta(days=k)
             b = band if (with_band and d == today) else None
-            size = fit["size"] if (fit and with_band and d == today) else size_for(b)
+            windowed = bool(fit and with_band and d == today)
+            size = fit["size"] if windowed else size_for(b)
             groups_ = chosen_groups if with_band else None
             comeback = bool(prev) and (d - prev).days >= BREAK_LONG_DAYS
-            sel = select_session(d, pool_, st8, cfg_free, focus, spw, size, today, groups_, comeback=comeback)
+            sel = select_session(d, pool_, st8, cfg_free, focus, spw, size, today, groups_, comeback=comeback, tight=windowed)
             if not sel:
                 continue
             if limits and with_band and d == today:
                 # what the athlete left in is his session for today, even one eased exercise ("Belt Squat anyway");
                 # a fuller day later is named by fuller_option. Nothing left -> today is really no option
-                lim = select_session(d, pool_, st8, cfg, focus, spw, size, today, groups_, comeback=comeback, min_ex=1)
+                lim = select_session(d, pool_, st8, cfg, focus, spw, size, today, groups_, comeback=comeback, min_ex=1, tight=windowed)
                 if not lim:
                     continue
                 sel = dict(lim, fill=sel["fill"], fill_limited=lim["fill"])
@@ -1750,6 +1764,8 @@ def build_plan(exercises: list[dict], work: list[dict], catalog: dict, cfg: dict
                   "interp": item("today_train" if d1 == today else "today_rest",
                                  {"next_date": d1.isoformat(), "days": (d1 - today).days, "weekday": d1.weekday()}, cfg)},
         "profile": profile_out, "next_session": session, "week_plan": [compact(s) for s in sessions], "week_strip": strip,
+        # under a time window: the normal session of the day = the plan of record for the ledger (v0.23.1)
+        "window_record": fit["session"] if (fit and session.get("time_window") and session["date"] == today.isoformat()) else None,
         "cadence_note": cadence_note, "frequency_notes": freq_notes, "dose_note": dose_note, "structure_note": structure_note,
         "training_break": brk,
         "excluded": excluded,                      # exercises the athlete does not do on the ARX + what follows (None = none)
@@ -1975,17 +1991,24 @@ def apply_to_coach(coach: dict, plan: dict) -> None:
 # Plan ledger: what was recommended, and what was done with it
 # =============================================================================
 def ledger_entry(plan: dict, today: date) -> dict | None:
-    """The part of a plan worth remembering (no names of people - exercises and numbers only)."""
+    """The part of a plan worth remembering (no names of people - exercises and numbers only). Under a time window
+    the NORMAL session is the plan of record and the window a note (v0.23.1, owner): what the window left out is
+    not "skipped" in plan_vs_actual, and the record does not shrink because the athlete had fifteen minutes today."""
     s = (plan or {}).get("next_session")
     if not s:
         return None
-    return {"created": today.isoformat(), "date": s["date"], "session_type": s["session_type"], "est_minutes": s["est_minutes"],
-            "benchmark": s["benchmark"], "commitment": plan["profile"]["commitment"],
-            "exercises": [{"name": it["name"], "order": it["order"], "sets": it["sets"], "target_peak_kg": it["target_peak_kg"],
-                           "target_rule": it["target_rule"], "effort": it["effort_target"]["label"],
-                           "inroad_min": it["effort_target"]["inroad_min"], "rest_before_min": it["rest_before_min"],
-                           "aid_hint": it["aid_hint"], "settings": it.get("settings"),
-                           "mode_hint": (it.get("mode_hint") or {}).get("mode")} for it in s["exercises"]]}
+    record = (plan or {}).get("window_record") or s
+    entry = {"created": today.isoformat(), "date": record["date"], "session_type": record["session_type"], "est_minutes": record["est_minutes"],
+             "benchmark": record["benchmark"], "commitment": plan["profile"]["commitment"],
+             "exercises": [{"name": it["name"], "order": it["order"], "sets": it["sets"], "target_peak_kg": it["target_peak_kg"],
+                            "target_rule": it["target_rule"], "effort": it["effort_target"]["label"],
+                            "inroad_min": it["effort_target"]["inroad_min"], "rest_before_min": it["rest_before_min"],
+                            "aid_hint": it["aid_hint"], "settings": it.get("settings"),
+                            "mode_hint": (it.get("mode_hint") or {}).get("mode")} for it in record["exercises"]]}
+    if record is not s and s.get("time_window"):
+        entry["window"] = {"minutes": s["time_window"]["minutes"], "kept": [it["name"] for it in s["exercises"]],
+                           "left_out": list(s["time_window"].get("left_out") or [])}
+    return entry
 
 
 def ledger_signature(entry: dict) -> str:
@@ -2000,7 +2023,12 @@ def update_ledger(entries: list[dict], plan: dict, today: date) -> tuple[list[di
     if not new:
         return entries, False
     if entries and ledger_signature(entries[-1]) == ledger_signature(new):
-        return entries, False
+        if entries[-1].get("window") == new.get("window"):
+            return entries, False
+        entries[-1] = dict(entries[-1], **({"window": new["window"]} if new.get("window") else {}))   # the same plan, the window changed
+        if not new.get("window"):
+            entries[-1].pop("window", None)
+        return entries[-LEDGER_MAX:], True
     if entries and entries[-1]["created"] == new["created"]:
         entries[-1] = new                          # the same day's plan changed (check-in, settings): keep the latest
     else:
@@ -2020,6 +2048,9 @@ def plan_vs_actual(entries: list[dict], last_session: dict | None, cfg: dict) ->
     done = [x["name"] for x in last_session.get("exercises", [])]
     planned = [x["name"] for x in plan["exercises"]]
     both = [n for n in planned if n in done]
+    # what the check-in's time window left out that day was not skipped by choice (v0.23.1)
+    left_for_time = [n for n in planned if n in ((plan.get("window") or {}).get("left_out") or []) and n not in done]
+    expected = [n for n in planned if n not in left_for_time]
     pairs = [(a, b) for i, a in enumerate(both) for b in both[i + 1:]]
     same_order = sum(1 for a, b in pairs if done.index(a) < done.index(b))
     actual = {x["name"]: x for x in last_session.get("exercises", [])}
@@ -2043,13 +2074,14 @@ def plan_vs_actual(entries: list[dict], last_session: dict | None, cfg: dict) ->
         rows.append(row)
     out = {"plan_created": plan["created"], "planned_date": plan["date"], "actual_date": day,
            "date_delta_days": (date.fromisoformat(day) - date.fromisoformat(plan["date"])).days,
-           "done": both, "skipped": [n for n in planned if n not in done], "added": [n for n in done if n not in planned],
+           "done": both, "skipped": [n for n in expected if n not in done], "added": [n for n in done if n not in planned],
+           "left_for_time": left_for_time, "window_minutes": (plan.get("window") or {}).get("minutes"),
            "order_agreement": round(same_order / len(pairs), 2) if pairs else None,
            "targets_met": hits, "targets_judged": judged, "effort_met": effort_hits, "effort_judged": effort_judged,
            "modes_hinted": sum(1 for r in rows if r["mode_followed"] is not None), "modes_followed": sum(1 for r in rows if r["mode_followed"]),
            "exercises": rows}
-    code = "pva_followed" if (len(both) == len(planned) and not out["added"]) else ("pva_partly" if both else "pva_other")
-    out["interp"] = item(code, {"k": len(both), "total": len(planned), "skipped": out["skipped"], "added": out["added"],
+    code = "pva_followed" if (len(both) == len(expected) and not out["added"]) else ("pva_partly" if both else "pva_other")
+    out["interp"] = item(code, {"k": len(both), "total": len(expected), "skipped": out["skipped"], "added": out["added"],
                                 "hits": hits, "judged": judged, "effort_hits": effort_hits, "effort_judged": effort_judged,
                                 "delta_days": out["date_delta_days"]}, cfg)
     return out
