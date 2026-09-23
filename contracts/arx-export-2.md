@@ -7,6 +7,8 @@ the format name in the header stays `arx-export-1` because it names the line for
 valid, an importer written for version 1 reads a version-2 answer as it is. arx-free drafted this as a "revision 1.1"
 of the version-1 file on 2026-09-23; the owner of the contract (ARX Insight) issues it as version 2 - an adopted
 contract file is never edited in place. `arx-export-1.md` stays in both folders until arx-free has adopted this file.
+Revised the same day, before adoption (ARX Insight v0.23.0): the `athlete` line carries `language` and `display_units`
+when ARX Insight knows them - the owner's "yes" to arx-free's proposal for ONE user basis (2026-09-23).
 
 Direction: ARX Insight -> arx-free, one way, repeatable. The exporter lives in ARX Insight because it already owns the
 safe copy-then-open access to the original Firebird database; arx-free never needs a Firebird client. Units:
@@ -59,13 +61,24 @@ the filter this answer was made with, `null` for a complete export.
 
 ```json
 {"kind": "athlete", "source_user_id": "17", "first_name": "...", "last_name": "...", "gender": "m|f|null",
- "birth_date": "1980-05-17|null", "created_at": "2024-03-01T10:00:00|null"}
+ "birth_date": "1980-05-17|null", "created_at": "2024-03-01T10:00:00|null",
+ "language": "de", "display_units": "metric"}
 ```
 
 Only these fields leave the original database. No e-mail, no password or token columns, no cloud ids, no waiver.
 The sentinel date `0001-01-01` of the original is exported as `null`. Text is decoded explicitly (charset NONE).
-An importer ignores fields it does not know: what ARX Insight knows about the person (language, display units) is
-the open contract `athlete-profile-1` - the owner decides the owner of each field first; nothing of it is sent yet.
+
+**What ARX Insight knows about the person** (owner's decision 2026-09-23, "Insight wins for the person, arx-free
+wins for the machine"): `language` (`de` | `en`) = the person's own choice in ARX Insight's profile, else the device's
+language when it is set; `display_units` (`metric` | `imperial`) = the device's units when they are set (ARX Insight
+keeps units per device). Both are **optional and present only when known**. Never `photos_enabled` - ARX Insight does
+not know it, it stays arx-free's. An importer ignores fields it does not know.
+
+Import rule (one user basis): arx-free takes the two at creation AND on every later import and shows them read-only
+in the athlete's profile from then on (`athletes.insight_profile_at`); an athlete without the fields keeps arx-free's
+own values and stays editable there. Everything machine-side (coach switches, on-ramp, fatigue targets, positions,
+remembered settings) stays arx-free's and is never overwritten. A value that is not one of the agreed words is ignored.
+Editing the person (name, language, units) happens in ONE place: ARX Insight.
 
 ### set
 

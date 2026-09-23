@@ -14,6 +14,7 @@ of real people: keep it on your own machines.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -23,7 +24,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import arx_base as core  # noqa: E402
 from arx_export import (FORMAT, SOURCE, USER_SQL, SET_SQL, _iso, _number, _json_blob, samples_of,  # noqa: E402,F401  (the names the tests and older scripts use)
-                        athlete_line, set_line, parse_since, export)
+                        athlete_line, set_line, parse_since, person_facts, export)
+
+
+def _settings(name: str) -> dict:
+    """config.json / goals.json of this installation (the same folder the app uses) - what ARX Insight knows about a
+    person rides on the athlete line; a missing or unreadable file simply means "not known"."""
+    try:
+        with open(os.path.join(core.data_dir(), name), encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def main(argv=None) -> int:
@@ -43,7 +55,7 @@ def main(argv=None) -> int:
         version = ""
     con, tmp = core.open_readonly(args.db)
     try:
-        counts = export(con, args.out, version, since=since)
+        counts = export(con, args.out, version, since=since, person=person_facts(_settings("config.json"), _settings("goals.json")))
     finally:
         try:
             con.close()

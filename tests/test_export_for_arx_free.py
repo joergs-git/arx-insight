@@ -100,6 +100,25 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "sets": 1})
         self.assertEqual((everything[0]["since"], everything[-1]["sets"]), (None, 3))                          # no since: null, all sets
 
+    def test_what_insight_knows_about_the_person_rides_on_the_athlete_line(self):
+        # contract arx-export-2 (owner's yes, 2026-09-23): language = the person's own choice, else the device's; units = the device's
+        users = [(1, "A", "B", "m", None, None), (2, "C", "D", "f", None, None)]
+        person = exporter.person_facts({"language": "en", "units": "metric"}, {"1": {"language": "de"}, "2": {"language": "xx"}})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "export.ndjson.gz")
+            exporter.export(FakeConnection(users, []), path, person=person)
+            lines = read(path)
+            exporter.export(FakeConnection(users, []), path, person=exporter.person_facts({}, {}))
+            unknown = read(path)
+            exporter.export(FakeConnection(users, []), path)
+            plain = read(path)
+        self.assertEqual((lines[1]["language"], lines[1]["display_units"]), ("de", "metric"))      # own choice wins
+        self.assertEqual((lines[2]["language"], lines[2]["display_units"]), ("en", "metric"))      # a value outside the vocabulary -> the device's
+        self.assertNotIn("photos_enabled", json.dumps(lines))
+        for line in (unknown[1], unknown[2], plain[1], plain[2]):                                  # nothing known / no facts asked: no such keys
+            self.assertEqual(set(line), {"kind", "source_user_id", "first_name", "last_name", "gender", "birth_date", "created_at"})
+        self.assertEqual(exporter.person_facts({"language": "fr", "units": "stones"}, {})(1), {})   # unknown words are not known values
+
     def test_since_is_a_started_at_text_or_nothing(self):
         self.assertEqual(exporter.parse_since("2026-09-13T18:04:11"), "2026-09-13T18:04:11")
         self.assertEqual(exporter.parse_since(" 2026-09-13 18:04:11.437 "), "2026-09-13T18:04:11")   # fractions are cut like the export does
