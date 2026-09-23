@@ -11,7 +11,8 @@ client. Two ways deliver the same lines (contract ``contracts/arx-export-2.md``)
     the sets that began after ``since``; arx-free asks at its start and imports what is new by itself.
 
 What leaves the database - and nothing else:
-  * athletes: id, first name, last name, gender, birth date, create date (no e-mail, no password / token, no cloud ids)
+  * athletes: id, first name, last name, gender, birth date, create date (no e-mail, no password / token, no cloud ids);
+    plus, from ARX Insight's own settings, the person's language and the display units when known (person_facts)
   * sets that are not deleted: the scalar columns, and **verbatim** the three blobs (configuration, events without the
     "WaitingTimeLeft" countdown ticks, samples). Nothing is converted or rounded; units stay lb and inch.
 
@@ -83,11 +84,40 @@ def parse_since(text) -> str | None:
     return value.replace(microsecond=0).isoformat(timespec="seconds")
 
 
-def athlete_line(row) -> dict:
+LANGUAGES, DISPLAY_UNITS = ("en", "de"), ("metric", "imperial")
+
+
+def person_facts(config: dict, goals: dict):
+    """What ARX Insight knows about a person, for the athlete line (contract arx-export-2, owner's decision 2026-09-23:
+    "Insight wins for the person, arx-free wins for the machine"). `language` = the person's own choice in the
+    profile (goals.json), else the device's language when it is set; `display_units` = the device's units when they
+    are set. Only known values leave - never a name, a birth date, a note, a body value, a photo flag (that one is
+    arx-free's). Returns a callable uid -> dict for export()."""
+    device_language = config.get("language") if config.get("language") in LANGUAGES else None
+    units = config.get("units") if config.get("units") in DISPLAY_UNITS else None
+
+    def facts(uid) -> dict:
+        own = (goals.get(str(uid)) or {}).get("language") if isinstance(goals.get(str(uid)), dict) else None
+        language = own if own in LANGUAGES else device_language
+        out = {}
+        if language:
+            out["language"] = language
+        if units:
+            out["display_units"] = units
+        return out
+    return facts
+
+
+def athlete_line(row, person=None) -> dict:
+    """The athlete as the original knows them - plus, when `person` (see person_facts) is given, what ARX Insight
+    knows about the person: language and display units, only when known."""
     uid, first, last, gender, born, created = row
     sex = {"m": "m", "f": "f"}.get((gender or "").strip().lower()[:1])
-    return {"kind": "athlete", "source_user_id": str(uid), "first_name": first or "", "last_name": last or "", "gender": sex,
+    line = {"kind": "athlete", "source_user_id": str(uid), "first_name": first or "", "last_name": last or "", "gender": sex,
             "birth_date": (_iso(born) or "")[:10] or None, "created_at": _iso(created)}
+    if person is not None:
+        line.update(person(uid))
+    return line
 
 
 def set_line(row: dict) -> dict:
@@ -108,10 +138,11 @@ def set_line(row: dict) -> dict:
     }
 
 
-def export(con, out_path: str, version: str = "", since: str | None = None) -> dict:
+def export(con, out_path: str, version: str = "", since: str | None = None, person=None) -> dict:
     """Write the export from an open connection. Returns the counts. Sets are streamed row by row - the blobs of a
     long history do not fit into memory comfortably on the machine PC. With `since` (a normalised `started_at`
-    text, see parse_since) only the sets that began strictly after it are written; the athletes always all."""
+    text, see parse_since) only the sets that began strictly after it are written; the athletes always all - each
+    with what ARX Insight knows about the person when `person` (person_facts) is given."""
     counts = {"athletes": 0, "sets": 0, "skipped": 0}
     cur = con.cursor()
     with gzip.open(out_path, "wt", encoding="utf-8", compresslevel=6) as out:
@@ -122,7 +153,7 @@ def export(con, out_path: str, version: str = "", since: str | None = None) -> d
                "exporter": f"arx-insight {version}".strip(), "since": since})
         cur.execute(USER_SQL)
         for row in cur.fetchall():
-            write(athlete_line(row))
+            write(athlete_line(row, person))
             counts["athletes"] += 1
         if since:
             cur.execute(SET_SQL_SINCE, (datetime.fromisoformat(since) + timedelta(seconds=1),))

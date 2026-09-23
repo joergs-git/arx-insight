@@ -208,6 +208,9 @@ class Hardening(TwoListeners):
         orig = core.shared_connection
         core.shared_connection = lambda path: contextlib.nullcontext(FakeConnection(users, [second, first]))
         self.addCleanup(setattr, core, "shared_connection", orig)
+        app.update_json(app.CONFIG, lambda cfg: cfg.update(language="en", units="metric"))          # the device
+        self.addCleanup(app.update_json, app.CONFIG, lambda cfg: [cfg.pop(k, None) for k in ("language", "units")])
+        app.write_json(app.GOALS, {"1": {"language": "de"}})                                        # Anna's own choice
 
         def fetch(query, headers=LOCAL, port=None):
             req = urllib.request.Request(f"http://127.0.0.1:{port or self.port}/api/export{query}", headers=headers)
@@ -219,6 +222,7 @@ class Hardening(TwoListeners):
         self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "footer"])
         self.assertEqual((lines[0]["format"], lines[0]["since"]), ("arx-export-1", "2026-09-13T18:00:00"))     # the line format is v1's
         self.assertEqual((lines[3]["source_set_id"], lines[-1]), ("11", {"kind": "footer", "athletes": 2, "sets": 1}))
+        self.assertEqual([(a["language"], a["display_units"]) for a in lines[1:3]], [("de", "metric"), ("en", "metric")])   # v0.23.0: the person
         hd, lines = fetch("")                                                                                # without since: everything
         self.assertEqual(([line["source_set_id"] for line in lines if line["kind"] == "set"], lines[0]["since"]), (["10", "11"], None))
         self.assertEqual(call(self.port, "/api/export?since=yesterday", headers=LOCAL), (400, {"error": "bad_since", "detail": "since = a started_at of the export, like 2026-09-13T18:04:11"}))

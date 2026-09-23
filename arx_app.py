@@ -1138,8 +1138,9 @@ def r_export(h, q, who, uid):
     fd, path = tempfile.mkstemp(prefix=EXPORT_PREFIX, suffix=EXPORT_SUFFIX, dir=core.data_dir())
     os.close(fd)
     try:
+        person = exporter.person_facts(read_json(CONFIG, {}), read_json(GOALS, {}))   # language + units, when known (v0.23.0)
         with core.shared_connection(STATE["db"]) as con:
-            counts = exporter.export(con, path, STATE["version"], since=since)
+            counts = exporter.export(con, path, STATE["version"], since=since, person=person)
         name = f"arx-export-{time.strftime('%Y%m%d-%H%M%S')}{EXPORT_SUFFIX}"
         h._send_file(path, "application/gzip", {"Content-Disposition": f'attachment; filename="{name}"',
                                                 "X-ARX-Export": f"athletes={counts['athletes']}; sets={counts['sets']}; skipped={counts['skipped']}"})
