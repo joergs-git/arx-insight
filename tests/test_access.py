@@ -4,8 +4,8 @@ every route as nobody / athlete / trainer / this machine. Then: an athlete link 
 person, PC-only stays PC-only whatever token a phone shows, links expire / are revoked / replaced,
 the daily AI allowance and the minors' chat switch hold, the report download cannot run a script,
 and only private network addresses ever get a listener. No database needed (report and coach faked)."""
-import os, tempfile, threading, time, types, unittest, unittest.mock, urllib.request
-from datetime import timedelta
+import json, os, tempfile, threading, time, types, unittest, unittest.mock, urllib.request
+from datetime import datetime, timedelta
 
 import tests                                   # noqa: F401  (points ARX_DATA_DIR at a temp folder first)
 from tests.test_app_safety import call, JSON
@@ -62,7 +62,7 @@ class TwoListeners(unittest.TestCase):
 
 class RouteTable(TwoListeners):
     PC_ONLY = {("POST", "/api/update"), ("GET", "/api/update/status"), ("POST", "/api/update/check"), ("POST", "/api/shutdown"), ("POST", "/api/lan"),
-               ("GET", "/api/lan/status"), ("POST", "/api/access/link"), ("POST", "/api/firewall")}
+               ("GET", "/api/lan/status"), ("POST", "/api/access/link"), ("POST", "/api/firewall"), ("GET", "/api/export")}
 
     def test_the_table_is_complete_and_conservative(self):
         for key, r in app.ROUTES.items():
@@ -194,6 +194,36 @@ class Hardening(TwoListeners):
             self.assertIn("connect-src 'self'", hd["Content-Security-Policy"])
             self.assertIsNone(hd["X-Frame-Options"])                                            # would only mislead next to the allowing CSP
             self.assertEqual((hd["X-Content-Type-Options"], hd["Referrer-Policy"], hd["Cache-Control"]), ("nosniff", "no-referrer", "no-store"))
+
+    def test_the_history_for_arx_free_is_answered_on_this_machine_only(self):
+        # v0.22.0, contract arx-export-2: the same gzip'd NDJSON the export tool writes, only the sets after `since`
+        import contextlib, gzip
+        from tests.fixtures import make_set
+        from tests.test_export_for_arx_free import FakeConnection
+        first = make_set(10, 10, datetime(2026, 9, 13, 18, 0), reps=1)
+        second = make_set(11, 10, datetime(2026, 9, 20, 18, 0), reps=1)
+        for row in (first, second):
+            row.update(PROTOCOLPARAMETER=1, NOTES=None, RESTTIMER=None, RESTTIMERUSED=None, COMPARISONSET_ID=None)
+        users = [(1, "Anna", "Example", "f", None, None), (2, "Ben", "Muster", None, None, None)]
+        orig = core.shared_connection
+        core.shared_connection = lambda path: contextlib.nullcontext(FakeConnection(users, [second, first]))
+        self.addCleanup(setattr, core, "shared_connection", orig)
+
+        def fetch(query, headers=LOCAL, port=None):
+            req = urllib.request.Request(f"http://127.0.0.1:{port or self.port}/api/export{query}", headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.headers, [json.loads(line) for line in gzip.decompress(r.read()).decode("utf-8").splitlines()]
+        hd, lines = fetch("?since=2026-09-13T18:00:00")
+        self.assertEqual((hd["Content-Type"], hd["X-ARX-Export"]), ("application/gzip", "athletes=2; sets=1; skipped=0"))
+        self.assertRegex(hd["Content-Disposition"], r'attachment; filename="arx-export-\d{8}-\d{6}\.ndjson\.gz"')
+        self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "footer"])
+        self.assertEqual((lines[0]["format"], lines[0]["since"]), ("arx-export-1", "2026-09-13T18:00:00"))     # the line format is v1's
+        self.assertEqual((lines[3]["source_set_id"], lines[-1]), ("11", {"kind": "footer", "athletes": 2, "sets": 1}))
+        hd, lines = fetch("")                                                                                # without since: everything
+        self.assertEqual(([line["source_set_id"] for line in lines if line["kind"] == "set"], lines[0]["since"]), (["10", "11"], None))
+        self.assertEqual(call(self.port, "/api/export?since=yesterday", headers=LOCAL), (400, {"error": "bad_since", "detail": "since = a started_at of the export, like 2026-09-13T18:04:11"}))
+        self.assertEqual(self.lan_call("/api/export", self.trainer)[1]["detail"], "loopback_only")            # never through the Wi-Fi
+        self.assertEqual([n for n in os.listdir(core.data_dir()) if n.startswith(app.EXPORT_PREFIX)], [])    # nothing with names stays behind
 
     def test_whether_a_start_opens_the_browser_is_this_pcs_setting(self):
         # v0.21.0: on the kiosk arx-free fronts, both tools start at logon and only ONE may open the kiosk browser

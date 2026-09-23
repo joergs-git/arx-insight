@@ -50,7 +50,7 @@ stay PC-only. Security headers on every answer; the rendered report can be downl
 script-free HTML file.
 """
 from __future__ import annotations
-import os, re, sys, json, time, html, shutil, socket, secrets, argparse, threading, subprocess, webbrowser
+import os, re, sys, json, time, html, shutil, socket, secrets, argparse, tempfile, threading, subprocess, webbrowser
 from datetime import date, timedelta
 from typing import NamedTuple
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,6 +58,7 @@ from urllib.parse import urlparse, parse_qs
 
 import urllib.request
 import arx_report as core   # reuse the read-only engine
+import arx_export as exporter   # the history for arx-free (contract arx-export-2, v0.22.0)
 import arx_update as updater  # one-click update: download, verify, unpack, run the installer (v0.4.1)
 import arx_ai as ai           # the AI coach: structured board, memory, background jobs, chat (v0.5.0)
 import arx_access as access   # who may do what: trainer / athlete links, limits, download tickets (v0.6.0)
@@ -649,6 +650,28 @@ class Handler(BaseHTTPRequestHandler):
             # the multi-second AI request is in flight) - harmless, ignore quietly
             pass
 
+    def _send_file(self, path: str, ctype: str, headers=None):
+        """A file as the body, streamed in chunks - the export of a long history is tens of megabytes (v0.22.0)."""
+        try:
+            size = os.path.getsize(path)
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(size))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Cache-Control", "no-store")
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
+            self.end_headers()
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(256 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except (ConnectionError, OSError):
+            pass                              # the client went away mid-file - nothing to do
+
     # -- request checks (see TOKEN_HEADER / LOCAL_HOSTS / MAX_BODY above) ---------------------
     def _loopback(self) -> bool:
         return self.client_address[0] in ("127.0.0.1", "::1")
@@ -1082,6 +1105,51 @@ def p_config(h, data, who, uid):                        # global setup screen
 
 
 # ---- routes: this machine only ---------------------------------------------------------------------------------------
+EXPORT_PREFIX, EXPORT_SUFFIX = ".export-", ".ndjson.gz"      # the temp file an export answer is written to (data_dir)
+
+
+def sweep_exports() -> int:
+    """Remove export files a crashed answer left in the data folder (they hold names and training data)."""
+    removed = 0
+    try:
+        for name in os.listdir(core.data_dir()):
+            if name.startswith(EXPORT_PREFIX) and name.endswith(EXPORT_SUFFIX):
+                os.remove(os.path.join(core.data_dir(), name))
+                removed += 1
+    except OSError:
+        pass
+    return removed
+
+
+@route("GET", "/api/export", "local")
+def r_export(h, q, who, uid):
+    """The original's history for arx-free - contract arx-export-2 (v0.22.0): the same gzip'd NDJSON the export tool
+    writes, every athlete and only the sets that began strictly after `since` (a `started_at` text of the export;
+    without it: all). arx-free asks at its start and when a session begins and imports what is new by itself;
+    nothing is ever written back. This machine only (loopback + the local token): the answer holds names and
+    training data. It is written to a temp file in the data folder first (a long history does not fit into memory
+    comfortably on the machine PC), streamed, and removed whatever happens."""
+    raw = q1(q, "since")
+    since = None
+    if raw not in (None, ""):
+        since = exporter.parse_since(raw)
+        if since is None:
+            return h._send({"error": "bad_since", "detail": "since = a started_at of the export, like 2026-09-13T18:04:11"}, code=400)
+    fd, path = tempfile.mkstemp(prefix=EXPORT_PREFIX, suffix=EXPORT_SUFFIX, dir=core.data_dir())
+    os.close(fd)
+    try:
+        with core.shared_connection(STATE["db"]) as con:
+            counts = exporter.export(con, path, STATE["version"], since=since)
+        name = f"arx-export-{time.strftime('%Y%m%d-%H%M%S')}{EXPORT_SUFFIX}"
+        h._send_file(path, "application/gzip", {"Content-Disposition": f'attachment; filename="{name}"',
+                                                "X-ARX-Export": f"athletes={counts['athletes']}; sets={counts['sets']}; skipped={counts['skipped']}"})
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 @route("GET", "/api/update/status", "local")
 def r_update_status(h, q, who, uid):                    # progress of a one-click update
     h._send(UPDATE_JOB.status())
@@ -1403,6 +1471,8 @@ def main():
     removed = core.sweep_stale_copies()                # DB copies of crashed runs hold private data
     if removed:
         print(f"Removed {removed} leftover temporary database copies.")
+    if sweep_exports():                                # so does an export answer a crash left behind (v0.22.0)
+        print("Removed leftover export files.")
     def update_check():                                # one-off, 3 s cap - in the background, so the
         try:                                           # server answers (and can be probed) at once
             if not os.environ.get("ARX_NO_UPDATE_CHECK"):
