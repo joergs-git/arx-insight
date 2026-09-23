@@ -273,8 +273,10 @@ where it was), and when the proposal falls on another day the plan says why. Wit
 
 `../arx-free` is the owner's independent control software for the same machine (motion, live coach, set recording).
 ARX Insight stays the single planning engine; the two share what they must agree on as **contracts** in `contracts/`
-(`README.md` there lists them: the history export `arx-export-1` - `tools/export_for_arx_free.py` writes it from a
-read-only copy of the database -, the fatigue rule `effort-v3` and the hold rule `hold-1` with shared test vectors, and the words a person reads
+(`README.md` there lists them: the history export `arx-export-2` - `tools/export_for_arx_free.py` writes the file from a
+read-only copy of the database, and since v0.22.0 a running ARX Insight answers `GET /api/export?since=<started_at>` on
+this PC with the same lines, only the sets that began after `since`, so arx-free imports the original's newest sets by
+itself at its start -, the fatigue rule `effort-v3` and the hold rule `hold-1` with shared test vectors, and the words a person reads
 `vocabulary-1`). Every contract file carries a SHA-256 in `contracts/MANIFEST.json`, the copy here is byte-identical
 to the one in arx-free, and `python tools/contracts.py` (also part of the test suite) fails when the folder drifts
 from its manifest, when our own fatigue rule stops matching the vectors, or - with arx-free checked out next to this

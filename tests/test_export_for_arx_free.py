@@ -81,6 +81,32 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "sets": 2})
         self.assertNotIn("email", json.dumps(lines).lower())                       # nothing but name, gender, birth date of a person
 
+    def test_since_keeps_only_the_sets_that_began_after_it(self):
+        # contract arx-export-2: `since` = a started_at text of the export; strictly after it; the athletes always all
+        rows = [make_set(i, 10, datetime(2026, 9, 13, 18, 0, i), reps=1) for i in (10, 11, 12)]
+        for row in rows:
+            row.update(PROTOCOLPARAMETER=1, NOTES=None, RESTTIMER=None, RESTTIMERUSED=None, COMPARISONSET_ID=None)
+        users = [(1, "A", "B", "m", None, None), (2, "C", "D", "f", None, None)]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "export.ndjson.gz")
+            counts = exporter.export(FakeConnection(users, rows), path, "9.9.9", since="2026-09-13T18:00:11")
+            lines = read(path)
+            exporter.export(FakeConnection(users, rows), path)
+            everything = read(path)
+        self.assertEqual(counts, {"athletes": 2, "sets": 1, "skipped": 0})
+        self.assertEqual((lines[0]["format"], lines[0]["since"]), ("arx-export-1", "2026-09-13T18:00:11"))    # the line format is unchanged
+        self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "footer"])
+        self.assertEqual((lines[3]["source_set_id"], lines[3]["started_at"]), ("12", "2026-09-13T18:00:12"))    # 18:00:11 itself is not "after"
+        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "sets": 1})
+        self.assertEqual((everything[0]["since"], everything[-1]["sets"]), (None, 3))                          # no since: null, all sets
+
+    def test_since_is_a_started_at_text_or_nothing(self):
+        self.assertEqual(exporter.parse_since("2026-09-13T18:04:11"), "2026-09-13T18:04:11")
+        self.assertEqual(exporter.parse_since(" 2026-09-13 18:04:11.437 "), "2026-09-13T18:04:11")   # fractions are cut like the export does
+        self.assertEqual(exporter.parse_since("2026-09-13"), "2026-09-13T00:00:00")
+        for bad in ("yesterday", "2026-09-13T18:04:11+02:00", "", None, 5, "0001-01-01T00:00:00"):
+            self.assertIsNone(exporter.parse_since(bad), bad)
+
     def test_one_unreadable_set_does_not_end_the_export(self):
         good = make_set(10, 10, datetime(2026, 9, 13, 18, 0), reps=1)
         bad = make_set(11, 10, datetime(2026, 9, 14, 18, 0), reps=1)
