@@ -689,10 +689,13 @@ what the same session would take alone.
 Tell the check-in (*Time today*, optional). It is an **upper limit for today only**: if the normal
 session fits, nothing changes; if not, extra sets go first (the one hard set per exercise is what
 holds and builds), then the session gets smaller — never below two exercises. What stays is what
-matters most right now: the big exercise of each movement group, picked so that no muscle falls
-out of its weekly stimulus, then whatever else is urgent. The plan says what was left out, and
-those muscles are the most due next time, so nothing has to be "caught up". A bigger window never
-makes the session longer — for more volume use *Minutes per session* in the profile.
+matters most right now: the big exercise of each movement group — on a split day as well (since
+v0.23.1: fifteen minutes buy a press and a row, never two arm exercises, whatever their scores say) —
+picked so that no muscle falls out of its weekly stimulus, then whatever else is urgent. The plan
+says what was left out, and those muscles are the most due next time, so nothing has to be "caught
+up". The normal session stays the plan of record: what the window left out is not counted as
+skipped afterwards. A bigger window never makes the session longer — for more volume use *Minutes
+per session* in the profile.
 
 **I squat in the gym / do curls at home — can I switch an exercise off?** *(v0.7.0)*
 Yes: profile → *Restrictions (for good)*. Tap an exercise once for **I train it elsewhere**,
