@@ -328,6 +328,8 @@
       <input type="number" id="setFreq" min="1" max="7" value="2"></div>
     <div class="field"><label id="s_key">Anthropic API key (optional, for AI analysis)</label>
       <input type="password" id="setKey" placeholder="sk-ant-..."></div>
+    <!-- v0.21.0: off when another program (arx-free's kiosk window) shows ARX Insight's pages - this PC only -->
+    <div class="field localonly"><div class="tiles" id="setBrowser" style="grid-template-columns:1fr"></div></div>
     </div>
     <div class="setcol">
     <div class="field"><label id="s_model">AI model</label><div class="segbig" id="setModel"></div></div>
@@ -512,6 +514,7 @@ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 let CFG={language:"en",units:"imperial",sessions_per_week:2}, CUR=null, REPORT=null, XMODE="occ";
 let COACH=null, COACH_T=null, RENDERED_ONCE=false, AI={models:[],model:"",efforts:[],effort_board:"high",effort_chat:"medium",auto:true};
 let HAS_KEY=false, UPDATE={}, CURVER="", SETTINGS_ORIGIN="search", GOAL_MODE="new", SHARE={profile:true,body:false}, SELF_UPDATE=false, UPD_STEP=0;
+let OPEN_BROWSER=true;   // v0.21.0: does a start of the app open the browser? (off when arx-free's window shows the pages)
 let PHONE=null, PHONE_T=null;                   // phone access: state from bootstrap, poll timer of the open dialog
 let GLOBAL_LANG="en", PLANG="";   // device default language, and the current profile's override
 let FOCUS_R={}, OUTCOME=null, COMMIT="", EXPERIENCE=null, MINUTES="", TKIND="", AIDS={}, CATALOG={}, BODY_LAST=null, STRUCT="";
@@ -578,7 +581,7 @@ api("/api/bootstrap").then(b=>{
   ACCESS=b.access||{role:"local"}; document.body.dataset.role=ACCESS.role; PHONE=b.phone||null;
   CFG.language=b.language;CFG.units=b.units;CFG.sessions_per_week=b.sessions_per_week;CATALOG=b.catalog||{};
   GLOBAL_LANG=b.language; CURVER=b.version||""; HAS_KEY=!!b.has_key; UPDATE=b.update||{};
-  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI;
+  SHARE={profile:b.ai_share_profile!==false,body:!!b.ai_share_body}; SELF_UPDATE=!!b.self_update; AI=b.ai||AI; OPEN_BROWSER=b.open_browser!==false;
   BODY_MAP=b.body_map||{}; CONFIGURED=!!b.configured;
   renderGearBadge();
   $("#updStart").innerHTML=updateBannerHtml()+pinHintHtml(b.taskbar_pinned); renderPhoneStart();
@@ -620,7 +623,7 @@ function openSettings(origin){
   $("#setModel").innerHTML=(AI.models||[]).map(m=>`<button data-v="${esc(m[0])}" aria-pressed="${AI.model===m[0]}">${esc(m[1])}</button>`).join("");
   const opts=cur=>(AI.efforts||[]).map(e=>`<option ${e===cur?'selected':''}>${e}</option>`).join("");
   $("#setEffB").innerHTML=opts(AI.effort_board); $("#setEffC").innerHTML=opts(AI.effort_chat);
-  renderAuto();
+  renderAuto(); renderBrowser();
   $("#s_share").textContent=de?"Was der KI-Coach sehen darf":"What the AI coach may see";
   $("#s_share_sub").textContent=de?"Nie gesendet werden: Namen, Geburtsdatum, Größe, Gewicht, Notizen. Gesendet werden nur zusammengefasste Trainingszahlen - und das hier, wenn eingeschaltet.":"Never sent: names, date of birth, height, weight, notes. Only aggregated training numbers are sent - plus the following when switched on.";
   renderShare();
@@ -638,6 +641,10 @@ function openSettings(origin){
 function renderAuto(){ const de=CFG.language==="de";
   $("#setAuto").innerHTML=`<button data-k="auto" aria-pressed="${AI.auto}">${AI.auto?'✓ ':''}${de?'Coach-Analyse automatisch erstellen':'Create the coach analysis automatically'}<small>${de?'Ein API-Aufruf je neuem Datenstand (neue Sätze, Check-in, Profil); gleiche Daten kosten nichts. Aus: Analyse nur auf Knopfdruck.':'One API call per new data state (new sets, check-in, profile); the same data costs nothing. Off: analysis only on request.'}</small></button>`; }
 $("#setAuto").addEventListener("click",()=>{AI.auto=!AI.auto;renderAuto();});
+// v0.21.0: on a kiosk that arx-free fronts, ARX Insight starts quietly - arx-free shows its pages inside its own window
+function renderBrowser(){ const de=CFG.language==="de";
+  $("#setBrowser").innerHTML=`<button data-k="browser" aria-pressed="${OPEN_BROWSER}">${OPEN_BROWSER?'✓ ':''}${de?'Beim Start den Browser öffnen':'Open the browser at start'}<small>${de?'Aus, wenn ein anderes Programm ARX Insight in seinem Fenster zeigt - z. B. arx-free am Kiosk: ARX Insight startet dann still im Hintergrund, auch beim Autostart.':'Off when another program shows ARX Insight inside its own window - e.g. arx-free at the kiosk: ARX Insight then starts quietly in the background, at logon too.'}</small></button>`; }
+$("#setBrowser").addEventListener("click",()=>{OPEN_BROWSER=!OPEN_BROWSER;renderBrowser();});
 $("#setModel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;AI.model=b.dataset.v;[...$("#setModel").children].forEach(x=>x.setAttribute("aria-pressed",x===b));});
 function renderShare(){ const de=CFG.language==="de";
   const t=(k,on,h,sub)=>`<button data-k="${k}" aria-pressed="${on}">${on?'✓ ':''}${h}<small>${sub}</small></button>`;
@@ -648,7 +655,7 @@ $("#setupSave").addEventListener("click",async()=>{
   const lang=$("#setLang [aria-pressed=true]").dataset.v, units=$("#setUnits [aria-pressed=true]").dataset.v;
   AI.effort_board=$("#setEffB").value||AI.effort_board; AI.effort_chat=$("#setEffC").value||AI.effort_chat;
   const body={language:lang,units:units,sessions_per_week:+$("#setFreq").value,ai_share_profile:SHARE.profile,ai_share_body:SHARE.body,
-    model:AI.model,ai_effort_board:AI.effort_board,ai_effort_chat:AI.effort_chat,ai_auto:AI.auto};
+    model:AI.model,ai_effort_board:AI.effort_board,ai_effort_chat:AI.effort_chat,ai_auto:AI.auto,open_browser:OPEN_BROWSER};
   const key=$("#setKey").value.trim(); if(key){ body.anthropic_api_key=key; HAS_KEY=true; }
   await post("/api/config",body);
   CFG.language=lang;GLOBAL_LANG=lang;CFG.units=units;CFG.sessions_per_week=+$("#setFreq").value;

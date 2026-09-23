@@ -281,6 +281,16 @@ from its manifest, when our own fatigue rule stops matching the vectors, or - wi
 repository - when the two projects carry different contract files or a different exercise catalogue. A change starts
 in the contract's owner project with a new version, never in passing in the code.
 
+**Inside arx-free's window (since v0.21.0).** The touch kiosk has no way back from a second window, so arx-free shows
+ARX Insight as a screen inside its own window ("Back to arx-free" always on top). For that, the pages served on this
+PC may be framed by another program of this PC (`frame-ancestors` allows the loopback origins; the phone listener
+still refuses every frame). Two things to set on such a PC:
+- ⚙ Settings → **Open the browser at start: off** - ARX Insight then starts quietly in the background (arx-free
+  provides the window), also when both start at logon; a second start only points to the running instance without
+  opening a window either.
+- To start ARX Insight at logon, copy the Desktop shortcut *ARX Insight* into the Startup folder (Win + R,
+  `shell:startup`). The app never writes into that folder itself.
+
 ## Privacy
 
 **Local.** Everything runs on your machine; with phone access switched off the app listens on
@@ -635,10 +645,18 @@ scan again. Switching phone access off closes the door for everyone without dele
 **Is phone access safe?**
 It is built for a home or gym network you trust: one private address, a random 192-bit code per
 device, the athlete code pinned to one person, PC-only functions, no cross-site access, and a browser
-policy that blocks foreign scripts, frames and connections. It is **not** encrypted (plain HTTP — see *Privacy*) and must never
+policy that blocks foreign scripts and connections and any framing of the phone pages (only on the PC itself may
+another local program - arx-free - show the pages inside its window). It is **not** encrypted (plain HTTP — see *Privacy*) and must never
 be reachable from the internet. If that is not good enough for your setting, switch it off (start
 screen → 📱 → **Switch off**; the choice is kept): the app then listens on `localhost` only, exactly
 as before v0.6.0.
+
+**Can ARX Insight start without opening a window?**
+Yes: ⚙ Settings → *Open the browser at start* off. That is the setting for a PC where another program shows
+ARX Insight's pages inside its own window - arx-free's touch kiosk: both start at logon there, and only one of
+them may open the kiosk browser. ARX Insight then runs quietly in the background (its console window stays, as
+always: closing it stops the app), and a second start just points to the running instance. `--no-browser` and
+`ARX_NO_BROWSER=1` do the same for one start.
 
 **Can it put an icon into the taskbar?**
 The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on

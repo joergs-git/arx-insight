@@ -574,9 +574,19 @@ def snapshot_document(markup: str, title: str, language=None) -> str:
 ACCESS, BAD_TOKENS, TICKETS, SEEN = access.AccessStore(), access.BadTokens(), access.Tickets(), access.Seen()
 MAX_SNAPSHOT = 6 * 1024 * 1024                    # a rendered report with its charts, sent back as a download
 MAX_DRAIN = 16 * 1024 * 1024                      # an oversized body up to this size is read and dropped before the 413
-CSP_PAGE = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; "
-            "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+# The page's Content-Security-Policy, per listener (v0.21.0). On THIS machine the page may sit inside a frame of
+# another local program: arx-free shows ARX Insight as a screen inside its own kiosk window (a touch screen has no
+# way back from a second window - arx-free's tasks/cross-repo.md), so the local listener allows frame ancestors from
+# the loopback origins on any port (arx-free's port is its own business). The phone listener keeps 'none': a page a
+# phone loads must never sit inside a foreign site. X-Frame-Options is the older form of the same rule and is sent on
+# the phone listener only - where both headers are present a modern browser lets the CSP rule decide, so a DENY next
+# to an allowing CSP would only mislead whoever reads the headers.
+CSP_COMMON = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+              "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+              "base-uri 'none'; form-action 'none'")
+FRAME_ANCESTORS_LOCAL = "'self' http://127.0.0.1:* http://localhost:*"
+CSP_PAGE = f"{CSP_COMMON}; frame-ancestors {FRAME_ANCESTORS_LOCAL}"      # this machine: a local program may frame the page
+CSP_PAGE_LAN = f"{CSP_COMMON}; frame-ancestors 'none'"                   # a phone: never inside a foreign site
 CSP_SNAPSHOT = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"      # a downloaded report runs no script at all
 STATIC = {"/": ("index.html", "text/html"), "/index.html": ("index.html", "text/html"),
           "/vendor/qrcode.js": (os.path.join("vendor", "qrcode.js"), "application/javascript")}
@@ -625,8 +635,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Cache-Control", "no-cache" if "javascript" in ctype else "no-store")
             if "html" in ctype and not (headers or {}).get("Content-Security-Policy"):
-                self.send_header("Content-Security-Policy", CSP_PAGE)
-                self.send_header("X-Frame-Options", "DENY")
+                if self.on_lan:                                    # a phone: no frame at all (CSP + the older header)
+                    self.send_header("Content-Security-Policy", CSP_PAGE_LAN)
+                    self.send_header("X-Frame-Options", "DENY")
+                else:                                              # this machine: arx-free may frame the page (v0.21.0)
+                    self.send_header("Content-Security-Policy", CSP_PAGE)
             for k, v in (headers or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -809,6 +822,7 @@ def r_bootstrap(h, q, who, uid):
         out.update({
             "self_update": os.name == "nt" or bool(os.environ.get("ARX_UPDATE_ANYWHERE")),   # one-click update possible here
             "taskbar_pinned": cfg.get("taskbar_pinned"),    # set by the Windows installer; False -> one-time hint
+            "open_browser": cfg.get("open_browser", True) is not False,   # off = another program (arx-free) shows the pages (v0.21.0)
             "pid": os.getpid(),                             # lets a newer instance verify whom it replaces
             "phone": {"enabled": bool(ACCESS.lan().get("enabled")) and not os.environ.get("ARX_NO_PHONE"),
                       "running": bool(LAN and LAN.status()["running"])},
@@ -1061,6 +1075,8 @@ def p_config(h, data, who, uid):                        # global setup screen
         for k in ("ai_share_profile", "ai_share_body"):        # what the AI may see (name-free either way)
             if k in data:
                 cfg[k] = bool(data[k])
+        if "open_browser" in data and who.role == "local":     # whether a start opens the browser: this PC's business (v0.21.0)
+            cfg["open_browser"] = bool(data["open_browser"])
     update_json(CONFIG, change)
     h._send({"ok": True})
 
@@ -1211,6 +1227,17 @@ def probe(port: int, timeout: float = 1.5) -> dict | None:
         return None
 
 
+def browser_wanted(no_browser_flag: bool = False) -> bool:
+    """Should this start open the browser? Not with --no-browser, not with ARX_NO_BROWSER (the one-click update
+    reloads the open page instead), and not when config.json says "open_browser": false - the setting for a PC where
+    another program shows ARX Insight's pages inside its own window (arx-free's kiosk, v0.21.0): both start at logon
+    there, and only ONE of them may open the kiosk browser. The setting also holds for a second start that only
+    points to the running instance - on a touch kiosk a second window is a dead end."""
+    if no_browser_flag or os.environ.get("ARX_NO_BROWSER"):
+        return False
+    return read_json(CONFIG, {}).get("open_browser", True) is not False
+
+
 def start_decision(running_version: str, mine: str) -> str:
     """'reuse' the running app when it is the same or a newer version (a stray double-click, or an
     old Desktop shortcut after an update - never a silent downgrade), 'replace' an older one."""
@@ -1288,7 +1315,7 @@ def main():
     set_console_title(f"ARX Insight {STATE['version']} - close this window to stop")
 
     def open_browser(port):
-        if not args.no_browser:
+        if browser_wanted(args.no_browser):
             webbrowser.open(f"http://localhost:{port}")
 
     def try_bind(port):
@@ -1387,8 +1414,10 @@ def main():
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
-    if not args.no_browser and not os.environ.get("ARX_NO_BROWSER"):   # (a one-click update reloads the open page instead)
+    if browser_wanted(args.no_browser):                # off after an update (the open page reloads) and on a kiosk that arx-free fronts
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    else:
+        print("The browser is not opened on this start (setting / ARX_NO_BROWSER / --no-browser).")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
