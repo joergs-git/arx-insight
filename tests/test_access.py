@@ -4,7 +4,7 @@ every route as nobody / athlete / trainer / this machine. Then: an athlete link 
 person, PC-only stays PC-only whatever token a phone shows, links expire / are revoked / replaced,
 the daily AI allowance and the minors' chat switch hold, the report download cannot run a script,
 and only private network addresses ever get a listener. No database needed (report and coach faked)."""
-import os, tempfile, threading, time, types, unittest, urllib.request
+import os, tempfile, threading, time, types, unittest, unittest.mock, urllib.request
 from datetime import timedelta
 
 import tests                                   # noqa: F401  (points ARX_DATA_DIR at a temp folder first)
@@ -181,12 +181,34 @@ class Hardening(TwoListeners):
         self.assertEqual(call(self.lport, "/api/bootstrap", headers={**self.trainer, "Host": f"127.0.0.1:{self.lport}"})[0], 200)
 
     def test_security_headers(self):
-        with urllib.request.urlopen(f"http://127.0.0.1:{self.lport}/", timeout=5) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.lport}/", timeout=5) as r:      # a phone: never inside a foreign site
             hd = r.headers
             self.assertIn("frame-ancestors 'none'", hd["Content-Security-Policy"])
             self.assertIn("connect-src 'self'", hd["Content-Security-Policy"])
             self.assertEqual((hd["X-Content-Type-Options"], hd["Referrer-Policy"], hd["X-Frame-Options"], hd["Cache-Control"]),
                              ("nosniff", "no-referrer", "DENY", "no-store"))
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/", timeout=5) as r:       # this machine: arx-free may frame the page (v0.21.0)
+            hd = r.headers
+            self.assertIn("frame-ancestors 'self' http://127.0.0.1:* http://localhost:*", hd["Content-Security-Policy"])
+            self.assertNotIn("'none'", hd["Content-Security-Policy"].split("frame-ancestors")[1])
+            self.assertIn("connect-src 'self'", hd["Content-Security-Policy"])
+            self.assertIsNone(hd["X-Frame-Options"])                                            # would only mislead next to the allowing CSP
+            self.assertEqual((hd["X-Content-Type-Options"], hd["Referrer-Policy"], hd["Cache-Control"]), ("nosniff", "no-referrer", "no-store"))
+
+    def test_whether_a_start_opens_the_browser_is_this_pcs_setting(self):
+        # v0.21.0: on the kiosk arx-free fronts, both tools start at logon and only ONE may open the kiosk browser
+        self.addCleanup(app.update_json, app.CONFIG, lambda cfg: cfg.pop("open_browser", None))
+        self.assertTrue(app.browser_wanted())
+        self.assertFalse(app.browser_wanted(no_browser_flag=True))
+        with unittest.mock.patch.dict(os.environ, {"ARX_NO_BROWSER": "1"}):                     # the one-click update reloads the open page
+            self.assertFalse(app.browser_wanted())
+        self.assertEqual(self.lan_call("/api/config", self.trainer, method="POST", body={"open_browser": False})[0], 200)
+        self.assertTrue(app.browser_wanted())                                                     # a phone cannot switch it
+        self.assertEqual(call(self.port, "/api/config", method="POST", body={"open_browser": False}, headers={**LOCAL, **JSON})[0], 200)
+        self.assertFalse(app.browser_wanted())
+        self.assertFalse(call(self.port, "/api/bootstrap", headers=LOCAL)[1]["open_browser"])
+        self.assertEqual(call(self.port, "/api/config", method="POST", body={"open_browser": True}, headers={**LOCAL, **JSON})[0], 200)
+        self.assertTrue(app.browser_wanted())
         with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/vendor/qrcode.js", timeout=5) as r:
             self.assertIn("javascript", r.headers["Content-Type"])
             self.assertIn(b"Kazuhiko Arase", r.read(400))                                           # the MIT notice stays with the file
