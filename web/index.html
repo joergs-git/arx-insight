@@ -410,6 +410,10 @@
       <div class="tiles" id="gCommit" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))"></div></div>
     <div class="field"><label id="g_exp_l">4 · Experience on the ARX</label>
       <div class="segbig" id="gExp"></div></div>
+    <!-- v0.26.0: "How do you tick?" - three one-tap answers, no right one; the coach's wording, comparisons and cues follow them silently -->
+    <div class="field"><label id="g_coach_l">5 · How do you tick?</label>
+      <div class="foot" id="g_coach_sub" style="margin:0 0 10px"></div>
+      <div id="gCoach" style="display:grid;gap:10px"></div></div>
     <div class="field"><label id="g_focus_l">Fokus antippen (optional)</label>
       <div class="segbig" id="gFocus"></div></div>
     <details class="more"><summary id="g_target_l">Measurable target (optional)</summary>
@@ -738,6 +742,14 @@ const COMMITS=[["","Automatisch","Automatic","Die App wählt passend zu Ziel, Ze
   ["more_time_less_brutal","Mehr Zeit, weniger brutal","More time, less brutal","Sätze enden vor dem Limit, dafür 2 Sätze bei den Hauptübungen.","Sets stop short of the limit, 2 sets on the main exercises instead."],
   ["maintain","Nur erhalten","Maintain only","Weniger Übungen, keine Steigerung - die Sätze bleiben hart.","Fewer exercises, no progression - the sets stay hard."]];
 const EXPS=[["new","Neu","New"],["some","Einige Monate","Some months"],["experienced","Erfahren","Experienced"]];
+// v0.26.0: the motivational profile - key, question (de/en), answers [value, de, en]
+const COACHQ=[["compare",["Woran misst du dich am liebsten?","What do you like to measure yourself against?"],
+    [["self","An meinem letzten Mal","My own last time"],["others","An anderen - Wettkampf reizt mich","Others - competition appeals to me"],["none","An gar nichts - ich will mich gut fühlen","Nothing - I want to feel good"]]],
+  ["tone",["Wie soll der Coach mit dir reden?","How should the coach talk to you?"],
+    [["push","Anfeuern - ruhig laut","Fire me up - loud is fine"],["numbers","Zahlen reichen mir","Numbers are enough"],["calm","Ruhig und knapp","Calm and brief"]]],
+  ["drive",["Was hält dich beim Training?","What keeps you training?"],
+    [["gain","Besser werden","Getting better"],["keep","Nicht nachlassen - erhalten, was ich habe","Not slipping - keeping what I have"],["nudge","Ich brauche den Schubs von außen","I need the push from outside"]]]];
+let TICK={};
 const BODYF=[["weight_kg","Gewicht","Weight","kg"],["waist_cm","Taille","Waist","cm"],["arm_cm","Oberarm","Upper arm","cm"],
   ["chest_cm","Brust","Chest","cm"],["thigh_cm","Oberschenkel","Thigh","cm"],["fat_pct","Körperfett","Body fat","%"]];
 const bUnit=u=>u==="kg"?LKg():u==="cm"?LCm():"%";
@@ -774,6 +786,7 @@ function renderInterview(){
     +(de?" Studienlage: Bei gleichem Wochenumfang bringen beide dasselbe - es entscheidet, was in deine Woche passt.":" Evidence: at equal weekly volume both give the same results - what fits your week decides.")
     +((+$("#gFreq").value||2)<2?(de?" Bei EINER Einheit pro Woche plant die App immer Ganzkörper: Im Split käme jeder Muskel nur alle 2-3 Wochen dran - zu selten für Wachstum.":" With ONE session a week the app always plans full body: in a split every muscle would only be trained every 2-3 weeks - too rare to grow."):"");
   $("#gExp").innerHTML=EXPS.map(x=>`<button data-v="${x[0]}" aria-pressed="${EXPERIENCE===x[0]}">${de?x[1]:x[2]}</button>`).join("");
+  $("#gCoach").innerHTML=COACHQ.map(q=>`<div><div class="foot" style="margin-bottom:6px">${de?q[1][0]:q[1][1]}</div><div class="segbig" data-q="${q[0]}" style="gap:6px">${q[2].map(a=>`<button data-v="${a[0]}" aria-pressed="${TICK[q[0]]===a[0]}">${de?a[1]:a[2]}</button>`).join("")}</div></div>`).join("");
   const kinds=[["",de?"Keins":"None"],["force",de?"Kraft in einer Übung":"Force on an exercise"],["body_weight",de?"Körpergewicht":"Body weight"],["waist",de?"Taille":"Waist"]];
   $("#gTKind").innerHTML=kinds.map(k=>`<button data-v="${k[0]}" aria-pressed="${TKIND===k[0]}">${k[1]}</button>`).join("");
   $("#gTBox").style.display=TKIND?"block":"none"; $("#gTExBox").style.display=TKIND==="force"?"block":"none";
@@ -795,6 +808,8 @@ function renderInterview(){
 }
 function seg(sel,set){$(sel).addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;set(b.dataset.v,b);renderInterview();});}
 seg("#gOutcome",v=>{OUTCOME=v;const o=OUTCOMES.find(x=>x[0]===v);$("#gMain").value=o[5];$("#gCond").value=o[6];renderMix();});
+$("#gCoach").addEventListener("click",e=>{const b=e.target.closest("button"),q=e.target.closest("[data-q]");if(!b||!q)return;
+  TICK[q.dataset.q]=TICK[q.dataset.q]===b.dataset.v?null:b.dataset.v; renderInterview();});   // a second tap clears the answer
 seg("#gPartner",v=>{PARTNER=v==="1";}); seg("#gStruct",v=>{STRUCT=v;}); seg("#gCommit",v=>{COMMIT=v;}); seg("#gMinutes",v=>{MINUTES=v;}); seg("#gExp",v=>{EXPERIENCE=v;}); seg("#gTKind",v=>{TKIND=v;});
 $("#gAids").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const c=b.dataset.c,v=b.dataset.v;
   if(!v) delete AIDS[c]; else AIDS[c]={aids:[v],since:((AIDS[c]||{}).aids||[])[0]===v?AIDS[c].since:null}; renderInterview();});
@@ -808,7 +823,7 @@ $("#gBodySh").addEventListener("click",e=>{const b=e.target.closest("button");if
 function goalLabels(edit){
   const de=CFG.language==="de";
   $("#g_h").textContent=edit?(de?"Profil bearbeiten":"Edit profile"):(de?"Dein Ziel":"Your goal");
-  $("#g_sub").textContent=de?"Vier kurze Fragen. Daraus entstehen Plan, Ermüdungsziel und Zeitbedarf - alles andere ist freiwillig.":"Four short questions. They shape the plan, the effort target and the time it takes - everything else is optional.";
+  $("#g_sub").textContent=de?"Fünf kurze Fragen. Daraus entstehen Plan, Ermüdungsziel, Zeitbedarf und die Ansprache - alles andere ist freiwillig.":"Five short questions. They shape the plan, the effort target, the time it takes and how the coach talks to you - everything else is optional.";
   $("#g_out_l").textContent=de?"1 · Was willst du vor allem erreichen?":"1 · What do you want most?";
   $("#g_fine_l").textContent=de?"Mischung feinjustieren":"Fine-tune the mix";
   $("#g_pole_str").textContent=de?"Kraft":"Strength"; $("#g_pole_mus").textContent=de?"Muskelaufbau":"Muscle";
@@ -821,6 +836,8 @@ function goalLabels(edit){
   $("#g_struct_l").textContent=de?"Aufbau der Einheiten":"How sessions are built";
   $("#g_commit_l").textContent=de?"3 · Zeit oder Härte - womit willst du bezahlen?":"3 · Time or effort - what do you want to pay with?";
   $("#g_exp_l").textContent=de?"4 · Erfahrung an der ARX":"4 · Experience on the ARX";
+  $("#g_coach_l").textContent=de?"5 · So tickst du (freiwillig)":"5 · How do you tick? (optional)";
+  $("#g_coach_sub").textContent=de?"Drei Antworten, keine richtige. Der Coach stellt Wortwahl, Vergleiche und Ansagen still darauf ein - hier und an der Maschine. Jederzeit änderbar; nie an die KI als Etikett.":"Three answers, none of them right. The coach quietly adapts its wording, comparisons and cues - here and at the machine. Change it any time; never sent to the AI as a label.";
   $("#g_height").textContent=de?"Größe (cm)":"Height (cm)"; $("#g_weight").textContent=de?"Gewicht (kg)":"Weight (kg)";
   $("#g_email_l").textContent=de?"E-Mail-Adresse (freiwillig)":"E-mail address (optional)";
   $("#g_email_sub").textContent=de?"Der Schlüssel dieser Person über die Produkte hinweg: dieselbe Adresse in arx-free ordnet dessen Aufzeichnungen diesem Profil zu. Bleibt auf diesem Rechner, geht nie an die KI.":"This person's key across the products: the same address in arx-free links its recordings to this profile. Stays on this PC, never goes to the AI.";
@@ -853,7 +870,7 @@ function fillTargetBox(t){
   $("#gTVal").value=t&&t.value!=null?toUser(t.value,t.kind==="waist"?"cm":"kg"):""; $("#gTDate").value=(t&&t.date)||"";
 }
 function openGoal(){                       // new user: the interview for the first time
-  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; EXCL={}; G_LEGACY={}; G_AUTO={}; PARTNER=false; BODY_LAST=null; STRUCT=""; PLANG=""; DAYS=[]; goalLabels(false);
+  GOAL_MODE="new"; FOCUS_R={}; OUTCOME=null; COMMIT=""; EXPERIENCE=null; MINUTES=""; TKIND=""; AIDS={}; EXCL={}; G_LEGACY={}; G_AUTO={}; PARTNER=false; BODY_LAST=null; STRUCT=""; PLANG=""; DAYS=[]; TICK={}; goalLabels(false);
   $("#gMain").value=60;$("#gCond").value=10;$("#gFreq").value=CFG.sessions_per_week||2;
   $("#gHeight").value="";$("#gWeight").value="";$("#gEmail").value="";
   $("#goalClose").style.display=ACCESS.role==="athlete"?"none":"";      // a phone without a profile has nothing to go back to
@@ -869,7 +886,7 @@ async function openProfile(section){       // edit an existing person's profile/
   FOCUS_R={...(g.focus_regions||{})};
   if(!g.focus_regions&&g.focus) Object.entries(g.focus).forEach(([grp,l])=>{if(l&&l!=="normal")(LEGACY_FOCUS[grp]||[]).forEach(r=>{if(!FOCUS_R[r])FOCUS_R[r]=l;});});
   STRUCT=g.structure||""; OUTCOME=g.outcome||null; COMMIT=g.commitment||""; EXPERIENCE=g.experience||null; MINUTES=g.session_minutes?String(g.session_minutes):"";
-  TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); EXCL={...(g.excluded_exercises||{})}; PARTNER=!!g.partner; PLANG=g.language||""; DAYS=(g.training_days||[]).slice();
+  TKIND=(g.target&&g.target.kind)||""; AIDS=JSON.parse(JSON.stringify(g.aids||{})); EXCL={...(g.excluded_exercises||{})}; PARTNER=!!g.partner; PLANG=g.language||""; DAYS=(g.training_days||[]).slice(); TICK={...(g.coaching||{})};
   $("#gEmail").value=g.email||"";
   G_LEGACY=g.restrictions||{}; G_AUTO={}; Object.entries(legacyChoices(G_LEGACY)).forEach(([c,r])=>{ if(!EXCL[c]) EXCL[c]=r; });   // the old body-part levels, once
   $("#goalClose").style.display="";
@@ -879,7 +896,8 @@ async function openProfile(section){       // edit an existing person's profile/
 }
 $("#goalSave").addEventListener("click",async()=>{
   const body={user_id:CUR.id,goal:goalMix(),sessions_per_week:+$("#gFreq").value,focus:{},approach:"auto",language:PLANG,
-    structure:STRUCT,focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,excluded_exercises:EXCL,partner:PARTNER,training_days:DAYS,target:null};
+    structure:STRUCT,focus_regions:FOCUS_R,session_minutes:MINUTES||null,commitment:COMMIT,outcome:OUTCOME||"",experience:EXPERIENCE||"",aids:AIDS,excluded_exercises:EXCL,partner:PARTNER,training_days:DAYS,target:null,
+    coaching:Object.fromEntries(Object.entries(TICK).filter(([k,v])=>v))};
   if(TKIND&&$("#gTVal").value) body.target={kind:TKIND,exercise:TKIND==="force"?$("#gTEx").value:null,
     value:toMetric(+$("#gTVal").value,TKIND==="waist"?"cm":"kg"),date:$("#gTDate").value||null};
   if($("#gHeight").value) body.height_cm=+$("#gHeight").value;

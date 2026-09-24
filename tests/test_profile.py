@@ -111,6 +111,14 @@ class ProfileRoutes(ServerCase):
         call(self.port, "/api/goal", method="POST", body=dict(body, email=""), headers=OK)             # "" clears
         self.assertNotIn("email", call(self.port, "/api/goal?user_id=1", headers=HDR)[1])
 
+    def test_how_do_you_tick_round_trip(self):
+        # v0.26.0: three one-tap answers, vocabulary only; an empty block clears them
+        body = {"user_id": 1, "goal": {"muscle": 1.0}, "coaching": {"compare": "others", "tone": "numbers", "drive": "gain", "note": "x"}}
+        self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)
+        self.assertEqual(call(self.port, "/api/goal?user_id=1", headers=HDR)[1]["coaching"], {"compare": "others", "tone": "numbers", "drive": "gain"})
+        call(self.port, "/api/goal", method="POST", body=dict(body, coaching={}), headers=OK)
+        self.assertNotIn("coaching", call(self.port, "/api/goal?user_id=1", headers=HDR)[1])
+
     def test_switched_off_exercises_round_trip_and_can_be_cleared(self):
         body = {"user_id": 1, "goal": {"muscle": 1.0}, "sessions_per_week": 2, "excluded_exercises": {"11": "elsewhere", "77": "unwanted"}}
         self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)

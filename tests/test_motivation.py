@@ -153,3 +153,60 @@ class FeatureStamp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HowDoYouTick(unittest.TestCase):
+    """v0.26.0: the three-question motivational profile - vocabulary only, the answers first, then the age band;
+    the rules reach the one-liners, the AI's wording rules and the export's athlete line."""
+    def test_the_profile_is_vocabulary_only(self):
+        import arx_app as app
+        got = app.clean_profile({"coaching": {"compare": "others", "tone": "calm", "drive": "keep", "extra": "x", "note": "free text"}}, fx.CATALOG, datetime(2026, 9, 24).date())
+        self.assertEqual(got["coaching"], {"compare": "others", "tone": "calm", "drive": "keep"})
+        self.assertIsNone(app.clean_profile({"coaching": {"compare": "louder", "tone": 5}}, fx.CATALOG, datetime(2026, 9, 24).date())["coaching"])
+        self.assertIsNone(app.clean_profile({"coaching": "yes"}, fx.CATALOG, datetime(2026, 9, 24).date())["coaching"])
+        self.assertIn("coaching", app.PROFILE_KEYS)
+
+    def test_the_answers_win_then_the_age_band_decides(self):
+        rules = planner.coaching_rules({}, {"age_band": "40-49", "sex": "male"})
+        self.assertEqual((rules["frame"], rules["compare"], rules["tone"], rules["answered"]), ("gain", "self", "push", []))
+        self.assertEqual(planner.coaching_rules({}, {"age_band": "60-69"})["frame"], "keep")                     # what a set KEEPS, at 60+
+        self.assertEqual(planner.coaching_rules({}, {"age_band": "70+", "sex": "male"})["compare"], "self")     # competition never a default
+        rules = planner.coaching_rules({"coaching": {"compare": "others", "tone": "numbers", "drive": "gain"}}, {"age_band": "70+"})
+        self.assertEqual((rules["frame"], rules["compare"], rules["tone"]), ("gain", "others", "numbers"))        # the athlete's word beats the band
+        self.assertEqual(planner.coaching_rules({"coaching": {"drive": "nudge"}}, {"age_band": "60-69"})["frame"], "gain")
+        self.assertEqual(planner.coaching_rules({"coaching": {"compare": "no"}}, None)["compare"], "self")       # an unknown word is no answer
+
+    def test_the_rules_swap_the_one_liners(self):
+        s = {"date": "2026-09-26", "est_minutes": 31, "exercises": [row("Row", target_rule="step", step_pct=2.0), row("Belt Squat")], "why_this_date": []}
+        keep = hist.side_lines({"next_session": s}, None, CFG, {"frame": "keep", "compare": "self"})["next"]
+        self.assertEqual((keep["code"], keep["text"]["meaning"]), ("side_next_step_keep", "2 Übungen, 2 % mehr - so bleibt die Kraft, die du hast."))
+        none = hist.side_lines({"next_session": s}, None, CFG, {"frame": "gain", "compare": "none"})["next"]
+        self.assertEqual(none["code"], "side_next_step_none")
+        self.assertNotIn("letztes Mal", none["text"]["meaning"])
+        last = hist.side_lines({}, {"date": "2026-09-23", "exercises": [{"name": "Row", "inroad": 24, "inroad_target": 20}]}, CFG, {"frame": "keep"})["last"]
+        self.assertEqual(last["code"], "side_last_full_keep")
+        plain = hist.side_lines({"next_session": s}, None, CFG, {"frame": "gain", "compare": "self"})["next"]
+        self.assertEqual(plain["code"], "side_next_step")
+        table = meanings()
+        for code in (c for c in table if c.startswith("side_") and (c.endswith("_keep") or c.endswith("_none"))):
+            for lang in ("de", "en"):
+                self.assertFalse(re.search(LOSS_WORDS[lang], table[code]["meaning"][lang], re.IGNORECASE), code)
+
+    def test_a_report_carries_the_answers_and_the_rules_and_the_ai_gets_rules_only(self):
+        import arx_ai as ai
+        rows = series(ROW, datetime(2026, 8, 1, 10), [1, 1.02, 1.04], every=4)
+        r = report(rows, "2026-08-12", coaching={"compare": "none", "tone": "calm", "drive": "keep"})
+        self.assertEqual(r["profile"]["coaching"], {"compare": "none", "tone": "calm", "drive": "keep"})
+        self.assertEqual((r["coaching_rules"]["frame"], r["coaching_rules"]["compare"], r["coaching_rules"]["tone"]), ("keep", "none", "calm"))
+        self.assertIn(r["side"]["next"]["code"], ("side_next_ready_keep", "side_next_step_keep", "side_next_step_none", "side_next_pb_hold_keep",
+                                                   "side_next_effort", "side_next_repeat"))
+        payload = ai.build_payload(r, fx.cfg("2026-08-12", coaching={"compare": "none", "tone": "calm", "drive": "keep"}))
+        self.assertEqual(payload["profile"]["wording_rules"], {"frame": "keep", "compare": "none", "tone": "calm"})
+        self.assertNotIn("coaching", json.dumps(payload["profile"]))                    # the answers never travel as a label
+        self.assertEqual(ai.lint_payload(payload), [])
+
+    def test_the_answers_ride_on_the_export_line_only_when_known(self):
+        import arx_export as exporter
+        person = exporter.person_facts({}, {"1": {"coaching": {"compare": "self", "tone": "loud", "drive": "keep"}}, "2": {"coaching": {}}, "3": {}})
+        self.assertEqual(person(1), {"coaching": {"compare": "self", "drive": "keep"}})
+        self.assertEqual((person(2), person(3)), ({}, {}))

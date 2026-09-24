@@ -34,7 +34,7 @@ from datetime import datetime, date, timedelta
 from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS, _now,
                       open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
                       EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile,
-                      shared_connection, drop_snapshots, write_json_atomic, clean_email)
+                      shared_connection, drop_snapshots, write_json_atomic, clean_email, COACHING)
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
@@ -2075,6 +2075,7 @@ def build_report(con, cfg: dict) -> dict:
     # chapter 2: the ONE plan - when, what, order, targets (arx_plan). The old session_plan list and
     # the whiteboard targets are derived from it, so nothing on the page contradicts it.
     profile = user_profile(con, cfg["user_id"], today)       # {sex, age, age_band} - never a name
+    rules = planner.coaching_rules(cfg, profile)             # how the wording talks to this person (v0.26.0)
     plan = planner.build_plan(exercises, work, catalog, cfg, today, readiness, load, ev, hist_report["progress_factors"],
                               sequences_all, profile,
                               lambda name, joints: exercise_restriction(name, restrictions, joints, careful))
@@ -2119,7 +2120,9 @@ def build_report(con, cfg: dict) -> dict:
         "plan": plan,                            # next_session (date, why, order, targets), week_plan, profile
         "plan_vs_actual": planner.plan_vs_actual(cfg.get("_plan_ledger"), last_session, cfg),
         "profile": {"sex": profile["sex"], "age_band": profile["age_band"], "outcome": cfg.get("outcome"),
-                    "experience": cfg.get("experience"), "target": cfg.get("target")},
+                    "experience": cfg.get("experience"), "target": cfg.get("target"),
+                    "coaching": cfg.get("coaching") or None},   # the athlete's own "How do you tick?" answers (v0.26.0)
+        "coaching_rules": rules,                 # frame / compare / tone the texts follow (answers first, then the age band)
         "body": body,                            # None unless the athlete entered body values (optional)
         "goal_progress": goal_progress,          # None without a measurable target
         "unmapped_exercises": unmapped,          # DB codes the catalog does not know yet
@@ -2132,7 +2135,7 @@ def build_report(con, cfg: dict) -> dict:
         "last_session": last_session,
         # v0.25.0: the compact column's two one-liners (engine facts, gain-framed, the athlete's own reference) and the
         # stamp of the wording generation they come from - so the athlete's own data can say later what a text did
-        "side": history.side_lines(plan, last_session, cfg),
+        "side": history.side_lines(plan, last_session, cfg, rules),
         "features": dict(planner.FEATURES),
         "featured": featured,
     }

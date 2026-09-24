@@ -111,6 +111,10 @@ def person_facts(config: dict, goals: dict):
         mail = core.clean_email(rec.get("email"))        # the person's key across products (arx-export-3, v0.24.0)
         if mail:
             out["email"] = mail
+        raw = rec.get("coaching") if isinstance(rec.get("coaching"), dict) else {}   # "How do you tick?" (arx-export-4, v0.26.0)
+        coaching = {k: raw[k] for k, allowed in core.COACHING.items() if raw.get(k) in allowed}
+        if coaching:
+            out["coaching"] = coaching
         return out
     return facts
 

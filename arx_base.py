@@ -302,6 +302,11 @@ REQUIRED_REST = {3: 3, 2: 1, 1: 1}
 
 
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+# "How do you tick?" (v0.26.0) - the motivational profile: three one-tap answers, vocabulary only, no right answer. The
+# words steer wording, comparisons and cues (here and, over the export's athlete line, in arx-free) - never a label
+# for the AI. compare = what the athlete likes to measure against; tone = how the coach talks; drive = what keeps
+# them training (gain = getting better, keep = holding what they have, nudge = they want the push from outside).
+COACHING = {"compare": ("self", "others", "none"), "tone": ("push", "numbers", "calm"), "drive": ("gain", "keep", "nudge")}
 
 
 def clean_email(value) -> str | None:

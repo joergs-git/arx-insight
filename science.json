@@ -1675,7 +1675,7 @@
    "title": "Adherence and motivation: what keeps adults 40+ training, and what makes a set count",
    "statement": "Adults do not attend every planned session: older people complete 65-86 % of programmes and attend 58-77 % of sessions, group programmes average 69 %, home resistance training 67 %; two thirds of dropouts happen before or during the ramp-up. What measurably keeps people training is self-monitoring combined with goals, feedback and a review of goals (0.42 vs 0.26 for self-monitoring alone), an autonomy-supportive style, and positive (gain-framed) wording - older adults walked more after benefit messages, younger adults were indifferent to the frame; loss frames never did better for prevention behaviour. Within a session, feedback after every repetition raises output (about 8 %; visual more than verbal), a target about 2 % above the athlete's OWN best raises effort while a far target or a stronger peer does not, and winning against a reference feeds intrinsic motivation whereas pressure to win drains it. Rewarding the return after a missed session was the most effective of 54 gym programmes tested; most effects of games, money and reminders fade when they stop.",
    "practical_rule": "Judge adherence against 60-80 % of planned sessions, not against 100 %; say what a set gains, never what a miss costs; compare the athlete only with their own last comparable set and set targets 1-3 % above it; put a number on the gap to the fatigue target and offer the repeat instead of ordering it; praise truthfully; greet the return after a gap as the thing that counts.",
-   "applied_as": "v0.25.0: the compact column's two one-liners (next session, last session) are gain-framed engine facts with the athlete's own reference (side_next_* / side_last_* in meanings.json); the report's fatigue texts name the gap to the target ('das Ziel liegt 4 % höher') instead of 'half the stimulus'; the repeat after a miss is an offer; the weekly-target finding shows the plan rate of the last weeks against the ADHERENCE_NORM_LOW-ADHERENCE_NORM_HIGH band (60-80 %); the AI coach carries the same rules; every report and plan-ledger entry carries a FEATURES stamp so the effect of a wording generation can be read from the athlete's own data later. Not built (evidence against or absent): streaks, badges, leaderboards, loss frames, fabricated praise, money, context-triggered prompts.",
+   "applied_as": "v0.25.0: the compact column's two one-liners (next session, last session) are gain-framed engine facts with the athlete's own reference (side_next_* / side_last_* in meanings.json); the report's fatigue texts name the gap to the target ('das Ziel liegt 4 % höher') instead of 'half the stimulus'; the repeat after a miss is an offer; the weekly-target finding shows the plan rate of the last weeks against the ADHERENCE_NORM_LOW-ADHERENCE_NORM_HIGH band (60-80 %); the AI coach carries the same rules; every report and plan-ledger entry carries a FEATURES stamp so the effect of a wording generation can be read from the athlete's own data later. Not built (evidence against or absent): streaks, badges, leaderboards, loss frames, fabricated praise, money, context-triggered prompts. v0.26.0: the profile \"How do you tick?\" (arx_base.COACHING: compare self / others / none, tone push / numbers / calm, drive gain / keep / nudge) and arx_plan.coaching_rules - the athlete's answers first, then the age band: at 60+ the frame names what a set KEEPS, comparison is only ever with the athlete's own last set unless they asked for others (competition peaks around 50 and is wanted by men far more than by women - never a default), the tone stays the live coach's unless chosen; the rules travel as report.coaching_rules to the one-liners (variants _keep / _none), to the AI coach (profile.wording_rules, rule 15) and on the export's athlete line to arx-free (contract arx-export-4). Never generation-specific vocabulary (owner's decision 2026-09-24: no evidence, adjacent evidence against).",
    "arx_caveat": "No study used a motor-driven adaptive-resistance machine; the in-session evidence comes from barbell and cycling work in young athletes (one study at 73 years with live power feedback on pneumatic machines, +4-5 %). Adherence norms come from older adults in supervised or community programmes - a home gym with two athletes is monitoring, not a trial.",
    "parameters": [
     "arx_plan.ADHERENCE_NORM_LOW",
@@ -1814,6 +1814,56 @@
      "pmid": "",
      "type": "laboratory experiment",
      "key_finding": "Winning (relative to losing) raised intrinsic motivation through perceived competence; a pressured interpersonal context lowered it through diminished self-determination - a comparison must let the athlete win against something (the own best), never carry pressure to win."
+    },
+    {
+     "authors": "Mayr U, Wozniak D, Davidson C, et al.",
+     "year": 2012,
+     "title": "Competitiveness across the life span: the feisty fifties",
+     "journal": "Psychol Aging",
+     "doi": "10.1037/a0025655",
+     "pmid": "22059714",
+     "type": "field experiment",
+     "key_finding": "N = 543, ages 25-75, real financial stakes: the preference for competing rose across the life span until it peaked around age 50 and dropped thereafter; men had a substantially larger preference for competing than women - not explained by performance or confidence."
+    },
+    {
+     "authors": "Burton NW, Khan A, Brown WJ",
+     "year": 2012,
+     "title": "How, where and with whom? Physical activity context preferences of three adult groups at risk of inactivity",
+     "journal": "Br J Sports Med",
+     "doi": "10.1136/bjsports-2011-090554",
+     "pmid": "22267568",
+     "type": "population survey",
+     "key_finding": "7,873 adults aged 42-67: those aged 60-67 (vs 42-49) had higher odds to prefer activities with people of the same age and lower odds to prefer competitive, team-based, vigorous or fixed-time activities."
+    },
+    {
+     "authors": "Latimer AE, Rivers SE, Rench TA, et al.",
+     "year": 2008,
+     "title": "A Field Experiment Testing the Utility of Regulatory Fit Messages for Promoting Physical Activity",
+     "journal": "J Exp Soc Psychol",
+     "doi": "10.1016/j.jesp.2007.07.013",
+     "pmid": "19543443",
+     "type": "randomised field experiment",
+     "key_finding": "206 inactive adults: messages matching a person's regulatory focus (promotion vs prevention) led to more physical activity and more positive feelings than non-matching ones, particularly for promotion-focused people - matched wording moves behaviour."
+    },
+    {
+     "authors": "Noar SM, Benac CN, Harris MS",
+     "year": 2007,
+     "title": "Does tailoring matter? Meta-analytic review of tailored print health behavior change interventions",
+     "journal": "Psychol Bull",
+     "doi": "10.1037/0033-2909.133.4.673",
+     "pmid": "17592961",
+     "type": "meta-analysis",
+     "key_finding": "57 tailored print interventions, N = 58,454: tailoring changes health behaviour with a small effect (r = .074); what is tailored on moderates the effect - expect small gains from a profile."
+    },
+    {
+     "authors": "Gneezy U, Niederle M, Rustichini A",
+     "year": 2003,
+     "title": "Performance in competitive environments: gender differences",
+     "journal": "Q J Econ",
+     "doi": "10.1162/00335530360698496",
+     "pmid": "",
+     "type": "laboratory experiments",
+     "key_finding": "Under a competitive payment men raised their performance significantly, women did not; no gap under a piece rate; the effect was stronger when women competed against men - competition is a sex-dependent lever, never a default."
     }
    ]
   }

@@ -76,7 +76,7 @@ from __future__ import annotations
 import itertools, math, statistics as st
 from datetime import date, timedelta
 
-from arx_base import EFFORT_RANK, REQUIRED_REST, _ts
+from arx_base import EFFORT_RANK, REQUIRED_REST, _ts, COACHING
 from arx_detail import INROAD_DEEP, INROAD_MODERATE, BORDERLINE
 import arx_evidence as evidence
 from arx_history import REGIONS, REGION_OF, item
@@ -223,10 +223,28 @@ INROAD_LADDER_STEP = 5         # the maintain ladder (ARX practice: find the lea
 # v0.25.0: adherence is judged against what adults reach (60-80 % of planned sessions), and every report / ledger entry
 # carries the generation of the motivating texts (FEATURES) so their effect can be read from the athlete's own data
 ADHERENCE_NORM_LOW, ADHERENCE_NORM_HIGH = 60, 80
-FEATURES = {"side_lines": 1, "framing": 2, "adherence_norms": 1}     # bump a number when that text generation changes
+FEATURES = {"side_lines": 1, "framing": 2, "adherence_norms": 1, "coaching_rules": 1}     # bump a number when that text generation changes
+
+
+def coaching_rules(cfg: dict | None, profile: dict | None) -> dict:
+    """{frame, compare, tone}: what the wording of the report and the coach follows (v0.26.0). The athlete's own
+    answers ("How do you tick?", arx_base.COACHING) win; without an answer the age band decides what the verified
+    evidence supports (science.json adherence_and_motivation): a gain frame everywhere - at 60+ the frame that names
+    what a set KEEPS (older adults walked more after benefit messages, Notthoff 2014; motives at that age are health
+    and independence, Burton 2017); comparison only with the athlete's own last set unless they asked for others
+    (competition peaks around 50 and is wanted by men far more than by women, Mayr 2012, Gneezy 2003 - so it is never
+    a default, never for women or 65+ without their word); the tone as today's live coach (push) unless chosen."""
+    answers = {k: v for k, v in ((cfg or {}).get("coaching") or {}).items() if v in COACHING.get(k, ())}
+    band = (profile or {}).get("age_band") or ""
+    older = band in OLDER_BANDS
+    frame = "keep" if answers.get("drive") == "keep" else ("gain" if answers.get("drive") else ("keep" if older else "gain"))
+    compare = answers.get("compare") or "self"
+    tone = answers.get("tone") or "push"
+    return {"frame": frame, "compare": compare, "tone": tone, "answered": sorted(answers)}
 
 SCIENCE = {
     "ADHERENCE_NORM_LOW": "adherence_and_motivation", "ADHERENCE_NORM_HIGH": "adherence_and_motivation", "FEATURES": "adherence_and_motivation",
+    "coaching_rules": "adherence_and_motivation",
     "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
     "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",

@@ -741,9 +741,23 @@ def goal_progress(target: dict | None, exercises: list[dict], progress: dict, bo
 SIDE_BORDERLINE = 2            # the same tolerance the page and the effort rule use (arx_detail.BORDERLINE)
 
 
-def side_lines(plan: dict | None, last_session: dict | None, cfg: dict) -> dict:
-    """{next, last}: one item each (or None when there is nothing to say)."""
-    return {"next": _side_next(plan or {}, last_session, cfg), "last": _side_last(last_session, cfg)}
+def side_lines(plan: dict | None, last_session: dict | None, cfg: dict, rules: dict | None = None) -> dict:
+    """{next, last}: one item each (or None when there is nothing to say). `rules` (arx_plan.coaching_rules, v0.26.0)
+    swaps a line for its variant when one exists: frame "keep" -> `<code>_keep` (what a set KEEPS), compare "none"
+    -> `<code>_none` (no "above last time")."""
+    return {"next": _variant(_side_next(plan or {}, last_session, cfg), rules, cfg),
+            "last": _variant(_side_last(last_session, cfg), rules, cfg)}
+
+
+def _variant(it: dict | None, rules: dict | None, cfg: dict) -> dict | None:
+    if not it or not rules:
+        return it
+    table = _meanings()
+    for key, suffix in (("compare", "_none"), ("frame", "_keep")):
+        want = {"compare": "none", "frame": "keep"}[key]
+        if rules.get(key) == want and f"{it['code']}{suffix}" in table:
+            return item(f"{it['code']}{suffix}", it["params"], cfg)
+    return it
 
 
 def _side_next(plan: dict, ls: dict | None, cfg: dict) -> dict | None:

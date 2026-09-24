@@ -313,7 +313,8 @@ still refuses every frame). Two things to set on such a PC:
 
 ## Privacy
 
-**Local.** Everything runs on your machine; with phone access switched off the app listens on
+**Local.** Everything runs on your machine (the "How do you tick?" answers included - they never leave it except on
+the export's athlete line to arx-free on the same PC, and never reach the AI as a label); with phone access switched off the app listens on
 `localhost` only (see below for the phone listener, which is on by default). Your API
 key lives only in the local, git-ignored `config.json`. The database, your keys, profiles, check-ins,
 the optional body log, the plan ledger, the phone codes and generated reports never leave the machine.
@@ -693,6 +694,18 @@ always your own last set; a repeat is an offer, not an order; a missed weekly ta
 actually reach (60-80 % of planned sessions), not against 100 %. The same rules bind the AI coach. Every report and
 plan-ledger entry carries a `features` stamp of the wording generation, so your own data can say later whether a
 text generation changed anything.
+
+**What is "How do you tick?" in the profile - and who sees my answers?**
+Three optional one-tap questions (since v0.26.0): what you like to measure yourself against (your own last time /
+others / nothing), how the coach should talk to you (fire me up / numbers / calm and brief), and what keeps you
+training (getting better / keeping what you have / a push from outside). There is no right answer. The report's
+lines, the AI coach's wording and - over the export's athlete line - arx-free's cues follow them quietly: a "keep"
+answer makes a set "hold your strength" instead of "build", "nothing" removes every comparison, "calm" keeps the
+sentences short. Without an answer the verified evidence for your age band decides (at 60+ the frame names what a set
+keeps; comparison with others is never a default - competition peaks around 50 and is wanted by men far more than by
+women). The answers stay in your local `goals.json`, travel only to arx-free on this PC, and the AI receives the
+derived rules ("frame: keep"), never a type or a label. The vocabulary of a cue is never adapted to your generation -
+the evidence says older listeners rate that as less respectful.
 
 **My arx-free sessions are missing from the report.**
 ARX Insight reads the original's database by default. ⚙ Settings → *Where the sets come from* → **both** adds the
