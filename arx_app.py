@@ -202,22 +202,23 @@ def update_json(path, change):
 
 # ---- database queries --------------------------------------------------------
 def search_users(query: str) -> list[dict]:
-    """Substring search on first/last name, like the ARX picker."""
-    with core.shared_connection(STATE["db"]) as con:
+    """Substring search on first/last name, like the ARX picker. Since v0.28.0 the persons that exist only in
+    arx-free's file (device setting arx-free / both) are listed too, with the same keys plus `source` and
+    `arx_free_ids` (contract arx-free-sets-3) - so the report, the plan and every link work for them like for
+    everybody; a user of the original who owns arx-free athletes carries their ids as well."""
+    with core.shared_connection(STATE["db"]) as fb:
+        con = sources.attach(fb, read_json(CONFIG, {}), user_emails())
         cur = con.cursor()
         cur.execute('''select id, trim(firstname), trim(lastname), gender, birthdate, createdate
                        from "User" where deleted is false order by lastname, firstname''')
-        rows = cur.fetchall()
+        rows = [{"id": uid, "name": f"{fn} {ln}".strip(), "first": fn or "", "last": ln or "", "gender": (gender or "").strip(),
+                 "birthdate": str(dob)[:10] if dob else None, "created": str(created)[:10] if created else None,
+                 "source": sources.ORIGINAL_NAME, "arx_free_ids": con.free_ids(uid)} for uid, fn, ln, gender, dob, created in cur.fetchall()]
+        rows += sources.people_of(con)
     q = (query or "").strip().lower()
-    out = []
-    for uid, fn, ln, gender, dob, created in rows:
-        full = f"{fn} {ln}".strip()
-        if q and q not in full.lower():
-            continue
-        out.append({"id": uid, "name": full, "gender": (gender or "").strip(),
-                    "birthdate": str(dob)[:10] if dob else None,
-                    "created": str(created)[:10] if created else None})
-    return out
+    rows = [r for r in rows if not q or q in r["name"].lower()]
+    rows.sort(key=lambda r: (r["last"].lower(), r["first"].lower(), r["id"]))
+    return [{k: v for k, v in r.items() if k not in ("first", "last")} for r in rows]
 
 
 def user_info(user_id: int) -> dict:
@@ -230,12 +231,7 @@ def user_info(user_id: int) -> dict:
 def user_emails() -> dict:
     """{user id: e-mail} of every profile that carries one - the key that tells which arx-free athlete is which of
     our users (arx_sources; owner 2026-09-24: the e-mail is the only unique key across products)."""
-    out = {}
-    for uid, rec in (read_json(GOALS, {}) or {}).items():
-        mail = core.clean_email(rec.get("email")) if isinstance(rec, dict) else None
-        if mail and str(uid).isdigit():
-            out[int(uid)] = mail
-    return out
+    return sources.emails_from_goals(GOALS)
 
 
 def checkin_payload(urec: dict, day: str) -> dict:
@@ -1095,8 +1091,9 @@ def p_snapshot(h, data, who, uid):
 @route("GET", "/api/users", "trainer")
 def r_users(h, q, who, uid):
     rows = search_users(q1(q, "q", ""))
-    if who.role != "local":                             # over the network: the year is enough to tell two people apart
-        rows = [dict(u, birthdate=(u.get("birthdate") or "")[:4] or None) for u in rows]
+    if who.role != "local":                             # over the network: the year is enough to tell two people apart, and
+        rows = [dict({k: v for k, v in u.items() if k != "arx_free_ids"}, birthdate=(u.get("birthdate") or "")[:4] or None)
+                for u in rows]                          # arx-free's athlete ids are for the program next door, not the Wi-Fi
     h._send(rows)
 
 
@@ -1178,10 +1175,12 @@ def r_export(h, q, who, uid):
     try:
         person = exporter.person_facts(read_json(CONFIG, {}), read_json(GOALS, {}))   # language + units, when known (v0.23.0)
         with core.shared_connection(STATE["db"]) as con:
-            counts = exporter.export(con, path, STATE["version"], since=since, person=person)
+            free = sources.attach(con, read_json(CONFIG, {}), user_emails())            # the persons known from arx-free alone (arx-export-6)
+            counts = exporter.export(con, path, STATE["version"], since=since, person=person, persons=sources.people_of(free))
         name = f"arx-export-{time.strftime('%Y%m%d-%H%M%S')}{EXPORT_SUFFIX}"
         h._send_file(path, "application/gzip", {"Content-Disposition": f'attachment; filename="{name}"',
-                                                "X-ARX-Export": f"athletes={counts['athletes']}; ranges={counts['ranges']}; sets={counts['sets']}; skipped={counts['skipped']}"})
+                                                "X-ARX-Export": f"athletes={counts['athletes']}; persons={counts['persons']}; ranges={counts['ranges']}; "
+                                                                f"sets={counts['sets']}; skipped={counts['skipped']}"})
     finally:
         try:
             os.remove(path)
@@ -1270,6 +1269,7 @@ def p_link(h, data, who, uid):
         ACCESS.revoke_athlete(person)
         return h._send({"kind": "athlete", "user_id": person, "url": None, "revoked": True, "running": bool(base)})
     with core.shared_connection(STATE["db"]) as con:
+        con = sources.attach(con, read_json(CONFIG, {}), user_emails())   # a person known from arx-free alone has an age too (v0.28.0)
         age = core.user_profile(con, person, core._today({})).get("age")
     minor = age is not None and age < 18
     if action == "renew":
@@ -1523,8 +1523,9 @@ def main():
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
-    src = sources.status(read_json(CONFIG, {}))       # v0.24.0: say where the sets come from
+    src = sources.status(read_json(CONFIG, {}), user_emails())       # v0.24.0: say where the sets come from
     print(f"Sets from: {src['mode']}" + (f" - arx-free's database: {src['path']}" + ("" if src["found"] else f" ({(src['note'] or {}).get('code')})")
+                                        + (f"; {src['own_persons']} person(s) known from arx-free alone" if src.get("own_persons") else "")
                                         if src["mode"] != "original" else ""))
     if browser_wanted(args.no_browser):                # off after an update (the open page reloads) and on a kiosk that arx-free fronts
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()

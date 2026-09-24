@@ -668,7 +668,9 @@ function renderSources(){ const de=CFG.language==="de", src=SRC||{mode:"original
   $("#setSrc").children[2].textContent=de?"beide":"both";
   const codes={missing:de?"nicht gefunden":"not found",unreadable:de?"nicht lesbar":"cannot be read",unknown_layout:de?"unbekannter Aufbau (neuere arx-free-Version?)":"unknown layout (a newer arx-free?)"};
   let line=de?"Original-DB = die ARX-Software. arx-free = deren eigene Aufzeichnungen und die Kopien, die es importiert hat. Beide = Original-DB plus arx-frees eigene Aufzeichnungen - kein Satz doppelt.":"Original DB = the ARX software. arx-free = its own recordings plus the copies it imported. Both = the original DB plus arx-free's own recordings - no set twice.";
-  if(src.found) line+=` <span style="color:var(--good)">✓ ${de?'arx-free-Datenbank gefunden':'arx-free database found'}</span> · ${src.own_sets||0} ${de?'eigene Sätze':'own sets'}`+(src.unmapped_athletes?` · ${src.unmapped_athletes} ${de?(src.unmapped_athletes>1?'Athleten nur in arx-free (keine passende E-Mail - im Profil eintragen)':'Athlet nur in arx-free (keine passende E-Mail - im Profil eintragen)'):(src.unmapped_athletes>1?'athletes only in arx-free (no matching e-mail - enter it in the profile)':'athlete only in arx-free (no matching e-mail - enter it in the profile)')}`:'');
+  if(src.found) line+=` <span style="color:var(--good)">✓ ${de?'arx-free-Datenbank gefunden':'arx-free database found'}</span> · ${src.own_sets||0} ${de?'eigene Sätze':'own sets'}`
+    +(src.own_persons?` · ${src.own_persons} ${de?(src.own_persons>1?'Personen nur aus arx-free (als eigene Personen gelistet)':'Person nur aus arx-free (als eigene Person gelistet)'):(src.own_persons>1?'persons known from arx-free alone (listed as persons of their own)':'person known from arx-free alone (listed as a person of their own)')}`:'')   // v0.28.0
+    +(src.unmapped_athletes?` · ${src.unmapped_athletes} ${de?(src.unmapped_athletes>1?'Athleten nur in arx-free (werden bei "arx-free" oder "beide" gelistet)':'Athlet nur in arx-free (wird bei "arx-free" oder "beide" gelistet)'):(src.unmapped_athletes>1?'athletes only in arx-free (listed under "arx-free" or "both")':'athlete only in arx-free (listed under "arx-free" or "both")')}`:'');
   else if(src.mode!=="original"||src.configured) line+=` <span style="color:var(--warn)">⚠ ${de?'arx-free-Datenbank':'arx-free database'}: ${codes[(src.note||{}).code]||codes.missing}</span>`;
   $("#s_src_sub").innerHTML=line;
   $("#setSrcPath").value=src.configured?(src.path||""):""; $("#setSrcPath").placeholder=src.path&&!src.configured?(de?"gefunden: ":"found: ")+src.path:(de?"Pfad zu arx-free.sqlite (leer = üblicher Ort)":"path to arx-free.sqlite (empty = the usual place)"); }
@@ -699,7 +701,7 @@ $("#q").addEventListener("focus",runSearch);
 async function runSearch(){
   const list=await api("/api/users?q="+encodeURIComponent($("#q").value));
   $("#results").innerHTML=list.map(u=>`<button class="urow" data-id="${esc(u.id)}" data-name="${esc(u.name)}">
-    <div><div class="un">${esc(u.name)}</div><div class="um">${esc(u.gender||'')} ${u.birthdate?('· *'+esc(u.birthdate)):''}</div></div>
+    <div><div class="un">${esc(u.name)}${u.source==="arx-free"?` <span class="chip flat" title="${CFG.language==="de"?'nur in arx-free angelegt - Auswertung wie für alle':'created in arx-free only - analysed like everybody'}">arx-free</span>`:''}</div><div class="um">${esc(u.gender||'')} ${u.birthdate?('· *'+esc(u.birthdate)):''}</div></div>
     <div class="um">${T().created} ${esc(u.created||'—')}</div></button>`).join("");
 }
 $("#results").addEventListener("click",async e=>{

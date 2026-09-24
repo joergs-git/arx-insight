@@ -298,8 +298,12 @@ read-only and copied into memory - arx-free keeps writing undisturbed, nothing i
 to arx-free stays original-only. **Who is who:** a person is identified across the two products by the **e-mail
 address** (enter it in the profile - the same address in arx-free links its recordings to that profile); an athlete
 arx-free imported from the original is linked by the original's user id as well. Names never identify anyone. An
-athlete that exists only in arx-free without a matching e-mail is not shown; the settings window counts them.
-Contract `arx-free-sets-1` states exactly what is read; `arx-export-3` puts the e-mail on the export's athlete line.
+athlete that exists only in arx-free (v0.28.0) is a person of ARX Insight like everybody - listed with an `arx-free` chip,
+reported, planned and coached; its id is derived from arx-free's athlete id, so nothing has to be stored or migrated,
+and arx-free resolves any athlete to that id through `/api/users` (`arx_free_ids`). If such a person later gets the
+same e-mail as a user of the original, the original's user wins and the recordings move there. Contract
+`arx-free-sets-3` states exactly what is read; `arx-export-6` puts the e-mail on the export's athlete line and a
+`person` line for everybody Insight knows from arx-free alone (never an `athlete` line - that kind is the original's).
 
 **Three more contracts for arx-free (v0.27.0, its requests 4, 5, 6 and 8).** `arx-export-5`: the export's athlete
 line carries the goal's fatigue target (10 or 20 %), and one `range_of_motion` line per athlete, exercise and range
@@ -721,7 +725,8 @@ ARX Insight reads the original's database by default. ⚙ Settings → *Where th
 sets arx-free recorded itself (or *arx-free* reads its file alone). Nothing is counted twice: arx-free's copies of the
 original's sets are skipped when the original is read too. A set of arx-free shows an `arx-free` chip. If the file is
 not in the usual place (`Documents\arx-free\data\arx-free.sqlite`), enter its path there. An athlete who exists
-only in arx-free appears once the same e-mail address is in both products (profile here, athlete there).
+only in arx-free is listed like everybody (chip `arx-free`) as soon as arx-free's file is read - no e-mail needed for
+that; the e-mail is what ties the same person together across the two products (and, one day, a cloud).
 
 **Can it put an icon into the taskbar?**
 The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on

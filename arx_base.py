@@ -335,19 +335,34 @@ def age_band(age: int | None) -> str | None:
 
 
 def user_profile(con, user_id: int, today: date | None = None) -> dict:
-    """{sex, age, age_band} of one athlete from the ARX "User" table - never the name. Unknown
-    values are None (a birthdate is optional in the ARX app)."""
+    """{sex, age, age_band} of one athlete - never the name. From the connection's own person first (a person that
+    exists only in arx-free's file: arx_sources.Connection.person, v0.28.0), else from the ARX "User" table. Unknown
+    values are None (a birthdate is optional in the ARX app, and arx-free's form does not ask for one)."""
     out = {"sex": None, "age": None, "age_band": None}
     try:
-        cur = con.cursor()
-        cur.execute('select gender, birthdate from "User" where id = ?', (user_id,))
-        row = cur.fetchone()
+        who = getattr(con, "person", None)
+        person = who(user_id) if callable(who) else None
     except Exception:
-        row = None
-    if not row:
-        return out
-    gender, born = row
-    out["sex"] = {"m": "male", "f": "female"}.get((gender or "").strip().lower()[:1])
+        person = None
+    if person is not None:
+        gender, born = person.get("sex"), person.get("birth")
+        out["sex"] = gender if gender in ("male", "female") else None
+    else:
+        try:
+            cur = con.cursor()
+            cur.execute('select gender, birthdate from "User" where id = ?', (user_id,))
+            row = cur.fetchone()
+        except Exception:
+            row = None
+        if not row:
+            return out
+        gender, born = row
+        out["sex"] = {"m": "male", "f": "female"}.get((gender or "").strip().lower()[:1])
+    if isinstance(born, str):                      # a text date (arx-free's column) is read like a date
+        try:
+            born = date.fromisoformat(born[:10])
+        except ValueError:
+            born = None
     if born:
         t = today or date.today()
         b = born.date() if hasattr(born, "date") else born

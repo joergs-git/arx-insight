@@ -46,7 +46,8 @@ class TwoListeners(unittest.TestCase):
         self._orig = (app.ACCESS, app.BAD_TOKENS, app.make_report, app.search_users, app.user_info, app.LAN)
         app.ACCESS, app.BAD_TOKENS = access.AccessStore(os.path.join(tmp, "access.json")), access.BadTokens()
         app.make_report = lambda uid, cfg_info=None: dict(REPORT)
-        app.search_users = lambda q: [{"id": 1, "name": "Anna Example", "gender": "f", "birthdate": "1990-02-03", "created": "2025-01-01"}]
+        app.search_users = lambda q: [{"id": 1, "name": "Anna Example", "gender": "f", "birthdate": "1990-02-03", "created": "2025-01-01",
+                                       "source": "original", "arx_free_ids": []}]
         app.user_info = lambda uid: {"id": uid, "name": "Anna Example", "created": None}
         app.write_json(app.GOALS, {})
         self.trainer = {app.TOKEN_HEADER: app.ACCESS.trainer_token()}
@@ -109,6 +110,8 @@ class RouteTable(TwoListeners):
         status, rows = self.lan_call("/api/users?q=", self.trainer)
         self.assertEqual((status, rows[0]["birthdate"]), (200, "1990"))                             # the year is enough on the Wi-Fi
         self.assertEqual(call(self.port, "/api/users?q=", headers=LOCAL)[1][0]["birthdate"], "1990-02-03")
+        self.assertEqual((rows[0].get("source"), "arx_free_ids" in rows[0]), ("original", False))                  # arx-free's ids are for the PC only (v0.28.0)
+        self.assertEqual(call(self.port, "/api/users?q=", headers=LOCAL)[1][0]["arx_free_ids"], [])
         self.assertEqual(self.lan_call("/api/report?user_id=1", self.trainer)[1]["athlete_alias"], "Anna Example")
         status, out = self.lan_call("/api/config", self.trainer, method="POST", body={"anthropic_api_key": "sk-ant-JOHNDOE"})
         self.assertEqual((status, out["detail"]), (403, "loopback_only"))
@@ -217,11 +220,11 @@ class Hardening(TwoListeners):
             with urllib.request.urlopen(req, timeout=10) as r:
                 return r.headers, [json.loads(line) for line in gzip.decompress(r.read()).decode("utf-8").splitlines()]
         hd, lines = fetch("?since=2026-09-13T18:00:00")
-        self.assertEqual((hd["Content-Type"], hd["X-ARX-Export"]), ("application/gzip", "athletes=2; ranges=0; sets=1; skipped=0"))
+        self.assertEqual((hd["Content-Type"], hd["X-ARX-Export"]), ("application/gzip", "athletes=2; persons=0; ranges=0; sets=1; skipped=0"))
         self.assertRegex(hd["Content-Disposition"], r'attachment; filename="arx-export-\d{8}-\d{6}\.ndjson\.gz"')
         self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "footer"])
         self.assertEqual((lines[0]["format"], lines[0]["since"]), ("arx-export-1", "2026-09-13T18:00:00"))     # the line format is v1's
-        self.assertEqual((lines[3]["source_set_id"], lines[-1]), ("11", {"kind": "footer", "athletes": 2, "ranges": 0, "sets": 1}))
+        self.assertEqual((lines[3]["source_set_id"], lines[-1]), ("11", {"kind": "footer", "athletes": 2, "persons": 0, "ranges": 0, "sets": 1}))
         self.assertEqual([(a["language"], a["display_units"]) for a in lines[1:3]], [("de", "metric"), ("en", "metric")])   # v0.23.0: the person
         hd, lines = fetch("")                                                                                # without since: everything
         self.assertEqual(([line["source_set_id"] for line in lines if line["kind"] == "set"], lines[0]["since"]), (["10", "11"], None))

@@ -5,7 +5,7 @@ original. What must hold: no set is read twice, a copy keeps the original's id, 
 whichever software recorded it, the e-mail decides who is who, an unusable file never breaks a report, a new
 recording is new data - and the WAL (where arx-free's newest sets live) is seen."""
 import gzip, json, os, sqlite3, tempfile, unittest, uuid
-from datetime import datetime
+from datetime import datetime, date
 
 import tests                                   # noqa: F401  (points ARX_DATA_DIR at a temp folder first)
 from tests import fixtures as fx
@@ -61,9 +61,10 @@ class FreeFile:
         self.con.execute("PRAGMA journal_mode = WAL")
         self.con.executescript(SCHEMA)
 
-    def athlete(self, aid: str, *, source=None, source_user_id=None, email=None) -> None:
-        self.con.execute("INSERT INTO athletes (id, first_name, last_name, email, source, source_user_id, created_at, updated_at) "
-                         "VALUES (?, 'A', 'B', ?, ?, ?, ?, ?)", (aid, email, source, source_user_id, NOW, NOW))
+    def athlete(self, aid: str, *, source=None, source_user_id=None, email=None, first="A", last="B", gender=None, birth_date=None,
+                created_at=NOW) -> None:
+        self.con.execute("INSERT INTO athletes (id, first_name, last_name, email, gender, birth_date, source, source_user_id, created_at, updated_at) "
+                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (aid, first, last, email, gender, birth_date, source, source_user_id, created_at, NOW))
         self.con.commit()
 
     def add(self, rec: dict) -> str:
@@ -123,7 +124,7 @@ class Sources(unittest.TestCase):
         self.assertEqual((report["sources"]["mode"], report["sources"]["arx_free"]["own_sets"], report["sets_total"]), ("both", 1, 3))
         self.assertEqual(report["last_session"]["date"], "2026-09-20")
         self.assertEqual([x["source"] for x in report["last_session"]["exercises"]], ["arx-free"])
-        self.assertEqual(report["sources"]["arx_free"]["unmapped_athletes"], 2)           # a2 (no e-mail here yet) and a3
+        self.assertEqual((report["sources"]["arx_free"]["unmapped_athletes"], report["sources"]["arx_free"]["own_persons"]), (0, 2))   # a2 (no e-mail here yet) and a3 are persons of their own (v0.28.0)
 
     def test_arx_free_alone_reads_its_file_with_the_originals_ids_for_copies(self):
         con = sources.attach(self.db, self.cfg("arx-free"))
@@ -156,8 +157,8 @@ class Sources(unittest.TestCase):
 
     def test_the_email_decides_who_is_who_before_the_import_link(self):
         con = sources.attach(self.db, self.cfg("both"), {2: "anna@example.com"})
-        self.assertEqual(con.by_user, {1: ["a1"], 2: ["a2"]})
-        self.assertEqual(con.unmapped, 1)                                                 # a3: nothing to go by
+        self.assertEqual({k: v for k, v in con.by_user.items() if k < sources.FREE_UID_BASE}, {1: ["a1"], 2: ["a2"]})
+        self.assertEqual((con.unmapped, list(con.persons)), (0, [sources.derived_uid("a3")]))   # a3: nothing to go by -> a person of its own (v0.28.0)
         self.assertEqual([s["id"] for s in core.load_sets(con, 2)], [self.own2])
         self.free.athlete("a4", source="arx-original", source_user_id="7", email="ANNA@example.com")   # the address wins over the link (user 7 by the link)
         sources.drop_snapshots()
@@ -197,8 +198,10 @@ class Sources(unittest.TestCase):
 
     def test_the_status_for_the_settings_window(self):
         st = sources.status(self.cfg("both"), {2: "anna@example.com"})
-        self.assertEqual((st["mode"], st["found"], st["configured"], st["own_sets"], st["unmapped_athletes"], st["note"]),
-                         ("both", True, True, 3, 1, None))
+        self.assertEqual((st["mode"], st["found"], st["configured"], st["own_sets"], st["unmapped_athletes"], st["own_persons"], st["note"]),
+                         ("both", True, True, 3, 0, 1, None))
+        st = sources.status(self.cfg("original"), {2: "anna@example.com"})                # original only: counted, not persons
+        self.assertEqual((st["unmapped_athletes"], st["own_persons"]), (1, 0))
         st = sources.status({"sources": "both", "arx_free_db": os.path.join(self.tmp.name, "gone.sqlite")})
         self.assertEqual((st["found"], st["note"]["code"]), (False, "missing"))
         self.assertEqual(sources.mode_of({"sources": "nonsense"}), "original")
@@ -234,3 +237,81 @@ class Sources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FreeOnlyPersons(unittest.TestCase):
+    """v0.28.0 (contract arx-free-sets-3, arx-free's request 9): an athlete that exists only in arx-free is a person of
+    ARX Insight - a stable id derived from arx-free's athlete id, listed, reported and profiled like everybody."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(sources.drop_snapshots)
+        self.free = FreeFile(self.tmp.name)
+        self.addCleanup(self.free.close)
+        self.db = FakeDB([make_set(1, 3, datetime(2026, 9, 13, 18, 0))], {1: ("m", None)})
+        self.free.athlete("a1", source="arx-original", source_user_id="1")
+        self.free.athlete("new", first="Nora", last="Neu", gender="f", birth_date="1979-05-17", created_at="2026-09-24T10:00:00+00:00")
+        self.free.athlete("blank", first="Ben", last="Blank")                              # no gender, no birth date - arx-free's form asks for none
+        self.own = self.free.add(free_record(make_set(201, 3, datetime(2026, 9, 24, 18, 0), user=9), athlete="new"))
+        self.own2 = self.free.add(free_record(make_set(202, 3, datetime(2026, 9, 24, 18, 5), user=9), athlete="new"))
+
+    def cfg(self, mode="both", **extra):
+        return dict(fx.cfg("2026-09-24", **{"arx_free_db": self.free.path, **extra}), sources=mode)
+
+    def test_the_id_is_derived_from_arx_frees_athlete_id_and_never_changes(self):
+        uid = sources.derived_uid("new")
+        self.assertTrue(sources.FREE_UID_BASE <= uid < sources.FREE_UID_BASE + sources.FREE_UID_SPAN)
+        self.assertEqual(uid, sources.derived_uid("new"))                                  # nothing stored, the same every time
+        self.assertNotEqual(uid, sources.derived_uid("blank"))
+        con = sources.attach(self.db, self.cfg())
+        self.assertEqual(con.by_user[uid], ["new"])
+        self.assertEqual(con.person(uid)["name"], "Nora Neu")
+        self.assertEqual((con.person(1), con.person("x"), con.unmapped), (None, None, 0))
+        sources.drop_snapshots()
+        again = sources.attach(self.db, self.cfg())                                        # a fresh snapshot: the same ids
+        self.assertEqual(sorted(again.persons), sorted(con.persons))
+
+    def test_two_uuids_that_hash_alike_get_different_ids_and_the_older_keeps_its_own(self):
+        rows = [{"id": "late", "created_at": "2026-09-24T12:00:00"}, {"id": "early", "created_at": "2026-09-23T12:00:00"}]
+        orig = sources.derived_uid
+        sources.derived_uid = lambda aid: 4_000_000                                        # a forced collision
+        try:
+            ids = sources.assign_ids(rows)
+        finally:
+            sources.derived_uid = orig
+        self.assertEqual(ids, {"early": 4_000_000, "late": 4_000_001})
+
+    def test_such_a_person_is_listed_reported_and_profiled_like_everybody(self):
+        con = sources.attach(self.db, self.cfg())
+        rows = sources.people_of(con)
+        self.assertEqual([(r["name"], r["source"], r["arx_free_ids"], r["gender"], r["birthdate"], r["created"]) for r in rows],
+                         sorted([("Ben Blank", "arx-free", ["blank"], "", None, NOW[:10]), ("Nora Neu", "arx-free", ["new"], "f", "1979-05-17", "2026-09-24")],
+                                key=lambda r: sources.derived_uid(r[2][0])))                # rows come in id order
+        uid = sources.derived_uid("new")
+        sets = core.load_sets(con, uid)
+        self.assertEqual(([s["id"] for s in sets], {s["source"] for s in sets}), ([self.own, self.own2], {"arx-free"}))
+        self.assertEqual(core.user_profile(con, uid, date(2026, 9, 24)), {"sex": "female", "age": 47, "age_band": "40-49"})
+        self.assertEqual(core.user_profile(con, sources.derived_uid("blank"), date(2026, 9, 24)), {"sex": None, "age": None, "age_band": None})
+        self.assertEqual(core.user_profile(con, 1, date(2026, 9, 24))["sex"], "male")     # the original's users as before
+        report = core.build_report(con, dict(self.cfg(), user_id=uid))
+        self.assertEqual((report["sets_total"], report["last_session"]["date"], report["profile"]["age_band"], report["sources"]["arx_free"]["own_persons"]),
+                         (2, "2026-09-24", "40-49", 2))
+        self.assertTrue(report["plan"]["next_session"]["exercises"])                       # planned like everybody
+
+    def test_the_originals_user_wins_the_same_email_and_the_original_only_mode_lists_nobody(self):
+        self.free.athlete("twin", email="Nora@Example.com")
+        sources.drop_snapshots()
+        con = sources.attach(self.db, self.cfg(), {sources.derived_uid("new"): "nora@example.com", 1: "nora@example.com"})
+        self.assertEqual(con.by_user[1], ["a1", "twin"])                                   # the smaller (original) id wins the address
+        self.assertEqual(con.by_user.get(sources.derived_uid("new")), ["new"])            # ... and the derived person keeps only its own athlete
+        con = sources.attach(self.db, self.cfg("original"))
+        self.assertEqual((con.free, con.persons, sources.people_of(con)), (None, {}, []))
+        self.assertEqual(sources.people_of(self.db), [])                                   # a plain connection: nothing to list
+
+    def test_the_emails_the_app_and_the_cli_map_by_come_from_the_same_file(self):
+        path = os.path.join(self.tmp.name, "goals.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"1": {"email": " Nora@Example.com "}, "x": {"email": "no@id"}, "2": "not a record", "3": {}}, fh)
+        self.assertEqual(sources.emails_from_goals(path), {1: "nora@example.com"})
+        self.assertEqual(sources.emails_from_goals(os.path.join(self.tmp.name, "missing.json")), {})

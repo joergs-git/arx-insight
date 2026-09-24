@@ -2184,7 +2184,7 @@ def main():
 
     sweep_stale_copies()                         # leftovers of crashed runs hold private data
     con, tmp = open_readonly(args.db)
-    con = sources.attach(con, cfg)           # + arx-free's recordings when config.json says so (v0.24.0)
+    con = sources.attach(con, cfg, sources.emails_from_goals())   # + arx-free's recordings when config.json says so (v0.24.0); the same persons as the app (v0.28.0)
     try:
         report = build_report(con, cfg)
         if args.ai:
