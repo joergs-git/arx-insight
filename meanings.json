@@ -1859,5 +1859,35 @@
    "en": "",
    "de": ""
   }
+ },
+ "coach_effect_group": {
+  "meaning": {
+   "de": "Nach einer Ansage der Gruppe '{group}' lag die Kraft der Wiederholung um {delta_spct} anders als in Sätzen ohne Ansage an derselben Stelle ({n} Ansagen, {control_n} mit Vergleich).",
+   "en": "After a sentence of the group '{group}' the repetition's force differed by {delta_spct} from sets without a sentence at the same point ({n} sentences, {control_n} with a comparison)."
+  },
+  "action": {
+   "de": "Ein erster, beschreibender Wert - eine Ansage wirkt, wenn er über Wochen positiv bleibt; arx-free wählt diese Gruppe dann öfter.",
+   "en": "A first, descriptive number - a sentence works when it stays positive over weeks; arx-free then picks that group more often."
+  }
+ },
+ "coach_effects_pending": {
+  "meaning": {
+   "de": "{sets} Sätze tragen die Ansagen des Live-Coachs ({cues} Sätze gesagt) - für eine Aussage je Gruppe braucht es mindestens {min_n}.",
+   "en": "{sets} sets carry the live coach's sentences ({cues} said) - a statement per group needs at least {min_n}."
+  },
+  "action": {
+   "de": "Weiter aufzeichnen; der Vergleich mit Sätzen ohne Ansage füllt sich von selbst.",
+   "en": "Keep recording; the comparison with sets without a sentence fills itself."
+  }
+ },
+ "coach_effects_ready": {
+  "meaning": {
+   "de": "{sets} Sätze mit Ansagen des Live-Coachs, {cues} Sätze gesagt - {k} Gruppen haben genug Vergleiche.",
+   "en": "{sets} sets with the live coach's sentences, {cues} said - {k} groups have enough comparisons."
+  },
+  "action": {
+   "de": "Positiv heißt: die Kraft blieb nach der Ansage höher als in Sätzen ohne. Beschreibend, kein Beweis.",
+   "en": "Positive means the force stayed higher after the sentence than in sets without one. Descriptive, not proof."
+  }
  }
 }

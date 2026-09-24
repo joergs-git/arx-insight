@@ -15,12 +15,14 @@ from tests.fixtures import make_set  # noqa: E402
 
 
 class FakeCursor:
-    def __init__(self, users, sets):
-        self.users, self.sets, self.rows, self.description = users, sets, [], []
+    def __init__(self, users, sets, ranges=()):
+        self.users, self.sets, self.ranges, self.rows, self.description = users, sets, list(ranges), [], []
 
     def execute(self, sql, params=()):
         if '"User"' in sql:
             self.rows = list(self.users)
+        elif '"RangeOfMotion2"' in sql:                                   # (id, user_id, exercise, rangetype, start, end, confirmed, created)
+            self.rows = list(self.ranges)
         else:
             columns = ["ID", "USER_ID", "EXERCISEDATE", "EXERCISE", "PROTOCOL", "PROTOCOLPARAMETER", "REPSCHEME", "ELAPSEDSECONDS", "INTENSITY",
                        "MAXLOAD", "CONCENTRICMAX", "ECCENTRICMAX", "HIDEFROMSTATS", "NOTES", "RESTTIMER", "RESTTIMERUSED", "COMPARISONSET_ID",
@@ -37,8 +39,8 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, users, sets):
-        self._cursor = FakeCursor(users, sets)
+    def __init__(self, users, sets, ranges=()):
+        self._cursor = FakeCursor(users, sets, ranges)
 
     def cursor(self):
         return self._cursor
@@ -64,7 +66,7 @@ class ExportTest(unittest.TestCase):
             path = os.path.join(tmp, "export.ndjson.gz")
             counts = exporter.export(FakeConnection(users, [second, first]), path, "9.9.9")
             lines = read(path)
-        self.assertEqual(counts, {"athletes": 2, "sets": 2, "skipped": 0})
+        self.assertEqual(counts, {"athletes": 2, "ranges": 0, "sets": 2, "skipped": 0})
         self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "set", "footer"])
         self.assertEqual((lines[0]["format"], lines[0]["source"], lines[0]["exporter"]), ("arx-export-1", "arx-original", "arx-insight 9.9.9"))
         self.assertEqual(lines[1], {"kind": "athlete", "source_user_id": "1", "first_name": "Anna", "last_name": "Beispiel", "gender": "f",
@@ -78,8 +80,37 @@ class ExportTest(unittest.TestCase):
         self.assertNotIn("WaitingTimeLeft", [e["Type"] for e in one["events"]])
         self.assertEqual(one["events"][0]["Type"], "BeginSequence")
         self.assertEqual(set(one["samples"][0]) >= {"Time", "Value", "EncoderValue"}, True)
-        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "sets": 2})
+        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "ranges": 0, "sets": 2})
         self.assertNotIn("email", json.dumps(lines).lower())                       # nothing but name, gender, birth date of a person
+
+    def test_the_current_range_of_motion_rides_between_athletes_and_sets(self):
+        # contract arx-export-5 (arx-free's request 4): one line per user + exercise + range type = the original's current row
+        from decimal import Decimal
+        users = [(1, "A", "B", "m", None, None)]
+        ranges = [(60, 1, 11, "Automatic", Decimal("21.700"), Decimal("33.000"), True, datetime(2026, 9, 19, 19, 6, 8, 902800)),
+                  (65, 1, 19, "Static", Decimal("16.470"), Decimal("16.470"), False, None)]
+        one = make_set(10, 11, datetime(2026, 9, 13, 18, 0), reps=1)
+        one.update(PROTOCOLPARAMETER=1, NOTES=None, RESTTIMER=None, RESTTIMERUSED=None, COMPARISONSET_ID=None)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "export.ndjson.gz")
+            counts = exporter.export(FakeConnection(users, [one], ranges), path, "9.9.9")
+            lines = read(path)
+            exporter.export(FakeConnection(users, [one], ranges), path, "9.9.9", since="2026-09-20T00:00:00")   # since filters sets only
+            later = read(path)
+        self.assertEqual(counts["ranges"], 2)
+        self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "range_of_motion", "range_of_motion", "set", "footer"])
+        self.assertEqual(lines[2], {"kind": "range_of_motion", "source_user_id": "1", "exercise_code": 11, "range_type": "Automatic",
+                                    "start_in": 21.7, "end_in": 33.0, "confirmed": True, "source_rom_id": "60", "created_at": "2026-09-19T19:06:08"})
+        self.assertEqual((lines[3]["range_type"], lines[3]["confirmed"], lines[3]["created_at"]), ("Static", False, None))
+        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 1, "ranges": 2, "sets": 1})
+        self.assertEqual([line["kind"] for line in later], ["header", "athlete", "range_of_motion", "range_of_motion", "footer"])
+
+    def test_the_goals_fatigue_target_rides_on_the_athlete_line(self):
+        # contract arx-export-5 (arx-free's request 5): 20 for a muscle goal, 10 for strength, nothing without a goal
+        person = exporter.person_facts({}, {"1": {"goal": {"muscle": 0.7, "strength": 0.3}}, "2": {"goal": {"strength": 0.6, "muscle": 0.4}},
+                                            "3": {"goal": {}}, "4": {"goal": {"muscle": "x"}}})
+        self.assertEqual((person(1), person(2), person(3), person(4)), ({"fatigue_target_pct": 20}, {"fatigue_target_pct": 10}, {}, {}))
+        self.assertEqual(exporter.fatigue_target_of({"conditioning": 0.5, "muscle": 0.5}), 10)
 
     def test_since_keeps_only_the_sets_that_began_after_it(self):
         # contract arx-export-2: `since` = a started_at text of the export; strictly after it; the athletes always all
@@ -93,11 +124,11 @@ class ExportTest(unittest.TestCase):
             lines = read(path)
             exporter.export(FakeConnection(users, rows), path)
             everything = read(path)
-        self.assertEqual(counts, {"athletes": 2, "sets": 1, "skipped": 0})
+        self.assertEqual(counts, {"athletes": 2, "ranges": 0, "sets": 1, "skipped": 0})
         self.assertEqual((lines[0]["format"], lines[0]["since"]), ("arx-export-1", "2026-09-13T18:00:11"))    # the line format is unchanged
         self.assertEqual([line["kind"] for line in lines], ["header", "athlete", "athlete", "set", "footer"])
         self.assertEqual((lines[3]["source_set_id"], lines[3]["started_at"]), ("12", "2026-09-13T18:00:12"))    # 18:00:11 itself is not "after"
-        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "sets": 1})
+        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 2, "ranges": 0, "sets": 1})
         self.assertEqual((everything[0]["since"], everything[-1]["sets"]), (None, 3))                          # no since: null, all sets
 
     def test_what_insight_knows_about_the_person_rides_on_the_athlete_line(self):
@@ -144,8 +175,8 @@ class ExportTest(unittest.TestCase):
             path = os.path.join(tmp, "export.ndjson.gz")
             counts = exporter.export(FakeConnection([(1, "A", "B", "m", None, None)], [good, bad]), path)
             lines = read(path)
-        self.assertEqual(counts, {"athletes": 1, "sets": 1, "skipped": 1})
-        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 1, "sets": 1})   # the footer counts what is in the file
+        self.assertEqual(counts, {"athletes": 1, "ranges": 0, "sets": 1, "skipped": 1})
+        self.assertEqual(lines[-1], {"kind": "footer", "athletes": 1, "ranges": 0, "sets": 1})   # the footer counts what is in the file
 
 
 if __name__ == "__main__":

@@ -223,7 +223,7 @@ INROAD_LADDER_STEP = 5         # the maintain ladder (ARX practice: find the lea
 # v0.25.0: adherence is judged against what adults reach (60-80 % of planned sessions), and every report / ledger entry
 # carries the generation of the motivating texts (FEATURES) so their effect can be read from the athlete's own data
 ADHERENCE_NORM_LOW, ADHERENCE_NORM_HIGH = 60, 80
-FEATURES = {"side_lines": 1, "framing": 2, "adherence_norms": 1, "coaching_rules": 1}     # bump a number when that text generation changes
+FEATURES = {"side_lines": 1, "framing": 2, "adherence_norms": 1, "coaching_rules": 1, "coach_effects": 1}     # bump a number when that text generation changes
 
 
 def coaching_rules(cfg: dict | None, profile: dict | None) -> dict:

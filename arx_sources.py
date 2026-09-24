@@ -219,6 +219,10 @@ class FreeSnapshot:
             except (IndexError, ValueError, TypeError):
                 events = []
             static = str(r.get("mode") or "").strip().lower() == "static"
+            try:                                     # the live coach's notes (contract arx-free-sets-2, schema 5): optional, own recordings only
+                coach = json.loads(r["coach_json"]) if r.get("coach_json") else None
+            except (ValueError, TypeError):
+                coach = None
             out.append({
                 "ID": self.set_key(r), "EXERCISEDATE": str(r["started_at"]).replace("T", " "), "SESSION": r.get("session_id"),
                 "EXERCISE": r["exercise_code"], "PROTOCOL": _protocol_code(r.get("protocol")),
@@ -227,7 +231,7 @@ class FreeSnapshot:
                 "HIDEFROMSTATS": bool(r.get("junk")), "REPSCHEME": "StaticModeData" if static else "LoopingRepSequence",
                 "_events": events if isinstance(events, list) else [], "_scheme": scheme if isinstance(scheme, dict) else {},
                 "_source": ORIGINAL_NAME if r.get("source") == FREE_SOURCE else FREE_NAME,
-                "_uuid": r["id"],
+                "_uuid": r["id"], "_coach": coach if isinstance(coach, dict) else None,
             })
         return out
 

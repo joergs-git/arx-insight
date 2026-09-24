@@ -203,6 +203,24 @@ class Sources(unittest.TestCase):
         self.assertEqual((st["found"], st["note"]["code"]), (False, "missing"))
         self.assertEqual(sources.mode_of({"sources": "nonsense"}), "original")
 
+    def test_the_coachs_notes_ride_on_the_set_when_the_column_exists(self):
+        # contract arx-free-sets-2: schema 5 adds sets.coach_json - read when there, a file without it still reads
+        self.free.con.execute("ALTER TABLE sets ADD COLUMN coach_json TEXT")
+        self.free.con.execute("PRAGMA user_version = 5")
+        notes = {"on_ramp": 0, "care": False, "jerky_starts": 0, "asked_all_right": False,
+                 "cues": [{"id": "e_resist", "group": "eccentric", "kind": "general", "rep": 3, "t": 21.5}], "fatigue": {"reps": 8}}
+        self.free.con.execute("UPDATE sets SET coach_json = ? WHERE id = ?", (json.dumps(notes), self.own1))
+        self.free.con.commit()
+        sources.drop_snapshots()
+        con = sources.attach(self.db, self.cfg("both"))
+        by_id = {s["id"]: s for s in core.load_sets(con, 1)}
+        self.assertEqual(by_id[self.own1]["coach"]["cues"][0]["group"], "eccentric")
+        self.assertIsNone(by_id[1]["coach"])                                             # the original's sets carry none
+        report = core.build_report(con, self.cfg("both"))
+        self.assertEqual(report["last_session"]["exercises"][0]["coach_cues"], 1)
+        self.assertEqual((report["coach_effects"]["available"], report["coach_effects"]["sets_with_notes"], report["coach_effects"]["interp"]["code"]),
+                         (True, 1, "coach_effects_pending"))
+
     def test_labels_the_original_never_uses_stay_visible(self):
         rec = free_record(make_set(105, 3, datetime(2026, 9, 22, 19, 0)), athlete="a1", protocol="FatigueTarget")
         fid = self.free.add(rec)
