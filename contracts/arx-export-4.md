@@ -1,14 +1,25 @@
-# Contract `arx-export-2` - history of the original software for arx-free
+# Contract `arx-export-4` - history of the original software for arx-free
 
-Version 2 (2026-09-23, ARX Insight v0.22.0 / arx-free v0.9.0) - supersedes `arx-export-1` (2026-09-20). What is new:
-the **route** `GET /api/export?since=` on ARX Insight's local listener, so that the original's newest sets land in
-arx-free by themselves (owner's wish of 2026-09-22 night), and the header field `since`. The **lines are unchanged**:
-the format name in the header stays `arx-export-1` because it names the line format, a file of version 1 is still
-valid, an importer written for version 1 reads a version-2 answer as it is. arx-free drafted this as a "revision 1.1"
-of the version-1 file on 2026-09-23; the owner of the contract (ARX Insight) issues it as version 2 - an adopted
-contract file is never edited in place. `arx-export-1.md` stays in both folders until arx-free has adopted this file.
-Revised the same day, before adoption (ARX Insight v0.23.0): the `athlete` line carries `language` and `display_units`
-when ARX Insight knows them - the owner's "yes" to arx-free's proposal for ONE user basis (2026-09-23).
+Version 4 (2026-09-24, ARX Insight v0.26.0) - supersedes `arx-export-3` (2026-09-24). What is new: the `athlete` line
+carries the person's **`coaching`** block when ARX Insight knows it - the three one-tap answers of the motivational
+profile "How do you tick?" (`compare`: `self` | `others` | `none`, `tone`: `push` | `numbers` | `calm`, `drive`:
+`gain` | `keep` | `nudge`; motivation-plan-2026-09-24, research-age-types.md section 3). arx-free reads them for its
+cue choice (F11): the `drill` style only for `tone = push`, the numbers line for `numbers`, voice off by default and
+one closing sentence for `calm`, partner-comparison cues only ever for `compare = others`, "holds your strength"
+verdicts for `drive = keep`. Additive: one optional object, an importer ignores fields it does not know, the lines are
+otherwise unchanged and the format name in the header stays `arx-export-1`. `arx-export-3.md` stays in both folders
+until arx-free has adopted this file.
+
+Version 3 (2026-09-24, ARX Insight v0.24.0) added the person's **`email`** when ARX Insight knows it - the e-mail address is THE key of a person across arx-free,
+ARX Insight and any future cloud (owner 2026-09-24: "the only unique world key"; contract `arx-free-sets-1` maps
+athletes by it first). Additive: one optional field, an importer ignores fields it does not know, the **lines are
+otherwise unchanged** and the format name in the header stays `arx-export-1` (it names the line format). arx-free's
+importer takes the address into `athletes.email` at creation and on every later import ("Insight wins for the person").
+
+Version 2 (2026-09-23, ARX Insight v0.22.0 / arx-free v0.9.0) brought the **route** `GET /api/export?since=` on ARX
+Insight's local listener, so that the original's newest sets land in arx-free by themselves (owner's wish of
+2026-09-22 night), the header field `since`, and - revised before adoption (ARX Insight v0.23.0) - `language` and
+`display_units` on the `athlete` line (the owner's "yes" to arx-free's proposal for ONE user basis).
 
 Direction: ARX Insight -> arx-free, one way, repeatable. The exporter lives in ARX Insight because it already owns the
 safe copy-then-open access to the original Firebird database; arx-free never needs a Firebird client. Units:
@@ -62,21 +73,27 @@ the filter this answer was made with, `null` for a complete export.
 ```json
 {"kind": "athlete", "source_user_id": "17", "first_name": "...", "last_name": "...", "gender": "m|f|null",
  "birth_date": "1980-05-17|null", "created_at": "2024-03-01T10:00:00|null",
- "language": "de", "display_units": "metric"}
+ "language": "de", "display_units": "metric", "email": "name@example.com",
+ "coaching": {"compare": "self", "tone": "push", "drive": "gain"}}
 ```
 
-Only these fields leave the original database. No e-mail, no password or token columns, no cloud ids, no waiver.
-The sentinel date `0001-01-01` of the original is exported as `null`. Text is decoded explicitly (charset NONE).
+Only these fields leave the original database (it holds no e-mail column). No password or token columns, no cloud
+ids, no waiver. The sentinel date `0001-01-01` of the original is exported as `null`. Text is decoded explicitly
+(charset NONE).
 
 **What ARX Insight knows about the person** (owner's decision 2026-09-23, "Insight wins for the person, arx-free
 wins for the machine"): `language` (`de` | `en`) = the person's own choice in ARX Insight's profile, else the device's
 language when it is set; `display_units` (`metric` | `imperial`) = the device's units when they are set (ARX Insight
-keeps units per device). Both are **optional and present only when known**. Never `photos_enabled` - ARX Insight does
-not know it, it stays arx-free's. An importer ignores fields it does not know.
+keeps units per device); `email` (`arx-export-4`) = the address typed into the person's ARX Insight profile, trimmed
+and lower-cased - THE key of the person across the products (contract `arx-free-sets-1`); `coaching` (`arx-export-4`) =
+the answers of the motivational profile, only the agreed words, only the keys that were answered. All four are
+**optional and present only when known**. Never `photos_enabled` - ARX Insight does not know it, it stays arx-free's. An importer
+ignores fields it does not know.
 
-Import rule (one user basis): arx-free takes the two at creation AND on every later import and shows them read-only
-in the athlete's profile from then on (`athletes.insight_profile_at`); an athlete without the fields keeps arx-free's
-own values and stays editable there. Everything machine-side (coach switches, on-ramp, fatigue targets, positions,
+Import rule (one user basis): arx-free takes the four at creation AND on every later import and shows them read-only
+in the athlete's profile from then on (`athletes.insight_profile_at`; `email` into `athletes.email`; `coaching` where
+its cue chooser reads it); an athlete
+without the fields keeps arx-free's own values and stays editable there. Everything machine-side (coach switches, on-ramp, fatigue targets, positions,
 remembered settings) stays arx-free's and is never overwritten. A value that is not one of the agreed words is ignored.
 Editing the person (name, language, units) happens in ONE place: ARX Insight.
 

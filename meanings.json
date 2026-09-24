@@ -1809,5 +1809,55 @@
    "en": "",
    "de": ""
   }
+ },
+ "side_next_ready_keep": {
+  "meaning": {
+   "en": "{n} exercises, ≈ {minutes} min - that keeps your strength.",
+   "de": "{n} Übungen, ≈ {minutes} min - das hält deine Kraft."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_step_keep": {
+  "meaning": {
+   "en": "{n} exercises, {step_pct} more - that keeps the strength you have.",
+   "de": "{n} Übungen, {step_pct} mehr - so bleibt die Kraft, die du hast."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_step_none": {
+  "meaning": {
+   "en": "{n} exercises, a small step up - the step that works.",
+   "de": "{n} Übungen, ein kleiner Schritt nach oben - der Schritt, der wirkt."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_pb_hold_keep": {
+  "meaning": {
+   "en": "A best mark on {exercise} - today hold it, that is enough.",
+   "de": "Bestmarke {exercise} - heute halten, das reicht."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_full_keep": {
+  "meaning": {
+   "en": "All {n} exercises at the fatigue target - that keeps your strength.",
+   "de": "Alle {n} Übungen am Ermüdungsziel - das hält deine Kraft."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
  }
 }

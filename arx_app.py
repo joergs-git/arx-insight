@@ -266,7 +266,7 @@ BODY_LIMITS = {"weight_kg": (20, 300), "arm_cm": (10, 80), "chest_cm": (40, 200)
                "thigh_cm": (20, 120), "fat_pct": (2, 70)}
 BODY_KEEP = 400                 # entries kept per person
 PROFILE_KEYS = ("focus_regions", "session_minutes", "commitment", "outcome", "experience", "target", "aids", "structure",
-                "next_groups", "excluded_exercises", "partner", "training_days")
+                "next_groups", "excluded_exercises", "partner", "training_days", "coaching")
 
 
 def _iso_day(value, earliest: str = "2000-01-01", latest: date | None = None) -> str | None:
@@ -335,6 +335,9 @@ def clean_profile(data: dict, catalog: dict, today: date) -> dict:
         days = data.get("training_days")
         clean = sorted({d for d in days if isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6}) if isinstance(days, list) else []
         out["training_days"] = clean or None
+    if "coaching" in data:                         # "How do you tick?" (v0.26.0): three one-tap answers, vocabulary only, no free text
+        raw = data.get("coaching") if isinstance(data.get("coaching"), dict) else {}
+        out["coaching"] = {k: raw[k] for k, allowed in core.COACHING.items() if raw.get(k) in allowed} or None
     return out
 
 
