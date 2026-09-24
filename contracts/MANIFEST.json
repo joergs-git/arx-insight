@@ -45,11 +45,12 @@
   },
   {
    "name": "vocabulary",
-   "version": 1,
+   "version": 2,
    "owner": "arx-insight",
-   "what": "the words a person reads or hears for the fatigue rule (report, coach, live display)",
+   "what": "the words a person reads or hears for the fatigue rule (report, coach, live display); v2 (2026-09-24): a set below the target is 'a real load - the target sits N % higher' (never 'half the stimulus'), the repeat is an offer, four framing rules (positive first and true, gain frame, own reference, offers not orders); v1 stays listed until arx-free adopts v2",
    "files": {
-    "vocabulary-1.md": "67b3ff5f752e437c18a90aeeba5a214946b8bec3f921943ac6156c0c08cdb6d1"
+    "vocabulary-1.md": "67b3ff5f752e437c18a90aeeba5a214946b8bec3f921943ac6156c0c08cdb6d1",
+    "vocabulary-2.md": "55b59bd6f39e66b388ae09b506c3bbf58708604d45a656e6b06d38bf46f2639d"
    }
   },
   {

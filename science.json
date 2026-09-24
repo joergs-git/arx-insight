@@ -1,7 +1,7 @@
 {
  "_comment": "ARX Insight science base: the evidence behind the planner's defaults. Curated and versioned with the code - the app never searches the web. Every entry: what the evidence says (statement), a cautious rule of thumb (practical_rule), how THIS app applies it (applied_as), what does not transfer to a motor-driven machine (arx_caveat), the constants it backs (parameters), the evidence level and the references. The athlete's own measured data always outranks a default from this file.",
  "version": 2,
- "reviewed": "2026-09-22",
+ "reviewed": "2026-09-24",
  "review_policy": "Re-check at every release against new meta-analyses and position stands; a default that the evidence no longer supports is changed in the code, not only here.",
  "method": "References were retrieved live from the official PubMed record (NCBI E-utilities) and cross-checked against the Crossref record of their DOI (title, first author, year); bibliographic fields were written by script, not retyped. Key findings are taken from the abstracts - no full texts were read. A sample was re-checked independently before this file was written.",
  "evidence_levels": {
@@ -1668,6 +1668,152 @@
      "pmid": "7714837",
      "type": "physiology (biopsies)",
      "key_finding": "At the end of a 30-s maximal sprint phosphocreatine was 19.7 % of rest; it recovered to 65 % after 1.5 min and only to 85.5 % after 6 min - the first seconds of a pause restore almost nothing."
+    }
+   ]
+  },
+  "adherence_and_motivation": {
+   "title": "Adherence and motivation: what keeps adults 40+ training, and what makes a set count",
+   "statement": "Adults do not attend every planned session: older people complete 65-86 % of programmes and attend 58-77 % of sessions, group programmes average 69 %, home resistance training 67 %; two thirds of dropouts happen before or during the ramp-up. What measurably keeps people training is self-monitoring combined with goals, feedback and a review of goals (0.42 vs 0.26 for self-monitoring alone), an autonomy-supportive style, and positive (gain-framed) wording - older adults walked more after benefit messages, younger adults were indifferent to the frame; loss frames never did better for prevention behaviour. Within a session, feedback after every repetition raises output (about 8 %; visual more than verbal), a target about 2 % above the athlete's OWN best raises effort while a far target or a stronger peer does not, and winning against a reference feeds intrinsic motivation whereas pressure to win drains it. Rewarding the return after a missed session was the most effective of 54 gym programmes tested; most effects of games, money and reminders fade when they stop.",
+   "practical_rule": "Judge adherence against 60-80 % of planned sessions, not against 100 %; say what a set gains, never what a miss costs; compare the athlete only with their own last comparable set and set targets 1-3 % above it; put a number on the gap to the fatigue target and offer the repeat instead of ordering it; praise truthfully; greet the return after a gap as the thing that counts.",
+   "applied_as": "v0.25.0: the compact column's two one-liners (next session, last session) are gain-framed engine facts with the athlete's own reference (side_next_* / side_last_* in meanings.json); the report's fatigue texts name the gap to the target ('das Ziel liegt 4 % höher') instead of 'half the stimulus'; the repeat after a miss is an offer; the weekly-target finding shows the plan rate of the last weeks against the ADHERENCE_NORM_LOW-ADHERENCE_NORM_HIGH band (60-80 %); the AI coach carries the same rules; every report and plan-ledger entry carries a FEATURES stamp so the effect of a wording generation can be read from the athlete's own data later. Not built (evidence against or absent): streaks, badges, leaderboards, loss frames, fabricated praise, money, context-triggered prompts.",
+   "arx_caveat": "No study used a motor-driven adaptive-resistance machine; the in-session evidence comes from barbell and cycling work in young athletes (one study at 73 years with live power feedback on pneumatic machines, +4-5 %). Adherence norms come from older adults in supervised or community programmes - a home gym with two athletes is monitoring, not a trial.",
+   "parameters": [
+    "arx_plan.ADHERENCE_NORM_LOW",
+    "arx_plan.ADHERENCE_NORM_HIGH",
+    "arx_plan.FEATURES"
+   ],
+   "evidence_level": "moderate",
+   "reviewed": "2026-09-24",
+   "references": [
+    {
+     "authors": "Picorelli AM, Pereira LS, Pereira DS, et al.",
+     "year": 2014,
+     "title": "Adherence to exercise programs for older people is influenced by program characteristics and personal factors: a systematic review",
+     "journal": "J Physiother",
+     "doi": "10.1016/j.jphys.2014.06.012",
+     "pmid": "25092418",
+     "type": "systematic review",
+     "key_finding": "9 prospective studies of older people: 65-86 % completed the programme, 58-77 % of the available sessions were attended, adherence higher in supervised programmes."
+    },
+    {
+     "authors": "Farrance C, Tsofliou F, Clark C",
+     "year": 2016,
+     "title": "Adherence to community based group exercise interventions for older people: A mixed-methods systematic review",
+     "journal": "Prev Med",
+     "doi": "10.1016/j.ypmed.2016.02.037",
+     "pmid": "26921655",
+     "type": "mixed-methods systematic review",
+     "key_finding": "10 community group-exercise programmes of >= 6 months for older people: mean adherence 69.1 % (SD 14.6); themes social connectedness, perceived benefits, programme design, empowering effects, the instructor."
+    },
+    {
+     "authors": "Mañas A, Gómez-Redondo P, Valenzuela PL, et al.",
+     "year": 2021,
+     "title": "Unsupervised home-based resistance training for community-dwelling older adults: A systematic review and meta-analysis of randomized controlled trials",
+     "journal": "Ageing Res Rev",
+     "doi": "10.1016/j.arr.2021.101368",
+     "pmid": "34022464",
+     "type": "systematic review and meta-analysis",
+     "key_finding": "Unsupervised home-based resistance training in adults >= 60 years: adherence averaged 67 % (range 47-97 %)."
+    },
+    {
+     "authors": "Collins KA, Huffman KM, Wolever RQ, et al.",
+     "year": 2022,
+     "title": "Determinants of Dropout from and Variation in Adherence to an Exercise Intervention: The STRRIDE Randomized Trials",
+     "journal": "Transl J Am Coll Sports Med",
+     "doi": "10.1249/tjx.0000000000000190",
+     "pmid": "35669034",
+     "type": "cohort analysis",
+     "key_finding": "947 sedentary adults, 295 dropouts: 67 % dropped out before the start or during the ramp-up, 40 % named lack of time; after the ramp adherence did not waver."
+    },
+    {
+     "authors": "Michie S, Abraham C, Whittington C, et al.",
+     "year": 2009,
+     "title": "Effective techniques in healthy eating and physical activity interventions: a meta-regression",
+     "journal": "Health Psychol",
+     "doi": "10.1037/a0016136",
+     "pmid": "19916637",
+     "type": "meta-regression",
+     "key_finding": "122 evaluations, N = 44,747: pooled effect 0.31; interventions combining self-monitoring with another self-regulation technique (goal setting, feedback, review of goals) were more effective, 0.42 vs 0.26."
+    },
+    {
+     "authors": "Samdal GB, Eide GE, Barth T, et al.",
+     "year": 2017,
+     "title": "Effective behaviour change techniques for physical activity and healthy eating in overweight and obese adults; systematic review and meta-regression analyses",
+     "journal": "Int J Behav Nutr Phys Act",
+     "doi": "10.1186/s12966-017-0494-y",
+     "pmid": "28351367",
+     "type": "systematic review and meta-regression",
+     "key_finding": "48 RCTs in adults with mean age >= 40 and BMI >= 30: goal setting of behaviour and self-monitoring predicted the effect short and long term; feedback on outcome, graded tasks and an autonomy-supportive style predicted the long-term effect (ES 0.24 long term, 0.37 short term)."
+    },
+    {
+     "authors": "Notthoff N, Carstensen LL",
+     "year": 2014,
+     "title": "Positive messaging promotes walking in older adults",
+     "journal": "Psychol Aging",
+     "doi": "10.1037/a0036748",
+     "pmid": "24956001",
+     "type": "randomised experiments",
+     "key_finding": "Older adults (60-95 years) walked more when told the benefits of walking than when told the consequences of not walking (t(58) = 2.29, p = .03, sustained over 28 days); younger adults were unaffected by the frame."
+    },
+    {
+     "authors": "Gallagher KM, Updegraff JA",
+     "year": 2012,
+     "title": "Health message framing effects on attitudes, intentions, and behavior: a meta-analytic review",
+     "journal": "Ann Behav Med",
+     "doi": "10.1007/s12160-011-9308-7",
+     "pmid": "21993844",
+     "type": "meta-analysis",
+     "key_finding": "189 effect sizes from 94 studies: gain-framed messages were more likely than loss-framed ones to encourage prevention behaviours incl. physical activity (r = 0.083); no framing effect on attitudes or intentions."
+    },
+    {
+     "authors": "Weakley J, Cowley N, Schoenfeld BJ, et al.",
+     "year": 2023,
+     "title": "The Effect of Feedback on Resistance Training Performance and Adaptations: A Systematic Review and Meta-analysis",
+     "journal": "Sports Med",
+     "doi": "10.1007/s40279-023-01877-2",
+     "pmid": "37410360",
+     "type": "systematic review and meta-analysis",
+     "key_finding": "20 studies: feedback during resistance training raised acute barbell velocity by about 8.4 % (g = 0.63); visual feedback (g = 1.11) beat verbal (g = 0.47); feedback after every repetition was most effective and raised motivation, competitiveness and perceived effort."
+    },
+    {
+     "authors": "Ducrocq GP, Hureau TJ, Meste O, et al.",
+     "year": 2017,
+     "title": "Increased Fatigue Response to Augmented Deceptive Feedback during Cycling Time Trial",
+     "journal": "Med Sci Sports Exerc",
+     "doi": "10.1249/MSS.0000000000001272",
+     "pmid": "28319585",
+     "type": "randomised crossover",
+     "key_finding": "Cyclists racing an avatar at 102 % of their own best improved power by 5 % and completion time by 2 %; an avatar at 105 % brought no improvement - a target just above the own best works, a far one does not."
+    },
+    {
+     "authors": "Milkman KL, Gromet D, Ho H, et al.",
+     "year": 2021,
+     "title": "Megastudies improve the impact of applied behavioural science",
+     "journal": "Nature",
+     "doi": "10.1038/s41586-021-04128-4",
+     "pmid": "34880497",
+     "type": "megastudy (field experiment)",
+     "key_finding": "61,293 gym members, 54 four-week programmes: 45 % raised weekly visits by 9-27 %, the best offered a micro-reward for returning after a missed workout; only 8 % had a measurable effect after the four weeks; impartial experts could not predict the winners."
+    },
+    {
+     "authors": "Ntoumanis N, Ng JYY, Prestwich A, et al.",
+     "year": 2021,
+     "title": "A meta-analysis of self-determination theory-informed intervention studies in the health domain: effects on motivation, health behavior, physical, and psychological health",
+     "journal": "Health Psychol Rev",
+     "doi": "10.1080/17437199.2020.1718529",
+     "pmid": "31983293",
+     "type": "meta-analysis",
+     "key_finding": "73 experimental interventions informed by self-determination theory: increases in need support and autonomous motivation - not in controlled motivation - were associated with positive changes in health behaviour."
+    },
+    {
+     "authors": "Reeve J, Deci E",
+     "year": 1996,
+     "title": "Elements of the Competitive Situation that Affect Intrinsic Motivation",
+     "journal": "Personality and Social Psychology Bulletin",
+     "doi": "10.1177/0146167296221003",
+     "pmid": "",
+     "type": "laboratory experiment",
+     "key_finding": "Winning (relative to losing) raised intrinsic motivation through perceived competence; a pressured interpersonal context lowered it through diminished self-determination - a comparison must let the athlete win against something (the own best), never carry pressure to win."
     }
    ]
   }

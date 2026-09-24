@@ -220,7 +220,13 @@ CALIB_MIN_SPREAD = 10          # ... over at least this many machine-scale point
 INROAD_LADDER_STEP = 5         # the maintain ladder (ARX practice: find the least fatigue that still holds strength)
 # Every default above that rests on sport science names its entry in science.json (a test checks
 # that the entry exists, is referenced and was reviewed). The athlete's own data outranks all of them.
+# v0.25.0: adherence is judged against what adults reach (60-80 % of planned sessions), and every report / ledger entry
+# carries the generation of the motivating texts (FEATURES) so their effect can be read from the athlete's own data
+ADHERENCE_NORM_LOW, ADHERENCE_NORM_HIGH = 60, 80
+FEATURES = {"side_lines": 1, "framing": 2, "adherence_norms": 1}     # bump a number when that text generation changes
+
 SCIENCE = {
+    "ADHERENCE_NORM_LOW": "adherence_and_motivation", "ADHERENCE_NORM_HIGH": "adherence_and_motivation", "FEATURES": "adherence_and_motivation",
     "REQUIRED_REST": "recovery_between_sessions", "REST_MIN": "rest_intervals", "REST_EXTRA_MAX": "rest_intervals",
     "EFFORT_TARGETS": "proximity_to_failure", "COMMITMENT": "minimum_dose", "COMMITMENT.maintain": "maintenance",
     "EFFORT_RESET_AFTER": "proximity_to_failure", "EFFORT_REPS_STEP": "proximity_to_failure",
@@ -1202,6 +1208,8 @@ def target_for(c: dict, effort: dict, commitment: str, band: str | None, age: st
     r1 = lambda v: round(v, 1) if isinstance(v, (int, float)) else v      # a measured tempo (4.22 s) is shown to one decimal
     out["interp"] = item(code, {"target_kg": out["target_peak_kg"], "base_kg": base["kg"], "step_pct": out["step_pct"],
                                 "effort_pct": effort["inroad_min"], "base_date": base["date"], "last_pct": last_inroad,
+                                # the gap to the fatigue target as a number (v0.25.0: "the target sits 4 % higher", never "half")
+                                "gap_pct": (max(0, effort["inroad_min"] - last_inroad) if last_inroad is not None else None),
                                 "span_days": prog.get("span_days"), "n": prog.get("n"), "days": away_days,
                                 # the parameter change after repeated misses (v0.10.0)
                                 "misses": misses, "tempo_from": (chg.get("tempo_s") or {}).get("from"),
@@ -2000,6 +2008,7 @@ def ledger_entry(plan: dict, today: date) -> dict | None:
     record = (plan or {}).get("window_record") or s
     entry = {"created": today.isoformat(), "date": record["date"], "session_type": record["session_type"], "est_minutes": record["est_minutes"],
              "benchmark": record["benchmark"], "commitment": plan["profile"]["commitment"],
+             "features": dict(FEATURES),                 # which generation of the motivating texts this plan was shown with (v0.25.0)
              "exercises": [{"name": it["name"], "order": it["order"], "sets": it["sets"], "target_peak_kg": it["target_peak_kg"],
                             "target_rule": it["target_rule"], "effort": it["effort_target"]["label"],
                             "inroad_min": it["effort_target"]["inroad_min"], "rest_before_min": it["rest_before_min"],
@@ -2023,9 +2032,9 @@ def update_ledger(entries: list[dict], plan: dict, today: date) -> tuple[list[di
     if not new:
         return entries, False
     if entries and ledger_signature(entries[-1]) == ledger_signature(new):
-        if entries[-1].get("window") == new.get("window"):
+        if entries[-1].get("window") == new.get("window") and entries[-1].get("features") == new.get("features"):
             return entries, False
-        entries[-1] = dict(entries[-1], **({"window": new["window"]} if new.get("window") else {}))   # the same plan, the window changed
+        entries[-1] = dict(entries[-1], features=new["features"], **({"window": new["window"]} if new.get("window") else {}))   # the same plan, the window or the texts changed
         if not new.get("window"):
             entries[-1].pop("window", None)
         return entries[-LEDGER_MAX:], True

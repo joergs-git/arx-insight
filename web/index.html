@@ -181,6 +181,7 @@
   .side .bo i{font-style:normal;font-family:var(--disp);font-size:12px;color:var(--ink3)}
   .side .bwatch{margin-top:8px;font-size:14px;color:var(--ink2);line-height:1.45}
   .side .bfocus{margin-top:6px;font-size:14px;font-style:italic;color:var(--ink)}
+  .side .sline{font-weight:600;font-size:15px;line-height:1.3;margin:4px 0 8px}   /* v0.25.0: the one-liner of each box */
   .side .bfocus:empty{display:none}
   .side .sbox[onclick]{cursor:pointer}
   @media(min-width:1280px){#r_body.wrap{max-width:1560px}#r_main{display:grid;grid-template-columns:360px minmax(0,1fr);gap:22px;align-items:start}
@@ -1135,7 +1136,7 @@ function sideHtml(r){
     if(x.effort_capped||x.inroad==null) return {f:"·",c:"var(--ink3)",t:de?"nicht gewertet":"not judged"};
     if(x.restriction==="careful") return {f:"👌",c:"var(--ink2)",t:(de?"schonen · ":"go easy · ")+effLabel(x.effort)+" "+x.inroad+" %"};
     const hit=x.inroad>=(x.inroad_target||0)-2, d=(x.delta_comparable&&x.delta_pct!=null)?x.delta_pct:null;
-    if(!hit) return {f:"👎",c:"var(--accent)",t:(de?"nur ":"only ")+x.inroad+" % · "+(de?"halber Reiz":"half the stimulus")+(x.repeat_now?(de?" · nochmal":" · once more"):"")};
+    if(!hit) return {f:"👎",c:"var(--accent)",t:x.inroad+" % · "+(de?"Ziel ":"target ")+(de?"liegt ":"")+Math.max(0,(x.inroad_target||0)-x.inroad)+(de?" % höher":" % higher")+(x.repeat_now?(de?" · nochmal, wenn du magst":" · again, your call"):"")};
     if(x.is_pb) return {f:"⭐",c:"var(--good)",t:(de?"Bestwert · ":"new best · ")+effLabel(x.effort)+" "+x.inroad+" %"};
     if(d!=null&&d<=-2) return {f:"👌",c:"var(--warn)",t:effLabel(x.effort)+" "+x.inroad+" % · "+sign(d)+" %"};
     return {f:"👍",c:"var(--good)",t:effLabel(x.effort)+" "+x.inroad+" %"+(d!=null?" · "+sign(d)+" %":"")};
@@ -1159,13 +1160,15 @@ function sideHtml(r){
     if(it.restriction==="careful"||it.careful_today) watch.push(`${esc(it.name)}: ${de?"schonen, kein Zielwert":"go easy, no target"}`);
     else if(it.status==="limited") watch.push(`${esc(it.name)}: ${de?"eingeschränkt":"limited"} (${(it.limited_by||[]).map(mname).join(", ")})`);
   });
-  if(ls&&(ls.repeat_now||[]).length) watch.unshift(`${de?"Nochmal, richtig":"Once more, properly"}: ${ls.repeat_now.map(esc).join(", ")}`);
+  if(ls&&(ls.repeat_now||[]).length) watch.unshift(`${de?"Nochmal, wenn du magst":"Once more, your call"}: ${ls.repeat_now.map(esc).join(", ")}`);
   if(ns&&ns.time_window) watch.push(de?`Zeitfenster: ${ns.time_window.size} statt ${ns.time_window.normal_size} Übungen`:`time window: ${ns.time_window.size} of ${ns.time_window.normal_size} exercises`);
   const when=!ns?"—":(ns.days_from_today===0?(de?"Heute":"Today"):ns.days_from_today===1?(de?"Morgen":"Tomorrow"):WDL()[ns.weekday]);
   const order=ns?ns.exercises.map((x,i)=>`<span class="bo"><i>${i+1}</i>${esc(x.name)}${x.sets>1?` ×${x.sets}`:""}</span>`).join(""):"";
+  // v0.25.0: one engine-made line per box - gain-framed, the athlete's own reference (report.side, meanings side_*)
+  const line=k=>{const it=(r.side||{})[k]; const t=it&&it.text&&it.text.meaning; return t?`<div class="sline">${esc(t)}</div>`:"";};
   return `<aside class="side" id="brief">
-    <div class="sbox" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${ls?`<div class="ss">${ls.working_sets} ${de?"Sätze":"sets"} · ${Math.round(ls.wall_minutes)} min</div>`:""}${lastRows}</div>
-    <div class="sbox" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)}`:""}</div>${ns?`<div class="ss">${ns.exercises.length} ${de?"Übungen":"exercises"} · ≈ ${ns.est_minutes} min</div>`:""}
+    <div class="sbox" onclick="location.hash='#ch1'"><div class="bhead">${de?"Zuletzt":"Last"} · ${ls?dFull(ls.date):"—"}</div>${line("last")}${ls?`<div class="ss">${ls.working_sets} ${de?"Sätze":"sets"} · ${Math.round(ls.wall_minutes)} min</div>`:""}${lastRows}</div>
+    <div class="sbox" onclick="location.hash='#ch2'"><div class="bhead">${de?"Als Nächstes":"Next"} · ${esc(when)}${ns?` ${dShort(ns.date)}`:""}</div>${line("next")}${ns?`<div class="ss">${ns.exercises.length} ${de?"Übungen":"exercises"} · ≈ ${ns.est_minutes} min</div>`:""}
       <div class="border">${order||(de?"Kein Termin planbar.":"No session can be planned.")}</div>
       ${watch.length?`<div class="bwatch"><b>${de?"Achten auf":"Watch"}:</b> ${watch.slice(0,3).join(" · ")}</div>`:""}
       <div class="bfocus" id="brief_focus"></div></div>
@@ -1268,7 +1271,7 @@ function lastSessionHtml(r){
     const p=x.prev;
     const badges=[x.is_pb?`<span class="chip up">🏅 ${de?'Neuer Bestwert':'New PB'}</span>`:'',
       x.effort==='deep'?`<span class="chip up">🔥 ${de?'Tief ermüdet – voller Reiz':'Deep fatigue – full stimulus'}</span>`:'',
-      x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'unter dem Ziel - nochmal':'below target - again'}</span>`:'',
+      x.repeat_now?`<span class="chip" style="border-color:var(--warn);color:var(--warn)">↻ ${de?'unter dem Ziel - nochmal, wenn du magst':'below target - again, your call'}</span>`:'',
       modeLabel(x)?`<span class="chip" title="${de?'Modus dieses Satzes':'mode of this set'}">${esc(modeLabel(x))}</span>`:'',
       x.source==="arx-free"?`<span class="chip" title="${de?'mit arx-free aufgezeichnet':'recorded with arx-free'}">arx-free</span>`:'',
       x.sets_today>1?`<span class="chip">${x.sets_today}× ${de?'heute':'today'}</span>`:'',
@@ -1302,7 +1305,7 @@ function lastSessionHtml(r){
   }).join("");
   const rows=ls.exercises.map(x=>{const p=x.prev;
     return `<tr><td class="num">${x.order||''}</td>
-      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'unter dem Ziel - nochmal':'below target - again')+'">↻</span>':''}${modeLabel(x)?` <small style="color:var(--ink3)">${esc(modeLabel(x))}</small>`:''}${x.source==="arx-free"?` <span class="chip flat" title="${de?'mit arx-free aufgezeichnet':'recorded with arx-free'}">arx-free</span>`:''}</td>
+      <td><span class="grp ${x.group}">${x.group}</span> ${x.name}${x.sets_today>1?` <span class="chip">${x.sets_today}×</span>`:''}${x.is_pb?' 🏅':''}${x.effort==='deep'?' 🔥':''}${x.repeat_now?' <span style="color:var(--warn)" title="'+(de?'unter dem Ziel - nochmal, wenn du magst':'below target - again, your call')+'">↻</span>':''}${modeLabel(x)?` <small style="color:var(--ink3)">${esc(modeLabel(x))}</small>`:''}${x.source==="arx-free"?` <span class="chip flat" title="${de?'mit arx-free aufgezeichnet':'recorded with arx-free'}">arx-free</span>`:''}</td>
       <td class="num">${x.rest_before_min!=null?x.rest_before_min+' min':'—'}</td>
       <td class="num">${uKg(x.max_kg)}</td>
       <td class="num" style="color:${p?(x.delta_comparable?dcol(x.delta_pct):'var(--ink3)'):'var(--ink3)'}">${p?pctS(x.delta_pct):'—'}${p&&!x.delta_comparable?' ⚠':''}</td>

@@ -1860,7 +1860,8 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
             "movement": s.get("movement", "dynamic"), "ending": s.get("ending", "reps"), "phase": s.get("phase") or "both",
             "pos_in": s.get("pos_in"), "output_kg_s": s.get("impulse_kg_s"), "inroad_machine": s.get("inroad_legacy"),
             "repeat_now": repeat_now, "inroad_target": goal_min,
-            "repeat_interp": history.item("repeat_now", {"last_pct": s.get("inroad"), "target_pct": goal_min}, cfg or {}) if repeat_now else None,
+            "repeat_interp": history.item("repeat_now", {"last_pct": s.get("inroad"), "target_pct": goal_min,
+                                                         "gap_pct": max(0, goal_min - (s.get("inroad") or 0))}, cfg or {}) if repeat_now else None,
             "inroad_legacy": s.get("inroad_legacy"), "effort_capped": s.get("effort_capped"),
             # inside the set: fatigue per phase, robust strength, pacing, time under tension
             "fatigue_con_pct": s.get("fatigue_con_pct"), "fatigue_ecc_pct": s.get("fatigue_ecc_pct"),
@@ -1928,7 +1929,9 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         # one plain explanation of the measure, with the athlete's own target (v0.12.3)
         "fatigue_glossary": history.item("fatigue_glossary", {"level": ("tief" if (cfg or {}).get("language") == "de" else "deep") if goal_min >= INROAD_DEEP
                                                                        else ("mittel" if (cfg or {}).get("language") == "de" else "medium"), "target_pct": goal_min}, cfg or {}),
-        "repeat_panel": (history.item("repeat_now_panel", {"exercises": [r["name"] for r in rows if r["repeat_now"]], "target_pct": goal_min}, cfg or {})
+        "repeat_panel": (history.item("repeat_now_panel", {"exercises": [r["name"] for r in rows if r["repeat_now"]], "target_pct": goal_min,
+                                                            # the gap to the target of the weakest set that is to be repeated (v0.25.0: a number, not "half")
+                                                            "gap_pct": max([goal_min - (r["inroad"] or 0) for r in rows if r["repeat_now"]] or [0])}, cfg or {})
                          if open_session and any(r["repeat_now"] for r in rows) else None),
         "working_sets": day["working_sets"], "false_starts": day.get("false_starts", 0),
         "visits": day["visits"], "wall_minutes": day["wall_minutes"],
@@ -2127,6 +2130,10 @@ def build_report(con, cfg: dict) -> dict:
         "today_exercises": {(catalog.get(c) or {}).get("name") or f"Exercise {c}": lvl for c, lvl in planner.today_exercise_levels(cfg, catalog).items()},
         "session_plan": planner.legacy_session_plan(plan, exercises, load["recovery"]),
         "last_session": last_session,
+        # v0.25.0: the compact column's two one-liners (engine facts, gain-framed, the athlete's own reference) and the
+        # stamp of the wording generation they come from - so the athlete's own data can say later what a text did
+        "side": history.side_lines(plan, last_session, cfg),
+        "features": dict(planner.FEATURES),
         "featured": featured,
     }
 
