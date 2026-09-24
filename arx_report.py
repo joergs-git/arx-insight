@@ -22,6 +22,8 @@ ARX app hides from its own stats are excluded and reported, PB flags are ROM-gat
 flag looks at the current gap only, and a failed AI call can no longer take the report down with it.
 v0.5.1: a long gap is worded by what the evidence says (nothing is lost for about three weeks, see
 DETRAINING_LOSS_DAYS); the planner names training breaks and plans the comeback (arx_plan).
+v0.24.0: the sets may also come from arx-free's own recordings (arx_sources): the device setting `sources` reads
+the original's database, arx-free's file or both - every set from the software that recorded it, never twice.
 """
 
 from __future__ import annotations
@@ -32,11 +34,12 @@ from datetime import datetime, date, timedelta
 from arx_base import (data_dir, LB_TO_KG, IN_TO_CM, locate_fbclient, TEMP_PREFIX, STALE_COPY_SECONDS, _now,
                       open_readonly, sweep_stale_copies, blob_bytes, _ts, _today, _linfit,
                       EFFORT_RANK, RANK_LABEL, REQUIRED_REST, user_profile,
-                      shared_connection, drop_snapshots, write_json_atomic)
+                      shared_connection, drop_snapshots, write_json_atomic, clean_email)
 import arx_detail as detail     # what happened INSIDE a set: phases per rep, effort v3 (v0.4.0)
 import arx_evidence as evidence # context of each set, the athlete's own order / rest / limiter effects
 import arx_history as history   # weekly / monthly windows, progress factors, findings - each self-explaining
 import arx_plan as planner
+import arx_sources as sources  # where the sets come from: the original's DB, arx-free's recordings, or both (v0.24.0)
 from arx_detail import INROAD_DEEP      # the ONE plan: when, what, order, targets, week plan, plan ledger
 
 
@@ -161,29 +164,54 @@ def flag_false_starts(sets: list[dict]) -> None:
                 a["working"] = False
 
 
-def load_sets(con, user_id: int) -> list[dict]:
-    """Read all non-deleted sets for one user and derive per-set metrics."""
-    cur = con.cursor()
-    cur.execute(
-        '''select id, exercisedate, "SESSION", exercise, protocol, maxload,
+SET_SQL = '''select id, exercisedate, "SESSION", exercise, protocol, maxload,
                   concentricmax, eccentricmax, intensity, elapsedseconds,
                   repschemedata, eventstreamdata, hidefromstats, repscheme
            from "ExerciseSet"
            where user_id = ? and deleted is false
-           order by exercisedate''',
-        (user_id,),
-    )
-    cols = [d[0] for d in cur.description]
-    out = []
-    for row in cur.fetchall():
-        r = dict(zip(cols, row))
-        rsd = blob_bytes(r.pop("REPSCHEMEDATA"))
-        ev = blob_bytes(r.pop("EVENTSTREAMDATA"))
+           order by exercisedate'''
 
-        reps, ended_early, has_events = 0, False, False
+
+def load_sets(con, user_id: int) -> list[dict]:
+    """Read all non-deleted sets for one user and derive per-set metrics. Since v0.24.0 the rows come from the
+    original's database, from arx-free's recordings or from both (arx_sources.Connection; a plain connection - the
+    CLI without the setting, the tests' FakeDB - reads the original only): every set from the software that
+    recorded it, never twice, ordered by start."""
+    free, mode = getattr(con, "free", None), getattr(con, "mode", sources.DEFAULT_MODE)
+    rows = []
+    if mode != "arx-free":                       # the original's database
+        cur = con.cursor()
+        cur.execute(SET_SQL, (user_id,))
+        cols = [d[0] for d in cur.description]
+        for row in cur.fetchall():
+            r = dict(zip(cols, row))
+            rsd = blob_bytes(r.pop("REPSCHEMEDATA"))
+            ev = blob_bytes(r.pop("EVENTSTREAMDATA"))
+            try:
+                r["_events"] = json.loads(ev.decode("latin1"))
+            except Exception:
+                r["_events"] = None
+            try:
+                r["_scheme"] = json.loads(rsd.decode("latin1"))
+            except Exception:
+                r["_scheme"] = None
+            r["_source"] = sources.ORIGINAL_NAME
+            rows.append(r)
+    if free is not None:                         # arx-free's own recordings (both) or its whole file (arx-free)
+        rows += free.set_rows(con.free_ids(user_id), mode)
+    out = [set_row(r) for r in rows]
+    out.sort(key=lambda x: x["date"])            # stable: the original's order by start stays, arx-free's sets slot in
+    return out
+
+
+def set_row(r: dict) -> dict:
+    """One set as the engine sees it, from a row with the original's column names plus the parsed event stream
+    (`_events`), the rep-scheme configuration (`_scheme`) and the recorder's name (`_source`)."""
+    events = r.get("_events")
+    reps, ended_early, has_events = 0, False, False
+    if isinstance(events, list):
+        has_events = bool(events)
         try:
-            events = json.loads(ev.decode("latin1"))
-            has_events = bool(events)
             reps = sum(1 for e in events if e.get("Type") == "EndRep")
             # logged by the machine when the set stopped before the programmed
             # rep count / time was reached (athlete quit, false start, restart)
@@ -191,65 +219,67 @@ def load_sets(con, user_id: int) -> list[dict]:
         except Exception:
             pass
 
-        # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
-        # programmed pauses - needed per set for the session-sequence analysis
-        rom_cm = pause_end = pause_return = pos_in = None
-        static = str(r.get("REPSCHEME") or "").strip() == "StaticModeData"
-        try:
-            cfg = json.loads(rsd.decode("latin1"))
-            static = static or (cfg.get("StartPosition") is not None and cfg.get("StartPosition") == cfg.get("EndPosition"))
-            pos_in = round(float(cfg.get("StartPosition")), 2) if isinstance(cfg.get("StartPosition"), (int, float)) else None
-            rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
-            pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
-            pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
-        except Exception:
-            pass
+    # machine settings of THIS set (REPSCHEMEDATA): range of motion and the
+    # programmed pauses - needed per set for the session-sequence analysis
+    rom_cm = pause_end = pause_return = pos_in = None
+    static = str(r.get("REPSCHEME") or "").strip() == "StaticModeData"
+    try:
+        cfg = r.get("_scheme")
+        if not isinstance(cfg, dict):
+            raise ValueError("no configuration")
+        static = static or (cfg.get("StartPosition") is not None and cfg.get("StartPosition") == cfg.get("EndPosition"))
+        pos_in = round(float(cfg.get("StartPosition")), 2) if isinstance(cfg.get("StartPosition"), (int, float)) else None
+        rom_cm = round(abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0)) * IN_TO_CM, 1)
+        pause_end = round(float(cfg.get("PauseAfterEndPosition", 0) or 0), 1)
+        pause_return = round(float(cfg.get("PauseAfterStartPosition", 0) or 0), 1)
+    except Exception:
+        pass
 
-        sec = float(r["ELAPSEDSECONDS"] or 0)
-        c = float(r["CONCENTRICMAX"] or 0)
-        e = float(r["ECCENTRICMAX"] or 0)
-        mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
-        status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
-        if static and status == "short" and sec >= STATIC_MIN_SECONDS and c > 0 and has_events:
-            # an isometric hold (ARX "Static" mode) has no reps by design: real work - a working set judged by the
-            # shared hold rule (contract hold-1, v0.17.0), compared only with other holds at the same position (v0.14.0)
-            status, reason = "working", f"isometric hold, {sec:.0f} s"
-        if status == "working" and r.get("HIDEFROMSTATS"):
-            # hidden from the statistics in the ARX app itself: not training in the athlete's
-            # own judgement. Sets that are already excluded keep their more specific status.
-            status, reason = "hidden", "hidden from stats in the ARX app"
+    sec = float(r["ELAPSEDSECONDS"] or 0)
+    c = float(r["CONCENTRICMAX"] or 0)
+    e = float(r["ECCENTRICMAX"] or 0)
+    mean_force = float(r["INTENSITY"] or 0)   # INTENSITY == time-averaged force (lb)
+    status, reason = classify_set(sec, reps, c, e, ended_early, has_events)
+    if static and status == "short" and sec >= STATIC_MIN_SECONDS and c > 0 and has_events:
+        # an isometric hold (ARX "Static" mode) has no reps by design: real work - a working set judged by the
+        # shared hold rule (contract hold-1, v0.17.0), compared only with other holds at the same position (v0.14.0)
+        status, reason = "working", f"isometric hold, {sec:.0f} s"
+    if status == "working" and r.get("HIDEFROMSTATS"):
+        # hidden from the statistics in the ARX app itself: not training in the athlete's
+        # own judgement. Sets that are already excluded keep their more specific status.
+        status, reason = "hidden", "hidden from stats in the ARX app"
 
-        out.append({
-            "id": r["ID"],
-            "date": str(r["EXERCISEDATE"]),
-            "session": r["SESSION"],
-            "exercise": r["EXERCISE"],
-            "protocol": r["PROTOCOL"],
-            "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "unknown"),
-            # contract modes-1: movement x ending (+ phase from the curve, attached with the detail)
-            "movement": "static" if static else "dynamic", "ending": ENDINGS.get(r["PROTOCOL"], "unknown"),
-            "pos_in": pos_in,
-            "reps": reps,
-            "ended_early": ended_early,
-            "status": status,                  # working | short | aborted | no_data | hidden | static (| false_start)
-            "reason": reason,                  # why it is not a working set ("" when it is)
-            "rom_cm": rom_cm,
-            "pause_end_s": pause_end,          # programmed hold at the end position
-            "pause_return_s": pause_return,    # programmed pause at the start position
-            "max_kg": round(float(r["MAXLOAD"] or 0) * LB_TO_KG, 1),
-            "concentric_kg": round(c * LB_TO_KG, 1),
-            "eccentric_kg": round(e * LB_TO_KG, 1),
-            "mean_force_kg": round(mean_force * LB_TO_KG, 1),
-            "seconds": round(sec, 1),
-            # impulse = average force x time-under-load: a volume/work proxy that
-            # is meaningful on an adaptive-resistance machine (no fixed "weight").
-            "impulse_kg_s": round(mean_force * LB_TO_KG * sec),
-            "working": status == "working",
-        })
-    return out
+    return {
+        "id": r["ID"],
+        "date": str(r["EXERCISEDATE"]),
+        "session": r["SESSION"],
+        "exercise": r["EXERCISE"],
+        "protocol": r["PROTOCOL"],
+        "protocol_label": "static" if static else PROTOCOL_LABELS.get(r["PROTOCOL"], "unknown"),
+        # contract modes-1: movement x ending (+ phase from the curve, attached with the detail)
+        "movement": "static" if static else "dynamic", "ending": ENDINGS.get(r["PROTOCOL"], "unknown"),
+        "pos_in": pos_in,
+        "reps": reps,
+        "ended_early": ended_early,
+        "status": status,                  # working | short | aborted | no_data | hidden | static (| false_start)
+        "reason": reason,                  # why it is not a working set ("" when it is)
+        "rom_cm": rom_cm,
+        "pause_end_s": pause_end,          # programmed hold at the end position
+        "pause_return_s": pause_return,    # programmed pause at the start position
+        "max_kg": round(float(r["MAXLOAD"] or 0) * LB_TO_KG, 1),
+        "concentric_kg": round(c * LB_TO_KG, 1),
+        "eccentric_kg": round(e * LB_TO_KG, 1),
+        "mean_force_kg": round(mean_force * LB_TO_KG, 1),
+        "seconds": round(sec, 1),
+        # impulse = average force x time-under-load: a volume/work proxy that
+        # is meaningful on an adaptive-resistance machine (no fixed "weight").
+        "impulse_kg_s": round(mean_force * LB_TO_KG * sec),
+        "working": status == "working",
+        "source": r.get("_source", sources.ORIGINAL_NAME),   # which software recorded it: original | arx-free (v0.24.0)
+    }
 
 
-def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
+def load_curve(con, set_id) -> tuple[list[dict], list[dict]]:
     """Decode the raw force/position curve and the event stream of one set.
 
     SERIALIZEDDETAILEDDATA is gzip-compressed UTF-16 JSON: an array of ~20 Hz
@@ -257,16 +287,26 @@ def load_curve(con, set_id: int) -> tuple[list[dict], list[dict]]:
     EVENTSTREAMDATA is plain JSON with rep/countdown events (BeginRep, EndRep,
     ...). Returns (curve, events) where curve is a list of
     {t: seconds since first sample, force_kg, pos_cm}. Shared by the featured
-    curve and the per-set effort so both use ONE definition of the data.
+    curve and the per-set effort so both use ONE definition of the data. A set
+    arx-free recorded (v0.24.0) arrives in the same shapes from the attached snapshot.
     """
-    cur = con.cursor()
-    cur.execute('select serializeddetaileddata, eventstreamdata from "ExerciseSet" where id = ?', (set_id,))
-    det_raw, ev_raw = cur.fetchone()
-    samples = json.loads(gzip.decompress(blob_bytes(det_raw)).decode("utf-16"))
-    try:
-        events = json.loads(blob_bytes(ev_raw).decode("latin1"))
-    except Exception:
-        events = []
+    free = getattr(con, "free", None)
+    if free is not None and con.reads_free(set_id):
+        samples, events, _scheme, _repscheme = free.parsed(set_id)
+    else:
+        cur = con.cursor()
+        cur.execute('select serializeddetaileddata, eventstreamdata from "ExerciseSet" where id = ?', (set_id,))
+        det_raw, ev_raw = cur.fetchone()
+        samples = json.loads(gzip.decompress(blob_bytes(det_raw)).decode("utf-16"))
+        try:
+            events = json.loads(blob_bytes(ev_raw).decode("latin1"))
+        except Exception:
+            events = []
+    return curve_from(samples, events)
+
+
+def curve_from(samples: list[dict], events: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(curve, events) from the parsed lists in the original's shapes - the ONE path for both sources."""
     t0 = _ts(samples[0]["Time"]) if samples else 0.0
     curve = [{
         "t": round((_ts(s["Time"]) or t0) - t0, 2),
@@ -1669,13 +1709,17 @@ def cap_low_force(work: list[dict]) -> None:
                 s["effort_uncapped"], s["effort"], s["effort_capped"] = s["effort"], "submax", "low_force"
 
 
-def featured_settings(con, set_id: int, reps: int) -> dict:
+def featured_settings(con, set_id, reps: int) -> dict:
     """Actual machine settings of one set (from REPSCHEMEDATA), so the report and
     the AI can compare them with IDEAL_SETTINGS."""
     try:
-        cur = con.cursor()
-        cur.execute('select repschemedata from "ExerciseSet" where id = ?', (set_id,))
-        cfg = json.loads(blob_bytes(cur.fetchone()[0]).decode("latin1"))
+        free = getattr(con, "free", None)
+        if free is not None and con.reads_free(set_id):
+            cfg = free.parsed(set_id)[2]
+        else:
+            cur = con.cursor()
+            cur.execute('select repschemedata from "ExerciseSet" where id = ?', (set_id,))
+            cfg = json.loads(blob_bytes(cur.fetchone()[0]).decode("latin1"))
         rom_in = abs(cfg.get("StartPosition", 0) - cfg.get("EndPosition", 0))
         spd = (cfg.get("StartToEndSpeed") or {}).get("InchesPerSecond") or 0
         sec_per_dir = round(rom_in / spd, 1) if spd else None
@@ -1804,6 +1848,7 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
                 changed.append(f"reps {s['reps']} vs {prev['reps']}")
         rows.append({
             "name": name, "group": s["group"], "set_id": s["id"],
+            "source": s.get("source"),          # original | arx-free: which software recorded it (v0.24.0)
             "order": seq.get("order"), "sets_today": n_today,
             "rest_before_min": seq.get("minutes_since_prev_set"),
             "max_kg": s["max_kg"], "mean_force_kg": s["mean_force_kg"],
@@ -2044,6 +2089,7 @@ def build_report(con, cfg: dict) -> dict:
         "sets_total": len(sets),
         "sets_working": len(work),
         "sets_excluded": excluded,               # status -> count (short / aborted / false_start / no_data)
+        "sources": sources.describe(con, sets),  # what was read from where: the original, arx-free, or both (v0.24.0)
         "training_days": days,
         "kpi": kpi,
         "exercises": exercises,
@@ -2124,6 +2170,7 @@ def main():
 
     sweep_stale_copies()                         # leftovers of crashed runs hold private data
     con, tmp = open_readonly(args.db)
+    con = sources.attach(con, cfg)           # + arx-free's recordings when config.json says so (v0.24.0)
     try:
         report = build_report(con, cfg)
         if args.ai:

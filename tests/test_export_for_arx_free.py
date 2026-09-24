@@ -119,6 +119,14 @@ class ExportTest(unittest.TestCase):
             self.assertEqual(set(line), {"kind", "source_user_id", "first_name", "last_name", "gender", "birth_date", "created_at"})
         self.assertEqual(exporter.person_facts({"language": "fr", "units": "stones"}, {})(1), {})   # unknown words are not known values
 
+    def test_the_email_rides_on_the_athlete_line_only_when_known(self):
+        # contract arx-export-3 (v0.24.0): the person's key across the products, lower-cased; never a made-up one
+        person = exporter.person_facts({}, {"1": {"email": " Anna@Example.com "}, "2": {"email": "nonsense"}, "3": {}})
+        self.assertEqual((person(1), person(2), person(3)), ({"email": "anna@example.com"}, {}, {}))
+        line = exporter.athlete_line((1, "Anna", "Example", "f", None, None), person)
+        self.assertEqual(line["email"], "anna@example.com")
+        self.assertNotIn("email", exporter.athlete_line((3, "Ben", "Muster", None, None, None), person))
+
     def test_since_is_a_started_at_text_or_nothing(self):
         self.assertEqual(exporter.parse_since("2026-09-13T18:04:11"), "2026-09-13T18:04:11")
         self.assertEqual(exporter.parse_since(" 2026-09-13 18:04:11.437 "), "2026-09-13T18:04:11")   # fractions are cut like the export does

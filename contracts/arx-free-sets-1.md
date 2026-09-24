@@ -1,0 +1,82 @@
+# Contract `arx-free-sets-1` - what ARX Insight reads from arx-free's database
+
+Version 1 (2026-09-24, ARX Insight v0.24.0). Owner: **ARX Insight** - the reader states what it relies on. The tables
+are arx-free's; this contract pins the columns and meanings ARX Insight depends on, so arx-free keeps them stable (or
+this file gets a new version first, in ARX Insight, before a migration changes one of them).
+
+Direction: arx-free -> ARX Insight, **read-only, one way**. Why: the sets arx-free records itself never reach the
+original software's Firebird database. With the device setting `sources` ARX Insight reads them from arx-free's SQLite
+file - the original's database, arx-free's file, or both - **every set from the software that recorded it, never
+twice**. Nothing of it is ever written back, and arx-free's copies of the original's sets are never exported back to
+arx-free (the export `arx-export` stays original-only; the copies would come around as duplicates).
+
+## The three settings
+
+| `sources` (config.json, this PC only) | sets come from | persons |
+|---|---|---|
+| `original` (default) | the original's Firebird database | the original's `User` table |
+| `arx-free` | arx-free's file: its own recordings AND the copies it imported (the full history from one file; a copy keeps the original's set id) | as above |
+| `both` | the Firebird database + arx-free's OWN recordings (`sets.source IS NULL`); the copies are skipped - they ARE the original's sets | as above |
+
+## How the file is read
+
+* The file is `data/arx-free.sqlite` of the arx-free installation (kiosk: `Documents\arx-free\data\`), SQLite in WAL
+  mode. ARX Insight opens it read-only (`mode=ro`, a plain open as the fallback when the WAL's `-shm` is not there),
+  copies it INTO MEMORY with SQLite's backup API - one consistent snapshot that includes the WAL, where the newest
+  sets live - releases the file handle at once and never writes. arx-free keeps writing undisturbed. The snapshot is
+  reused for 30 s while the file (and its `-wal`) look unchanged.
+* Layout check: `PRAGMA user_version` (4 when this was written) and the columns below via `PRAGMA table_info`. A file
+  without one of them is reported as "unknown layout" - never guessed, never a broken report (the original's data are
+  shown with a note). Additional columns and tables are ignored.
+* The path is found in the usual place or set in ARX Insight's settings (`arx_free_db`).
+
+## What is read (tables and columns; anything else is ignored)
+
+* `athletes`: `id`, `email`, `source`, `source_user_id`, `deleted_at`
+* `sets`: `id`, `athlete_id`, `session_id`, `exercise_code`, `started_at`, `mode`, `protocol`, `protocol_value`,
+  `config_json`, `elapsed_s`, `junk`, `intensity_lb`, `max_lb`, `max_c_lb`, `max_e_lb`, `source`, `source_set_id`,
+  `updated_at`, `deleted_at`
+* `set_curves`: `set_id`, `samples_gz`, `events_json`
+
+## Meanings ARX Insight relies on
+
+* `sets.source` **NULL = a set arx-free recorded itself**; `'arx-original'` with `source_set_id` = a copy of the
+  original's set with that id, imported through `arx-export`. The same words on `athletes` (`source`,
+  `source_user_id` = the original's user id) mark an athlete arx-free's import created.
+* A row with `deleted_at` is gone. `junk` = hidden from statistics (the original's `HIDEFROMSTATS`).
+* `protocol` labels -> the original's `ExerciseSet.PROTOCOL` codes: `Reps` 3, `Countdown` 1, `Inroad` 0,
+  `FatigueTarget` 4 (arx-free's own ending, contract `modes-3`). An unknown label is shown as "unknown", never
+  silently as repetitions. `mode` `Static` = a hold (the original's `StaticModeData`), anything else a repetition
+  sequence.
+* `started_at` = naive local time of the set start with seconds (`2026-09-23T21:02:47`); `updated_at` = last change.
+* `config_json` = the original's rep-scheme keys, verbatim (`StartPosition`, `EndPosition`, `StartToEndSpeed` /
+  `EndToStartSpeed` {`InchesPerSecond`, `MaxInchesPerSecond`}, `AccelerationTime`, `DecelerationTime`,
+  `PauseAfterEndPosition`, `PauseAfterStartPosition`, `PreExerciseTimer`), in inches and seconds.
+* `set_curves.samples_gz` = gzip of JSON `{"t": [...], "force_lb": [...], "raw_lb": [...], "pos_in": [...]}` - columns
+  of equal length, `t` in seconds since the set's `BeginSequence`, force in lb, position in inches (`raw_lb` unused).
+  `events_json` = `[{"Time": <seconds since BeginSequence>, "Type": <the original's event name>, "AdditionalData":
+  ...}]` - `BeginSequence`, `BeginRep`, `BeginFirstHalf`, `BeginPauseAfterFirstHalf`, `BeginSecondHalf`,
+  `BeginPauseAfterSecondHalf`, `EndRep`, `EndSequence` / `SequenceEndedBeforeCompletion`.
+* The scalars mean what the original's columns mean: `intensity_lb` = time-averaged force (`INTENSITY`), `max_lb`
+  (`MAXLOAD`), `max_c_lb` (`CONCENTRICMAX`), `max_e_lb` (`ECCENTRICMAX`), `elapsed_s` (`ELAPSEDSECONDS`).
+* ARX Insight turns a recording into the ORIGINAL'S shapes (samples with absolute `Time` = `started_at` + `t`,
+  `Value`, `EncoderValue`; events with `Time`, `Type`) and judges it with the same code as a set of the original
+  (effort-v3, hold-1, modes-3, the ROM / tempo comparability). A set's id in ARX Insight = the original's integer id for
+  a copy, arx-free's uuid text for its own recording.
+
+## Who is who - the e-mail address is the key
+
+A person is identified across arx-free, ARX Insight and any future cloud (the data of many machines) by the **e-mail
+address, the only unique world key** (owner 2026-09-24). Local ids are technical links. ARX Insight maps an arx-free
+athlete to one of its users in this order:
+
+1. `athletes.email` equals the e-mail in the user's ARX Insight profile (case-insensitive, trimmed);
+2. else `athletes.source = 'arx-original'` and `source_user_id` = the original's user id (the link arx-free's import
+   made from `arx-export`).
+
+Names never identify anyone. An athlete that matches neither (created at the machine, no e-mail yet) is not shown by
+ARX Insight and counted in its settings window; as soon as an e-mail matches, that athlete's sets belong to the user.
+Enrichment, one simple way per product: ARX Insight asks in the profile; **arx-free asks the athlete for the e-mail
+when a session starts and none is stored** (request to arx-free). Typed once, it travels: ARX Insight's export puts it
+on the athlete line (contract `arx-export-3`, "Insight wins for the person"). The address stays on the owner's
+machines and never reaches the AI.
