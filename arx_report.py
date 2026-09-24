@@ -276,6 +276,7 @@ def set_row(r: dict) -> dict:
         "impulse_kg_s": round(mean_force * LB_TO_KG * sec),
         "working": status == "working",
         "source": r.get("_source", sources.ORIGINAL_NAME),   # which software recorded it: original | arx-free (v0.24.0)
+        "coach": r.get("_coach"),                              # arx-free's live-coach notes about the set (arx-free-sets-2, v0.27.0)
     }
 
 
@@ -1849,6 +1850,7 @@ def _last_session(con, work: list[dict], exercises: list[dict], sequences_all: l
         rows.append({
             "name": name, "group": s["group"], "set_id": s["id"],
             "source": s.get("source"),          # original | arx-free: which software recorded it (v0.24.0)
+            "coach_cues": len((s.get("coach") or {}).get("cues") or []) if s.get("coach") else None,   # sentences the live coach said (v0.27.0)
             "order": seq.get("order"), "sets_today": n_today,
             "rest_before_min": seq.get("minutes_since_prev_set"),
             "max_kg": s["max_kg"], "mean_force_kg": s["mean_force_kg"],
@@ -2136,6 +2138,8 @@ def build_report(con, cfg: dict) -> dict:
         # v0.25.0: the compact column's two one-liners (engine facts, gain-framed, the athlete's own reference) and the
         # stamp of the wording generation they come from - so the athlete's own data can say later what a text did
         "side": history.side_lines(plan, last_session, cfg, rules),
+        # what the live coach's sentences did to the force (arx-free's notes, contract arx-free-sets-2; v0.27.0): descriptive
+        "coach_effects": history.coach_effects(work, cfg),
         "features": dict(planner.FEATURES),
         "featured": featured,
     }

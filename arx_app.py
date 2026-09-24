@@ -1181,7 +1181,7 @@ def r_export(h, q, who, uid):
             counts = exporter.export(con, path, STATE["version"], since=since, person=person)
         name = f"arx-export-{time.strftime('%Y%m%d-%H%M%S')}{EXPORT_SUFFIX}"
         h._send_file(path, "application/gzip", {"Content-Disposition": f'attachment; filename="{name}"',
-                                                "X-ARX-Export": f"athletes={counts['athletes']}; sets={counts['sets']}; skipped={counts['skipped']}"})
+                                                "X-ARX-Export": f"athletes={counts['athletes']}; ranges={counts['ranges']}; sets={counts['sets']}; skipped={counts['skipped']}"})
     finally:
         try:
             os.remove(path)

@@ -815,3 +815,67 @@ def _side_last(ls: dict | None, cfg: dict) -> dict | None:
     if rows and all(x.get("restriction") == "careful" or x.get("effort_capped") for x in rows):
         return item("side_last_careful", {}, cfg)
     return item("side_last_logged", {"n": len(rows)}, cfg)
+
+
+# =============================================================================
+# What the live coach's sentences did (arx-free's notes, contract arx-free-sets-2; v0.27.0)
+# =============================================================================
+# arx-free stores with every set it records which sentence its coach said in which repetition (cues[] {id, group,
+# kind, rep, t}). A first, DESCRIPTIVE number per cue group: the change of the repetition's phase mean against the
+# repetition before (the cue is said at the start of a stroke - that stroke is the "after"), compared with the
+# athlete's typical change at the same repetition transition in sets of the same exercise WITHOUT a cue there.
+# Fatigue lowers the force from repetition to repetition anyway; the control takes that out. Nothing here proves a
+# cause - it is the first "does this sentence help" number, shown from COACH_EFFECT_MIN_N cues per group on.
+COACH_EFFECT_MIN_N = 5
+COACH_EFFECT_KINDS = ("general", "event")         # safety, announce and on-ramp sentences are information, not motivation
+
+
+def _rep_change(reps: list[dict], i: int) -> float | None:
+    """Percent change of the combined phase mean of repetition i (1-based) against repetition i - 1."""
+    by_i = {r.get("i"): r for r in reps if r.get("i")}
+    a, b = by_i.get(i - 1), by_i.get(i)
+    if not a or not b or a.get("con_mean") is None or b.get("con_mean") is None or a.get("ecc_mean") is None or b.get("ecc_mean") is None:
+        return None
+    before, after = (a["con_mean"] + a["ecc_mean"]) / 2.0, (b["con_mean"] + b["ecc_mean"]) / 2.0
+    return (after / before - 1.0) * 100.0 if before > 0 else None
+
+
+def coach_effects(work: list[dict], cfg: dict) -> dict:
+    """{available, sets_with_notes, groups[], interp} for the report's chapter 3."""
+    noted = [s for s in work if isinstance(s.get("coach"), dict) and (s.get("detail") or {}).get("reps")]
+    out = {"available": bool(noted), "sets_with_notes": len(noted), "groups": [], "interp": None}
+    if not noted:
+        return out
+    control: dict = {}         # (exercise, repetition) -> changes in sets with NO cue in that repetition
+    cued: dict = {}            # cue group -> [(exercise, repetition, change)]
+    for s in noted:
+        reps = s["detail"]["reps"]
+        cue_reps: dict = {}
+        for c in s["coach"].get("cues") or []:
+            if c.get("kind") in COACH_EFFECT_KINDS and isinstance(c.get("rep"), int) and c["rep"] >= 2:
+                cue_reps.setdefault(c["rep"], set()).add(str(c.get("group") or c.get("id")))
+        for r in reps:
+            i = r.get("i")
+            if not isinstance(i, int) or i < 2:
+                continue
+            change = _rep_change(reps, i)
+            if change is None:
+                continue
+            if i in cue_reps:
+                for group in cue_reps[i]:
+                    cued.setdefault(group, []).append((s["exercise"], i, change))
+            else:
+                control.setdefault((s["exercise"], i), []).append(change)
+    groups = []
+    for group, rows in cued.items():
+        deltas = [change - st.median(control[(exercise, i)]) for exercise, i, change in rows if control.get((exercise, i))]
+        if len(deltas) >= COACH_EFFECT_MIN_N:
+            delta = round(st.median(deltas), 1)
+            groups.append({"group": group, "n": len(rows), "control_n": len(deltas), "delta_pct": delta,
+                           "interp": item("coach_effect_group", {"group": group, "n": len(rows), "delta_spct": delta, "control_n": len(deltas)}, cfg)})
+    groups.sort(key=lambda g: -abs(g["delta_pct"]))
+    out["groups"] = groups
+    total = sum(len(v) for v in cued.values())
+    out["interp"] = item("coach_effects_ready" if groups else "coach_effects_pending",
+                         {"sets": len(noted), "cues": total, "min_n": COACH_EFFECT_MIN_N, "k": len(groups)}, cfg)
+    return out

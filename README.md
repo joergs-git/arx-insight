@@ -301,6 +301,15 @@ arx-free imported from the original is linked by the original's user id as well.
 athlete that exists only in arx-free without a matching e-mail is not shown; the settings window counts them.
 Contract `arx-free-sets-1` states exactly what is read; `arx-export-3` puts the e-mail on the export's athlete line.
 
+**Three more contracts for arx-free (v0.27.0, its requests 4, 5, 6 and 8).** `arx-export-5`: the export's athlete
+line carries the goal's fatigue target (10 or 20 %), and one `range_of_motion` line per athlete, exercise and range
+type gives arx-free the original's CURRENT positions (its own table, append-only; the highest row wins) - the footer
+counts `ranges`. `arx-free-sets-2`: arx-free stores what its live coach said in every set (`sets.coach_json`), Insight
+reads it and shows in chapter 3, per cue group, how the force after a sentence compared with the same repetition in
+sets without one - a first, descriptive "does this sentence help" number, shown from five cues per group on.
+`insight-progress-1` pins the shape of the progress factors arx-free's trend view displays, so a rename here is a
+contract version and never a silent break.
+
 **Inside arx-free's window (since v0.21.0).** The touch kiosk has no way back from a second window, so arx-free shows
 ARX Insight as a screen inside its own window ("Back to arx-free" always on top). For that, the pages served on this
 PC may be framed by another program of this PC (`frame-ancestors` allows the loopback origins; the phone listener

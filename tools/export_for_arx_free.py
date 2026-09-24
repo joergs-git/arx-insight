@@ -23,7 +23,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import arx_base as core  # noqa: E402
-from arx_export import (FORMAT, SOURCE, USER_SQL, SET_SQL, _iso, _number, _json_blob, samples_of,  # noqa: E402,F401  (the names the tests and older scripts use)
+from arx_export import (FORMAT, SOURCE, USER_SQL, SET_SQL, RANGE_SQL, _iso, _number, _json_blob, samples_of, range_line, fatigue_target_of,  # noqa: E402,F401  (the names the tests and older scripts use)
                         athlete_line, set_line, parse_since, person_facts, export)
 
 
@@ -61,7 +61,7 @@ def main(argv=None) -> int:
             con.close()
         finally:
             shutil.rmtree(tmp, ignore_errors=True)                                # the copy holds private data: never leave it behind
-    print(f"{args.out}: {counts['athletes']} athletes, {counts['sets']} sets" + (f", {counts['skipped']} skipped" if counts["skipped"] else "")
+    print(f"{args.out}: {counts['athletes']} athletes, {counts['ranges']} ranges, {counts['sets']} sets" + (f", {counts['skipped']} skipped" if counts["skipped"] else "")
           + (f" (after {since})" if since else ""))
     return 0
 

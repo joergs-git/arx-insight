@@ -40,6 +40,14 @@ SET_SQL = f'select {SET_COLUMNS} from "ExerciseSet" where deleted is false order
 # `since` is a `started_at` text of the export itself (seconds); the column keeps fractions of a second, so "began
 # after 18:04:11" = "at or after 18:04:12" in the database. The guard in export() applies the same rule to the line.
 SET_SQL_SINCE = f'select {SET_COLUMNS} from "ExerciseSet" where deleted is false and exercisedate >= ? order by id'
+# The original's CURRENT range of motion per athlete, exercise and range type (contract arx-export-5, v0.27.0): the
+# table "RangeOfMotion2" is append-only - the row with the highest id per user + exercise + type is the one in force
+# (no DELETED column). Always all of them: a state, not a history - `since` filters sets only.
+RANGE_SQL = '''select r.id, r.user_id, r.exercise, r.rangetype, r.startposition, r.endposition, r.confirmed, r.datecreated
+               from "RangeOfMotion2" r
+               where r.id = (select max(x.id) from "RangeOfMotion2" x
+                             where x.user_id = r.user_id and x.exercise = r.exercise and x.rangetype = r.rangetype)
+               order by r.id'''
 
 
 def _iso(value) -> str | None:
@@ -115,8 +123,33 @@ def person_facts(config: dict, goals: dict):
         coaching = {k: raw[k] for k, allowed in core.COACHING.items() if raw.get(k) in allowed}
         if coaching:
             out["coaching"] = coaching
+        target = fatigue_target_of(rec.get("goal"))       # the goal's fatigue target (arx-export-5, v0.27.0)
+        if target is not None:
+            out["fatigue_target_pct"] = target
         return out
     return facts
+
+
+def fatigue_target_of(goal) -> int | None:
+    """The fatigue target the athlete's goal asks for on the effort-v3 scale (10 = medium, 20 = deep; contract
+    vocabulary-2), from the profile's goal mix - None without a goal. The rule is the planner's (arx_plan.goal_effort,
+    EFFORT_TARGETS); imported here on demand so the exporter stays light to load."""
+    if not isinstance(goal, dict) or not any(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in goal.values()):
+        return None
+    import arx_plan as planner                    # noqa: WPS433 - the one rule, not a copy of it
+    try:
+        return int(planner.EFFORT_TARGETS[planner.goal_effort(goal)]["inroad_min"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def range_line(row) -> dict:
+    """One current row of the original's "RangeOfMotion2" as a `range_of_motion` line (contract arx-export-5):
+    positions in inches as stored, the type as the original names it (Automatic | Static)."""
+    rid, uid, exercise, rangetype, start, end, confirmed, created = row
+    return {"kind": "range_of_motion", "source_user_id": str(uid), "exercise_code": int(exercise),
+            "range_type": (str(rangetype or "").strip() or "Automatic"), "start_in": _number(start), "end_in": _number(end),
+            "confirmed": bool(confirmed), "source_rom_id": str(rid), "created_at": _iso(created)}
 
 
 def athlete_line(row, person=None) -> dict:
@@ -154,7 +187,7 @@ def export(con, out_path: str, version: str = "", since: str | None = None, pers
     long history do not fit into memory comfortably on the machine PC. With `since` (a normalised `started_at`
     text, see parse_since) only the sets that began strictly after it are written; the athletes always all - each
     with what ARX Insight knows about the person when `person` (person_facts) is given."""
-    counts = {"athletes": 0, "sets": 0, "skipped": 0}
+    counts = {"athletes": 0, "ranges": 0, "sets": 0, "skipped": 0}
     cur = con.cursor()
     with gzip.open(out_path, "wt", encoding="utf-8", compresslevel=6) as out:
         def write(line: dict) -> None:
@@ -166,6 +199,10 @@ def export(con, out_path: str, version: str = "", since: str | None = None, pers
         for row in cur.fetchall():
             write(athlete_line(row, person))
             counts["athletes"] += 1
+        cur.execute(RANGE_SQL)                    # the current ranges, after the athletes and before the sets (v0.27.0)
+        for row in cur.fetchall():
+            write(range_line(row))
+            counts["ranges"] += 1
         if since:
             cur.execute(SET_SQL_SINCE, (datetime.fromisoformat(since) + timedelta(seconds=1),))
         else:
@@ -184,5 +221,5 @@ def export(con, out_path: str, version: str = "", since: str | None = None, pers
             except (ValueError, OSError, KeyError, TypeError) as exc:            # one unreadable blob must not end the export
                 counts["skipped"] += 1
                 print(f"set {row[0]} skipped: {type(exc).__name__}", file=sys.stderr)
-        write({"kind": "footer", "athletes": counts["athletes"], "sets": counts["sets"]})
+        write({"kind": "footer", "athletes": counts["athletes"], "ranges": counts["ranges"], "sets": counts["sets"]})
     return counts

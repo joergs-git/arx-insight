@@ -155,6 +155,32 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class CoachEffects(unittest.TestCase):
+    """v0.27.0: what a sentence of the live coach did to the force - cued repetition vs the same transition without a cue."""
+    @staticmethod
+    def a_set(exercise, deltas, cues=None):
+        reps, mean = [], 100.0
+        for i, d in enumerate(deltas, start=1):
+            mean = mean * (1 + d / 100.0) if i > 1 else mean
+            reps.append({"i": i, "con_mean": mean, "ecc_mean": mean * 1.4})
+        return {"exercise": exercise, "detail": {"reps": reps}, "coach": {"cues": cues or []} if cues is not None else None}
+
+    def test_the_cued_repetition_is_judged_against_the_uncued_transition(self):
+        quiet = [self.a_set(3, [0, -3, -3, -3, -3, -3], cues=[]) for _ in range(6)]           # 3 % lost per repetition, no cue
+        loud = [self.a_set(3, [0, -3, -3, +1, -3, -3], cues=[{"id": "e_resist", "group": "eccentric", "kind": "general", "rep": 4, "t": 30.0}]) for _ in range(5)]
+        safety = [self.a_set(3, [0, -3, -3, -3, -3, -3], cues=[{"id": "m_breathe", "group": "breathe", "kind": "safety", "rep": 4, "t": 30.0}])]
+        out = hist.coach_effects(quiet + loud + safety, CFG)
+        self.assertEqual((out["available"], out["sets_with_notes"], len(out["groups"])), (True, 12, 1))
+        g = out["groups"][0]
+        self.assertEqual((g["group"], g["n"], g["control_n"]), ("eccentric", 5, 5))
+        self.assertAlmostEqual(g["delta_pct"], 4.0, places=1)                                   # +1 % after the cue vs -3 % without = +4 points
+        self.assertEqual(out["interp"]["code"], "coach_effects_ready")
+        self.assertIn("+4", g["interp"]["text"]["meaning"])
+        few = hist.coach_effects(quiet + loud[:2], CFG)
+        self.assertEqual((few["groups"], few["interp"]["code"]), ([], "coach_effects_pending"))
+        self.assertEqual(hist.coach_effects([self.a_set(3, [0, -3])], CFG)["available"], False)  # no notes at all
+
+
 class HowDoYouTick(unittest.TestCase):
     """v0.26.0: the three-question motivational profile - vocabulary only, the answers first, then the age band;
     the rules reach the one-liners, the AI's wording rules and the export's athlete line."""

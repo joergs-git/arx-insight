@@ -1193,6 +1193,16 @@ function sideHtml(r){
     ${restrHtml(r,true)}
   </aside>`;
 }
+// v0.27.0: what the live coach's sentences did (arx-free's notes on its own sets, contract arx-free-sets-2) - descriptive
+function coachEffectsHtml(r){
+  const ce=r.coach_effects; if(!ce||!ce.available||!ce.interp) return "";
+  const de=CFG.language==="de";
+  const rows=(ce.groups||[]).map(g=>`<tr><td>${esc(g.group)}</td><td style="text-align:right;color:${g.delta_pct>0?'var(--good)':g.delta_pct<0?'var(--warn)':'var(--ink2)'}"><b>${g.delta_pct>0?'+':''}${g.delta_pct} %</b></td><td style="text-align:right">${g.n} / ${g.control_n}</td></tr>`).join("");
+  return `<section><div class="exhead"><div style="flex:1"><div class="eyebrow">${de?'Live-Coach':'Live coach'}</div><h2 class="sec">${de?'Was die Ansagen bewirkt haben':'What the sentences did'}</h2></div></div>
+    ${interpHtml(ce.interp,"")}
+    ${rows?`<table class="tbl"><thead><tr><th>${de?'Ansage-Gruppe':'Cue group'}</th><th style="text-align:right">${de?'Kraft ggü. ohne Ansage':'Force vs no sentence'}</th><th style="text-align:right">n / ${de?'Vergleich':'compared'}</th></tr></thead><tbody>${rows}</tbody></table>`:''}
+    </section>`;
+}
 function renderReport(){
   const r=REPORT,t=T(),de0=CFG.language==="de";
   if(r.error){$("#r_body").innerHTML='<p class="foot" style="padding:40px">'+(de0?'Fehler: ':'Error: ')+esc(r.error)+(r.detail?' — '+esc(r.detail):'')+'</p>';return;}
@@ -1227,7 +1237,7 @@ function renderReport(){
     <div class="seg" id="xseg"><button data-x="occ" aria-pressed="${XMODE==='occ'}">${t.lastS}</button><button data-x="day" aria-pressed="${XMODE==='day'}">${t.lastD}</button></div></div>
     <div class="grid-prog" id="prog"></div>
     <div class="legend"><span><i class="dot" style="background:var(--accent)"></i>${de0?'Verlauf':'History'}</span><span><i class="dot" style="background:var(--good)"></i>${de0?'Trend':'Trend'}</span><span><i class="dot" style="background:var(--fc)"></i>${de0?'Prognose':'Forecast'}</span></div></section>`;
-  ch3+=loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals,r,exclLine)+bodyHtml(r);
+  ch3+=loadHtml(r.load,r.sessions_per_week)+totalsHtml(r.totals,r,exclLine)+bodyHtml(r)+coachEffectsHtml(r);
   ch3+=`<details class="more"><summary>${t.wb}</summary><div class="panel chartwrap" style="margin-top:12px"><svg id="wbSvg" viewBox="0 0 1000 300"></svg></div>
     <p class="foot" style="margin-top:8px">${de0?'Tagesform gegen die eigenen Bestwerte. Abdeckung max':'Day form against your own bests. Coverage max'} ${r.whole_body.coverage_max}/${r.whole_body.total_exercises} ${de0?'Übungen':'exercises'}.</p></details>`;
   ch3+=`<details class="more" id="sciBox"><summary>${de0?'Wissenschaftliche Grundlage der Empfehlungen':'Scientific basis of the recommendations'}</summary><div id="sciBody" class="foot" style="margin-top:12px">…</div></details>`;

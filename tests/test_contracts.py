@@ -22,6 +22,27 @@ class Contracts(unittest.TestCase):
             page = fh.read()
         self.assertIn('moderate:de?"mittel":"medium",submax:de?"leicht":"light"', page)
 
+    def test_the_progress_factors_keep_the_shape_arx_free_shows(self):
+        # contract insight-progress-1 (arx-free's request 8): a rename of a pinned key is a new version, never a silent break
+        from datetime import datetime
+        from tests.test_history import series, report, ROW
+        r = report(series(ROW, datetime(2026, 8, 1, 10), [1, 1.02, 1.04, 1.06, 1.08], every=4), "2026-08-20")
+        pf = r["history"]["progress_factors"]
+        overall = pf["overall"]
+        for key in ("strength_index", "exercises_in_index", "exercises_total", "interp"):
+            self.assertIn(key, overall, key)
+        self.assertEqual(set(overall["interp"]) >= {"code", "params", "text"}, True)
+        self.assertEqual(set(overall["interp"]["text"]), {"meaning", "action"})
+        row = pf["exercises"][0]
+        for key in ("name", "ex", "n", "status", "change_pct", "change_4w_pct", "change_quarter_pct", "rate_pct_per_week", "rate_quality",
+                    "span_days", "baseline_date", "latest_date", "points", "interp"):
+            self.assertIn(key, row, key)
+        self.assertIn(row["status"], ("progressing", "progressing_context", "stable", "stable_context", "plateau", "plateau_context",
+                                      "regressing", "regressing_context", "familiarisation", "not_comparable", "insufficient"))
+        self.assertTrue(row["points"] and all({"date", "index"} <= set(p) for p in row["points"]))
+        self.assertTrue(row["interp"]["code"].startswith("progress_"))
+        self.assertIn("today", r)
+
     @unittest.skipUnless(os.path.isdir(os.path.join(contracts.SIBLING, "contracts")), "arx-free is not checked out next to this repository")
     def test_the_sibling_carries_the_same_contracts_and_catalogue(self):
         self.assertEqual(contracts.sibling_problems(), [])
