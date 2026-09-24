@@ -65,6 +65,14 @@ class CleanProfile(unittest.TestCase):
         self.assertIn("partner", app.PROFILE_KEYS)
         self.assertEqual(app.clean_profile({"session_minutes": 90}, CATALOG, TODAY)["session_minutes"], 90)
 
+    def test_the_email_is_the_persons_key_and_never_reaches_the_ai(self):
+        # v0.24.0 (owner 2026-09-24): the e-mail address is the only unique key of a person across the products
+        import arx_base
+        self.assertEqual(arx_base.clean_email("  Anna.Example@Mail.COM "), "anna.example@mail.com")
+        for bad in ("", "anna", "anna@", "@x.de", "a@b", "a@@b.de", "a b@c.de", None, 5, "x" * 250 + "@a.de"):
+            self.assertIsNone(arx_base.clean_email(bad), bad)
+        self.assertIn("/profile/email", ai.lint_payload({"profile": {"email": "a@b.de"}}))
+
     def test_body_entry_keeps_only_sane_numbers(self):
         day, values = app.clean_body_entry({"date": "2026-09-17", "weight_kg": "82,4", "waist_cm": 91, "fat_pct": 140,
                                             "arm_cm": "big", "mood": "fine"}, TODAY)
@@ -91,6 +99,17 @@ class ProfileRoutes(ServerCase):
         self.assertNotIn("commitment", rec)                                           # back to the engine's recommendation
         self.assertNotIn("aids", rec)
         self.assertEqual(rec["outcome"], "strength")
+
+    def test_the_email_round_trip(self):
+        body = {"user_id": 1, "goal": {"muscle": 1.0}, "email": " Anna@Example.com "}
+        self.assertEqual(call(self.port, "/api/goal", method="POST", body=body, headers=OK)[0], 200)
+        self.assertEqual(call(self.port, "/api/goal?user_id=1", headers=HDR)[1]["email"], "anna@example.com")
+        self.assertEqual(app.user_emails(), {1: "anna@example.com"})
+        call(self.port, "/api/goal", method="POST", body=dict(body, email="nonsense"), headers=OK)     # not an address: cleared
+        self.assertNotIn("email", call(self.port, "/api/goal?user_id=1", headers=HDR)[1])
+        call(self.port, "/api/goal", method="POST", body=dict(body), headers=OK)
+        call(self.port, "/api/goal", method="POST", body=dict(body, email=""), headers=OK)             # "" clears
+        self.assertNotIn("email", call(self.port, "/api/goal?user_id=1", headers=HDR)[1])
 
     def test_switched_off_exercises_round_trip_and_can_be_cleared(self):
         body = {"user_id": 1, "goal": {"muscle": 1.0}, "sessions_per_week": 2, "excluded_exercises": {"11": "elsewhere", "77": "unwanted"}}

@@ -89,11 +89,7 @@ REP_EVENTS = ("BeginRep", "BeginFirstHalf", "BeginPauseAfterFirstHalf", "BeginSe
 # Decoding
 # =============================================================================
 def decode_raw(det_blob, ev_blob, scheme_blob, repscheme: str | None = None) -> dict:
-    """Decode the three blobs of one set into plain arrays.
-
-    Returns {t[], f[], pos[], events[(t, type, data)], scheme{}, static}: t in seconds since the
-    first sample, f = force in kg, pos = encoder position in cm - sorted by time, full precision.
-    The countdown ticks (WaitingTimeLeft, ~2000 per set) are dropped."""
+    """Decode the three blobs of one set of the original's database into plain arrays (see decode_lists)."""
     samples = json.loads(gzip.decompress(blob_bytes(det_blob)).decode("utf-16")) if det_blob else []
     try:
         events = json.loads(blob_bytes(ev_blob).decode("latin1")) if ev_blob else []
@@ -103,6 +99,18 @@ def decode_raw(det_blob, ev_blob, scheme_blob, repscheme: str | None = None) -> 
         scheme = json.loads(blob_bytes(scheme_blob).decode("latin1")) if scheme_blob else {}
     except Exception:
         scheme = {}
+    return decode_lists(samples, events, scheme, repscheme)
+
+
+def decode_lists(samples: list, events: list, scheme: dict, repscheme: str | None = None) -> dict:
+    """The decoded set from the parsed lists in the original's shapes (samples with Time / Value / EncoderValue,
+    events with Time / Type / AdditionalData, the rep-scheme configuration). This is the ONE decoding path: since
+    v0.24.0 arx-free's own recordings are handed over in exactly these shapes (arx_sources), so a set is judged by
+    the same code whichever software recorded it.
+
+    Returns {t[], f[], pos[], events[(t, type, data)], scheme{}, static}: t in seconds since the
+    first sample, f = force in kg, pos = encoder position in cm - sorted by time, full precision.
+    The countdown ticks (WaitingTimeLeft, ~2000 per set) are dropped."""
     rows = []
     for s in samples:
         ts, v = _ts(s.get("Time", "")), s.get("Value")
@@ -122,8 +130,13 @@ def decode_raw(det_blob, ev_blob, scheme_blob, repscheme: str | None = None) -> 
             "events": ev, "scheme": scheme if isinstance(scheme, dict) else {}, "static": static}
 
 
-def load_raw(con, set_id: int) -> dict:
-    """decode_raw() for one set id (one query, one decoding for everything that needs the curve)."""
+def load_raw(con, set_id) -> dict:
+    """decode_raw() for one set id (one query, one decoding for everything that needs the curve). A set that
+    arx-free recorded (v0.24.0: string id, or every set when arx-free's database is THE source) comes from the
+    attached snapshot (arx_sources.Connection) in the original's shapes."""
+    free = getattr(con, "free", None)
+    if free is not None and con.reads_free(set_id):
+        return decode_lists(*free.parsed(set_id))
     cur = con.cursor()
     cur.execute('select serializeddetaileddata, eventstreamdata, repschemedata, repscheme '
                 'from "ExerciseSet" where id = ?', (set_id,))

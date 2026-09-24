@@ -6,12 +6,21 @@
  "contracts": [
   {
    "name": "arx-export",
-   "version": 2,
+   "version": 3,
    "owner": "arx-insight",
-   "what": "history of the original software for arx-free - the file, and since v2 the route GET /api/export?since= on Insight's local listener (same lines; the header's format name stays arx-export-1 because no line changed); v1 stays listed until arx-free adopts v2",
+   "what": "history of the original software for arx-free - the file, and since v2 the route GET /api/export?since= on Insight's local listener (same lines; the header's format name stays arx-export-1 because no line changed); v3 (2026-09-24) adds the person's e-mail to the athlete line - the key of a person across the products; v2 stays listed until arx-free adopts v3, v1 retired here after its adoption",
    "files": {
-    "arx-export-1.md": "5a6789c481b9c6db3dd365257a89c390c2706a5f7b039274cc5bf3b6fc02b43e",
-    "arx-export-2.md": "f7a6cd3ab7f39791874f4f9d4c90cce6b92953e61fcc17f2c3aabf8f50bb9826"
+    "arx-export-2.md": "f7a6cd3ab7f39791874f4f9d4c90cce6b92953e61fcc17f2c3aabf8f50bb9826",
+    "arx-export-3.md": "23bd16d503b42a3404f7702fc425105d60c83d0b677d3ab40acf425bf74cbebc"
+   }
+  },
+  {
+   "name": "arx-free-sets",
+   "version": 1,
+   "owner": "arx-insight",
+   "what": "what ARX Insight reads from arx-free's SQLite database (tables, columns, meanings: source NULL = arx-free's own recording, 'arx-original' = a copy; the curve format), the three settings original / arx-free / both without duplicates, and who is who: the e-mail address first, the import link second, names never",
+   "files": {
+    "arx-free-sets-1.md": "d43d6017bbf502999357e695abf8cd033eee324459dc8fdba9302a4ac7c98ce5"
    }
   },
   {

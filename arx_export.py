@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 joergsflow - ARX Insight. Free software under the GNU GPL v3 or later; see LICENSE. No warranty.
-"""The ARX app's history for arx-free - contract ``arx-export`` (ARX Insight owns it; v0.22.0 moved the code here).
+"""The ARX app's history for arx-free - contract ``arx-export`` (ARX Insight owns it; v0.22.0 moved the code here,
+v0.24.0 added the e-mail to the athlete line - contract arx-export-3).
 
 arx-free is the owner's independent control software for the same machine; ARX Insight already owns the safe way to
 read the original's database (always a COPY, read-only), so the export lives here and arx-free never needs a Firebird
@@ -11,8 +12,9 @@ client. Two ways deliver the same lines (contract ``contracts/arx-export-2.md``)
     the sets that began after ``since``; arx-free asks at its start and imports what is new by itself.
 
 What leaves the database - and nothing else:
-  * athletes: id, first name, last name, gender, birth date, create date (no e-mail, no password / token, no cloud ids);
-    plus, from ARX Insight's own settings, the person's language and the display units when known (person_facts)
+  * athletes: id, first name, last name, gender, birth date, create date (no password / token, no cloud ids);
+    plus, from ARX Insight's own settings, the person's language, the display units and - since contract
+    arx-export-3 (v0.24.0) - the e-mail address typed into the profile, each only when known (person_facts)
   * sets that are not deleted: the scalar columns, and **verbatim** the three blobs (configuration, events without the
     "WaitingTimeLeft" countdown ticks, samples). Nothing is converted or rounded; units stay lb and inch.
 
@@ -91,19 +93,24 @@ def person_facts(config: dict, goals: dict):
     """What ARX Insight knows about a person, for the athlete line (contract arx-export-2, owner's decision 2026-09-23:
     "Insight wins for the person, arx-free wins for the machine"). `language` = the person's own choice in the
     profile (goals.json), else the device's language when it is set; `display_units` = the device's units when they
-    are set. Only known values leave - never a name, a birth date, a note, a body value, a photo flag (that one is
-    arx-free's). Returns a callable uid -> dict for export()."""
+    are set; `email` (contract arx-export-3, v0.24.0) = the address typed into the profile - THE key of a person across
+    arx-free, ARX Insight and a future cloud (owner 2026-09-24), lower-cased. Only known values leave - never a name,
+    a birth date, a note, a body value, a photo flag (that one is arx-free's). Returns a callable uid -> dict for export()."""
     device_language = config.get("language") if config.get("language") in LANGUAGES else None
     units = config.get("units") if config.get("units") in DISPLAY_UNITS else None
 
     def facts(uid) -> dict:
-        own = (goals.get(str(uid)) or {}).get("language") if isinstance(goals.get(str(uid)), dict) else None
+        rec = goals.get(str(uid)) if isinstance(goals.get(str(uid)), dict) else {}
+        own = rec.get("language")
         language = own if own in LANGUAGES else device_language
         out = {}
         if language:
             out["language"] = language
         if units:
             out["display_units"] = units
+        mail = core.clean_email(rec.get("email"))        # the person's key across products (arx-export-3, v0.24.0)
+        if mail:
+            out["email"] = mail
         return out
     return facts
 

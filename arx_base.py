@@ -13,7 +13,7 @@ GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 
 from __future__ import annotations
-import os, time, json, shutil, tempfile, threading, contextlib
+import os, re, time, json, shutil, tempfile, threading, contextlib
 from datetime import datetime, date
 
 
@@ -299,6 +299,21 @@ RANK_LABEL = {3: "deep", 2: "moderate", 1: "submax"}
 # the deep line is not failure-like and recovers in about a day; only a deep set keeps its three days, because of
 # the eccentric overload; science.json: recovery_between_sessions)
 REQUIRED_REST = {3: 3, 2: 1, 1: 1}
+
+
+EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def clean_email(value) -> str | None:
+    """A person's e-mail address - THE key of a person across arx-free, ARX Insight and a future cloud (owner
+    2026-09-24: "the only unique world key"; local user ids are technical links only). Trimmed and lower-cased so
+    matching is case-insensitive, one @ and a dot in the domain, at most 254 characters - anything else is None.
+    It is typed once (the profile), rides on the export's athlete line (contract arx-export-3) and maps arx-free's
+    athletes to ours (arx_sources); it never reaches the AI (arx_ai.lint_payload forbids the key)."""
+    if not isinstance(value, str):
+        return None
+    v = value.strip().lower()
+    return v if 0 < len(v) <= 254 and v.count("@") == 1 and EMAIL_RE.fullmatch(v) else None
 
 
 def age_band(age: int | None) -> str | None:

@@ -37,6 +37,8 @@ v0.4.1: one-click update (POST /api/update, this machine only - see arx_update.p
 check repeats every few hours, so an app that runs for days still learns about a new release.
 v0.8.3: POST /api/update/check (this machine only) looks for a new version at once; an update package that Windows
 security blocked is reported as what it is (arx_update.blocked_by_security).
+v0.24.0: device setting `sources` (this PC only) - the sets come from the original's database, from arx-free's
+recordings or from both (arx_sources); the profile's optional e-mail is the person's key across the products.
 v0.8.0: profile field partner (training in turns: the long change-over is no set-up time); the profile shows what
 every time budget buys in exercises (plan.profile.size_by_minutes).
 v0.7.0: profile field excluded_exercises - exercises the athlete does not do on the ARX, each with a
@@ -59,6 +61,7 @@ from urllib.parse import urlparse, parse_qs
 import urllib.request
 import arx_report as core   # reuse the read-only engine
 import arx_export as exporter   # the history for arx-free (contract arx-export-2, v0.22.0)
+import arx_sources as sources   # where the sets come from: the original's DB, arx-free's recordings, or both (v0.24.0)
 import arx_update as updater  # one-click update: download, verify, unpack, run the installer (v0.4.1)
 import arx_ai as ai           # the AI coach: structured board, memory, background jobs, chat (v0.5.0)
 import arx_access as access   # who may do what: trainer / athlete links, limits, download tickets (v0.6.0)
@@ -224,6 +227,17 @@ def user_info(user_id: int) -> dict:
     return {"id": user_id, "name": f"User {user_id}", "created": None}
 
 
+def user_emails() -> dict:
+    """{user id: e-mail} of every profile that carries one - the key that tells which arx-free athlete is which of
+    our users (arx_sources; owner 2026-09-24: the e-mail is the only unique key across products)."""
+    out = {}
+    for uid, rec in (read_json(GOALS, {}) or {}).items():
+        mail = core.clean_email(rec.get("email")) if isinstance(rec, dict) else None
+        if mail and str(uid).isdigit():
+            out[int(uid)] = mail
+    return out
+
+
 def checkin_payload(urec: dict, day: str) -> dict:
     """Today's check-in of one person plus the earlier resting-HR values (for
     the baseline). Stored per user in goals.json under 'checkins' {date: {...}}."""
@@ -345,10 +359,16 @@ REPORT_CACHE_KEEP = 6
 
 
 def sets_signature(con, user_id: int) -> list[str]:
-    """The person's recorded sets in three numbers: count, newest id, newest change - a new set changes it."""
+    """The person's recorded sets in three numbers: count, newest id, newest change - a new set changes it. With
+    arx-free's snapshot attached (v0.24.0) its three numbers and the mode follow, so a set recorded there is new data
+    for the report cache and the coach alike."""
     cur = con.cursor()
     cur.execute('select count(*), max(id), max(lastupdate) from "ExerciseSet" where user_id = ?', (user_id,))
-    return [str(x) for x in (cur.fetchone() or ())]
+    sig = [str(x) for x in (cur.fetchone() or ())]
+    free = getattr(con, "free", None)
+    if free is not None:
+        sig += free.signature(con.free_ids(user_id), con.mode) + [con.mode]
+    return sig
 
 
 def _report_key(con, cfg: dict) -> str:
@@ -396,7 +416,8 @@ def report_cfg(user_id: int) -> tuple[dict, dict]:
 def make_report(user_id: int, cfg_info: tuple | None = None) -> dict:
     """The report of one person. Never calls the AI (see coach_state) - so it is fast and free."""
     cfg, info = cfg_info or report_cfg(user_id)
-    with core.shared_connection(STATE["db"]) as con:
+    with core.shared_connection(STATE["db"]) as fb:
+        con = sources.attach(fb, cfg, user_emails())    # + arx-free's recordings when the device setting says so (v0.24.0)
         key = _report_key(con, cfg)
         report = REPORT_CACHE.get(key)
         if report is None:
@@ -846,6 +867,7 @@ def r_bootstrap(h, q, who, uid):
             "self_update": os.name == "nt" or bool(os.environ.get("ARX_UPDATE_ANYWHERE")),   # one-click update possible here
             "taskbar_pinned": cfg.get("taskbar_pinned"),    # set by the Windows installer; False -> one-time hint
             "open_browser": cfg.get("open_browser", True) is not False,   # off = another program (arx-free) shows the pages (v0.21.0)
+            "sources": sources.status(cfg, user_emails()),  # the original's DB, arx-free's recordings, or both; is the file there (v0.24.0)
             "pid": os.getpid(),                             # lets a newer instance verify whom it replaces
             "phone": {"enabled": bool(ACCESS.lan().get("enabled")) and not os.environ.get("ARX_NO_PHONE"),
                       "running": bool(LAN and LAN.status()["running"])},
@@ -926,6 +948,10 @@ def p_goal(h, data, who, uid):                          # per-user profile / goa
         if "language" in data:                                     # "" clears -> device default
             if data["language"] in ("en", "de"): rec["language"] = data["language"]
             else: rec.pop("language", None)
+        if "email" in data:                                        # the person's key across products (v0.24.0); "" clears
+            mail = core.clean_email(data["email"])
+            if mail: rec["email"] = mail
+            else: rec.pop("email", None)
         for opt, (lo, hi) in (("height_cm", (80, 250)), ("weight_kg", BODY_LIMITS["weight_kg"])):   # optional profile fields
             try:
                 if opt in data and data[opt] not in ("", None) and lo <= float(data[opt]) <= hi:
@@ -1100,6 +1126,15 @@ def p_config(h, data, who, uid):                        # global setup screen
                 cfg[k] = bool(data[k])
         if "open_browser" in data and who.role == "local":     # whether a start opens the browser: this PC's business (v0.21.0)
             cfg["open_browser"] = bool(data["open_browser"])
+        if who.role == "local":                                # where the sets come from - this PC's files (v0.24.0)
+            if data.get("sources") in sources.MODES:
+                cfg["sources"] = data["sources"]
+            if isinstance(data.get("arx_free_db"), str):       # "" = find it in the usual place
+                path = data["arx_free_db"].strip()[:500]
+                if path:
+                    cfg["arx_free_db"] = path
+                else:
+                    cfg.pop("arx_free_db", None)
     update_json(CONFIG, change)
     h._send({"ok": True})
 
@@ -1485,6 +1520,9 @@ def main():
 
     url = f"http://localhost:{port}"
     print(f"ARX Insight {STATE['version']} running at {url}  (close this window to stop)")
+    src = sources.status(read_json(CONFIG, {}))       # v0.24.0: say where the sets come from
+    print(f"Sets from: {src['mode']}" + (f" - arx-free's database: {src['path']}" + ("" if src["found"] else f" ({(src['note'] or {}).get('code')})")
+                                        if src["mode"] != "original" else ""))
     if browser_wanted(args.no_browser):                # off after an update (the open page reloads) and on a kiosk that arx-free fronts
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     else:

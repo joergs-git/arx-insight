@@ -398,7 +398,7 @@ def lint_payload(payload) -> list[str]:
     def walk(node, path=""):
         if isinstance(node, dict):
             for k, v in node.items():
-                if re.search(r"(_kg|_cm)$", str(k)) or str(k) in ("name", "alias", "athlete_alias", "note", "notes", "birthdate", "user", "user_id", "height_cm", "weight_kg"):
+                if re.search(r"(_kg|_cm)$", str(k)) or str(k) in ("name", "alias", "athlete_alias", "note", "notes", "birthdate", "user", "user_id", "height_cm", "weight_kg", "email"):
                     bad.append(f"{path}/{k}")
                 walk(v, f"{path}/{k}")
         elif isinstance(node, list):

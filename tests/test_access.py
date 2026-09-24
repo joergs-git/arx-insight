@@ -249,6 +249,23 @@ class Hardening(TwoListeners):
         self.assertEqual(call(self.port, "/vendor/../arx_app.py")[0], 404)                         # a fixed whitelist, no path games
         self.assertEqual(call(self.port, "/config.json")[0], 404)
 
+    def test_where_the_sets_come_from_is_this_pcs_setting(self):
+        # v0.24.0: the original's database, arx-free's recordings, or both - chosen at the PC, never through the Wi-Fi
+        self.addCleanup(app.update_json, app.CONFIG, lambda cfg: [cfg.pop(k, None) for k in ("sources", "arx_free_db")])
+        self.assertEqual(self.lan_call("/api/config", self.trainer, method="POST", body={"sources": "both", "arx_free_db": "/x"})[0], 200)
+        self.assertNotIn("sources", app.read_json(app.CONFIG, {}))
+        nowhere = os.path.join(core.data_dir(), "nowhere", "arx-free.sqlite")
+        self.assertEqual(call(self.port, "/api/config", method="POST", body={"sources": "both", "arx_free_db": f" {nowhere} "}, headers={**LOCAL, **JSON})[0], 200)
+        cfg = app.read_json(app.CONFIG, {})
+        self.assertEqual((cfg["sources"], cfg["arx_free_db"]), ("both", nowhere))
+        boot = call(self.port, "/api/bootstrap", headers=LOCAL)[1]["sources"]
+        self.assertEqual((boot["mode"], boot["found"], boot["configured"], boot["note"]["code"], boot["path"]), ("both", False, True, "missing", nowhere))
+        self.assertNotIn("sources", self.lan_call("/api/bootstrap", self.trainer)[1])                # a phone learns nothing about this PC's files
+        call(self.port, "/api/config", method="POST", body={"sources": "nonsense", "arx_free_db": ""}, headers={**LOCAL, **JSON})
+        cfg = app.read_json(app.CONFIG, {})
+        self.assertEqual(cfg["sources"], "both")                                                       # an unknown word changes nothing
+        self.assertNotIn("arx_free_db", cfg)                                                           # "" = the usual place
+
     def test_an_error_tells_a_phone_nothing_about_this_machine(self):
         def boom(uid, cfg_info=None):
             raise RuntimeError("cannot open C:\\Users\\someone\\DB.FDB4")

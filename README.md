@@ -117,7 +117,8 @@ Claude API key (for the AI coach). Then search a person by name, set a training 
 simple sliders, flag any limitations, answer the 20-second check-in (how you feel today — skippable),
 and read the report. **Exit** returns you to the search screen. The start screen also has
 **📱 Connect a phone** (the QR codes; phone access is on by default and can be switched off there) and
-tells you when a new version is available.
+tells you when a new version is available. ⚙ Settings also says **where the sets come from** (since v0.24.0):
+the original ARX database, arx-free's own recordings, or both - see *The sibling project* below.
 
 ## Run it manually (macOS / Linux / advanced)
 
@@ -173,6 +174,7 @@ app's CSV export is all it takes to map them (see the FAQ).
 |---|---|
 | `arx_report.py` | Read-only engine: opens a **copy** of the Firebird DB, assembles the report, optionally calls Claude |
 | `arx_base.py` | Shared base: data directory, units, read-only DB access (one short-lived shared snapshot for the app) |
+| `arx_sources.py` | Where the sets come from (v0.24.0): the original's database, arx-free's recordings (its SQLite file, opened read-only and copied into memory), or both - every set from the software that recorded it, never twice; who is who by the e-mail address first |
 | `arx_detail.py` | What happened **inside** a set: phases per rep, time-weighted means, effort v3 (cached per set) |
 | `arx_evidence.py` | Context of every set (fresh / pre-loaded / repeat), your measured order / repeat / limiter / rest effects with n |
 | `arx_history.py` | Weekly / monthly windows, progress factors, findings, optional body trends and target progress |
@@ -284,6 +286,20 @@ from its manifest, when our own fatigue rule stops matching the vectors, or - wi
 repository - when the two projects carry different contract files or a different exercise catalogue. A change starts
 in the contract's owner project with a new version, never in passing in the code.
 
+**arx-free's own recordings in the report (since v0.24.0).** arx-free records sets itself, and those never reach the
+original's database. ⚙ Settings → **Where the sets come from** (this PC only) chooses: **Original DB** (the ARX
+software's database - the default and what every earlier version did), **arx-free** (its file only: its own
+recordings plus the copies of the original's sets it imported, the full history from one file) or **both** (the
+original's database plus arx-free's own recordings; the copies are skipped - they ARE the original's sets). No set is
+ever counted twice: each one comes from the software that recorded it, and a card says `arx-free` when that software
+did. The file (`Documents\arx-free\data\arx-free.sqlite` on the kiosk, or the path you enter) is opened
+read-only and copied into memory - arx-free keeps writing undisturbed, nothing is ever written back, and the export
+to arx-free stays original-only. **Who is who:** a person is identified across the two products by the **e-mail
+address** (enter it in the profile - the same address in arx-free links its recordings to that profile); an athlete
+arx-free imported from the original is linked by the original's user id as well. Names never identify anyone. An
+athlete that exists only in arx-free without a matching e-mail is not shown; the settings window counts them.
+Contract `arx-free-sets-1` states exactly what is read; `arx-export-3` puts the e-mail on the export's athlete line.
+
 **Inside arx-free's window (since v0.21.0).** The touch kiosk has no way back from a second window, so arx-free shows
 ARX Insight as a screen inside its own window ("Back to arx-free" always on top). For that, the pages served on this
 PC may be framed by another program of this PC (`frame-ancestors` allows the loopback origins; the phone listener
@@ -300,6 +316,11 @@ still refuses every frame). Two things to set on such a PC:
 `localhost` only (see below for the phone listener, which is on by default). Your API
 key lives only in the local, git-ignored `config.json`. The database, your keys, profiles, check-ins,
 the optional body log, the plan ledger, the phone codes and generated reports never leave the machine.
+
+**arx-free's database and the e-mail address (since v0.24.0).** When you let ARX Insight read arx-free's
+recordings, its SQLite file is opened read-only and copied into memory for a moment - never written, never sent
+anywhere. The optional **e-mail address in a profile** is the person's key across the two products: it stays in the
+local `goals.json`, travels only to arx-free on this PC (export athlete line) and is **never** part of an AI request.
 
 **What goes to Anthropic (only if you store an API key).** The AI request contains **only aggregated,
 name-free metrics** — never a person's name, date of birth, height, weight or free-text note. Two
@@ -660,6 +681,13 @@ ARX Insight's pages inside its own window - arx-free's touch kiosk: both start a
 them may open the kiosk browser. ARX Insight then runs quietly in the background (its console window stays, as
 always: closing it stops the app), and a second start just points to the running instance. `--no-browser` and
 `ARX_NO_BROWSER=1` do the same for one start.
+
+**My arx-free sessions are missing from the report.**
+ARX Insight reads the original's database by default. ⚙ Settings → *Where the sets come from* → **both** adds the
+sets arx-free recorded itself (or *arx-free* reads its file alone). Nothing is counted twice: arx-free's copies of the
+original's sets are skipped when the original is read too. A set of arx-free shows an `arx-free` chip. If the file is
+not in the usual place (`Documents\arx-free\data\arx-free.sqlite`), enter its path there. An athlete who exists
+only in arx-free appears once the same e-mail address is in both products (profile here, athlete there).
 
 **Can it put an icon into the taskbar?**
 The installer creates a Desktop and a Start-menu shortcut and keeps a taskbar icon up to date on
