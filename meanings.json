@@ -282,8 +282,8 @@
  },
  "finding_effort_target_missed": {
   "meaning": {
-   "en": "Only {hits} of {sets} sets in the last 4 weeks reached your effort target ({target_pct} fatigue in the set).",
-   "de": "Nur {hits} von {sets} Sätzen der letzten 4 Wochen erreichten dein Ermüdungsziel ({target_pct} Ermüdung im Satz)."
+   "de": "{hits} von {sets} Sätzen der letzten 4 Wochen erreichten dein Ermüdungsziel ({target_pct} Ermüdung im Satz) - der Rest war Belastung ohne den vollen Reiz.",
+   "en": "{hits} of {sets} sets in the last 4 weeks reached your fatigue target ({target_pct} fatigue in the set) - the rest was load without the full stimulus."
   },
   "action": {
    "en": "This is the biggest lever: stay in the set until force clearly falls.",
@@ -292,12 +292,12 @@
  },
  "finding_missed_weekly_target": {
   "meaning": {
-   "en": "Week {week}: {sessions} of {target} planned sessions.",
-   "de": "Woche {week}: {sessions} von {target} geplanten Einheiten."
+   "de": "Woche {week}: {sessions} von {target} geplanten Einheiten - in den letzten {weeks} Wochen {rate_pct} des Plans; 60-80 % sind bei Erwachsenen normal.",
+   "en": "Week {week}: {sessions} of {target} planned sessions - {rate_pct} of the plan over the last {weeks} weeks; 60-80 % is normal for adults."
   },
   "action": {
-   "en": "See the date of the next session in chapter 2.",
-   "de": "Das Datum der nächsten Einheit steht in Kapitel 2."
+   "de": "Das Datum der nächsten Einheit steht in Kapitel 2 - dranbleiben zählt mehr als jede einzelne Woche.",
+   "en": "See the date of the next session in chapter 2 - staying with it counts more than any single week."
   }
  },
  "finding_neglected_muscle": {
@@ -506,8 +506,8 @@
    "de": "Der letzte Satz endete bei {last_pct} Ermüdung im Satz - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
   },
   "action": {
-   "en": "Same force ({target_kg}) - but all-out from the first repetition, building the force fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down, not when the repetitions are over. A second time like this and the set-up changes.",
-   "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Noch einmal so, und die Einstellungen ändern sich."
+   "en": "Same force ({target_kg}) - but all-out from the first repetition, building the force fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down, not when the repetitions are over. After a second time below the target the set-up changes by itself.",
+   "de": "Gleiche Kraft ({target_kg}) - aber ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind. Nach einem zweiten Mal unter dem Ziel ändern sich die Einstellungen von selbst."
   }
  },
  "plan_hold_effort_choice": {
@@ -516,8 +516,8 @@
    "de": "Der letzte Satz endete bei {last_pct} Ermüdung im Satz - unter den {effort_pct}, die dein Ziel verlangt. Die Kraft ist da, der Satz war nicht zu Ende."
   },
   "action": {
-   "en": "Two ways, your choice - same force ({target_kg}): all-out from the first repetition, the force built fast but smoothly, the set ending when the force breaks down, not when the repetitions are over; OR change the set-up now: pauses at the turnarounds {alt_pause_to} s, {alt_tempo_to} s per direction (the comparison basis starts anew). A second miss and the set-up changes anyway.",
-   "de": "Zwei Wege, deine Wahl - gleiche Kraft ({target_kg}): ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind; ODER jetzt schon die Einstellungen ändern: Pausen an den Umkehrpunkten {alt_pause_to} s, {alt_tempo_to} s je Richtung (die Vergleichsbasis beginnt neu). Ein zweiter Fehlversuch, und die Einstellungen ändern sich ohnehin."
+   "en": "Two ways, your choice - same force ({target_kg}): all-out from the first repetition, the force built fast but smoothly, the set ending when the force breaks down, not when the repetitions are over; OR change the set-up now: pauses at the turnarounds {alt_pause_to} s, {alt_tempo_to} s per direction (the comparison basis starts anew). After a second time below the target the set-up changes by itself.",
+   "de": "Zwei Wege, deine Wahl - gleiche Kraft ({target_kg}): ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, der Satz endet, wenn die Kraft einbricht, nicht wenn die Wiederholungen um sind; ODER jetzt schon die Einstellungen ändern: Pausen an den Umkehrpunkten {alt_pause_to} s, {alt_tempo_to} s je Richtung (die Vergleichsbasis beginnt neu). Nach einem zweiten Mal unter dem Ziel ändern sich die Einstellungen von selbst."
   }
  },
  "plan_effort_below_best": {
@@ -1442,8 +1442,8 @@
  },
  "plan_effort_reset": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, the target sits {gap_pct} higher.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, das Ziel liegt {gap_pct} höher."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction and no pauses at the turnarounds, same repetitions - or two repetitions more instead. The comparison basis starts anew with the new settings.",
@@ -1452,8 +1452,8 @@
  },
  "plan_effort_pauses": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, the target sits {gap_pct} higher.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, das Ziel liegt {gap_pct} höher."
   },
   "action": {
    "en": "Same force ({target_kg}) and tempo ({tempo_to} s per direction is the limit): the pauses at the turnarounds go to {pause_to} s - or two repetitions more instead. The comparison basis starts anew.",
@@ -1462,8 +1462,8 @@
  },
  "plan_effort_reps": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, the target sits {gap_pct} higher.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, das Ziel liegt {gap_pct} höher."
   },
   "action": {
    "en": "Same force ({target_kg}); tempo and pauses are exhausted, so {reps_from} → {reps_to} repetitions. The comparison basis starts anew.",
@@ -1472,32 +1472,32 @@
  },
  "repeat_now_panel": {
   "meaning": {
-   "en": "Still on the machine? {exercises}: below the {target_pct} fatigue in the set your goal asks for - a real load, but half the stimulus.",
-   "de": "Noch am Gerät? {exercises}: unter den {target_pct} Ermüdung im Satz, die dein Ziel verlangt - eine echte Belastung, aber nur der halbe Reiz."
+   "de": "Noch am Gerät? {exercises}: eine echte Belastung - das Ziel liegt {gap_pct} über dem letzten Satz.",
+   "en": "Still on the machine? {exercises}: a real load - the target sits {gap_pct} above the last set."
   },
   "action": {
-   "en": "Once more, now, properly: all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. A set that stayed below the target cost little, so a second one is in.",
-   "de": "Jetzt sofort nochmal, aber richtig: ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Ein Satz unter dem Ziel hat wenig gekostet, ein zweiter ist drin."
+   "de": "Wenn du magst: jetzt gleich nochmal - ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen, kein Ruck (das Tempo macht die Maschine), und der Satz endet, wenn die Kraft einbricht - nicht wenn die Wiederholungen um sind. Der erste Satz hat wenig gekostet, ein zweiter ist drin.",
+   "en": "If you like: once more right now - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed, never a jerk), and the set ends when the force breaks down - not when the repetitions are over. The first set cost little, so a second one is in."
   }
  },
  "repeat_now": {
   "meaning": {
-   "en": "{last_pct} fatigue in the set - below the {target_pct} your goal asks for: a real load, but half the stimulus.",
-   "de": "{last_pct} Ermüdung im Satz - unter den {target_pct}, die dein Ziel verlangt: eine echte Belastung, aber nur der halbe Reiz."
+   "de": "{last_pct} Ermüdung im Satz - eine echte Belastung, das Ziel liegt {gap_pct} höher.",
+   "en": "{last_pct} fatigue in the set - a real load, the target sits {gap_pct} higher."
   },
   "action": {
-   "en": "Once more, properly - now if you are still on the machine, otherwise tomorrow: a set below the target costs only a day of rest.",
-   "de": "Nochmal, richtig - jetzt, wenn du noch am Gerät bist, sonst morgen: ein Satz unter dem Ziel kostet nur einen Tag Erholung."
+   "de": "Wenn du magst: nochmal - jetzt, solange du am Gerät bist, sonst morgen. Ein Satz unter dem Ziel kostet nur einen Tag Erholung.",
+   "en": "If you like: once more - now while you are on the machine, otherwise tomorrow. A set below the target costs only a day of rest."
   }
  },
  "plan_repeat_after_miss": {
   "meaning": {
-   "en": "The session of {last_date} was a strength test for {exercises}: no set reached the fatigue in the set your goal asks for.",
-   "de": "Die Einheit vom {last_date} war für {exercises} ein Krafttest: kein Satz erreichte den Ermüdung im Satz, den dein Ziel verlangt."
+   "de": "Die Einheit vom {last_date} blieb für {exercises} unter dem Ermüdungsziel: die Kraft war da, die Länge fehlte.",
+   "en": "The session of {last_date} stayed below the fatigue target for {exercises}: the force was there, the length was not."
   },
   "action": {
-   "en": "A set below the target costs only a day of rest, so the muscles are ready again: the same exercises, properly this time - all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down.",
-   "de": "Ein Satz unter dem Ziel kostet nur einen Tag Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal richtig - ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen (das Tempo macht die Maschine), der Satz endet, wenn die Kraft einbricht."
+   "de": "Ein Satz unter dem Ziel kostet nur einen Tag Erholung, die Muskeln sind also wieder frei: dieselben Übungen, diesmal ab Wiederholung 1 alles geben, die Kraft zügig und gleichmäßig aufbauen (das Tempo macht die Maschine), der Satz endet, wenn die Kraft einbricht.",
+   "en": "A set below the target costs only a day of rest, so the muscles are ready again: the same exercises, this time all-out from the first repetition, the force built fast but smoothly (the machine sets the speed), the set ends when the force breaks down."
   }
  },
  "plan_beginner": {
@@ -1522,8 +1522,8 @@
  },
  "plan_effort_tempo": {
   "meaning": {
-   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, but half the stimulus your goal needs.",
-   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, aber nur der halbe Reiz, den dein Ziel braucht."
+   "en": "{misses} sessions in a row ended below the {effort_pct} fatigue in the set your goal asks for (last: {last_pct}) - a real load, the target sits {gap_pct} higher.",
+   "de": "{misses} Einheiten in Folge endeten unter den {effort_pct} Ermüdung im Satz, die dein Ziel verlangt (zuletzt {last_pct}) - eine echte Belastung, das Ziel liegt {gap_pct} höher."
   },
   "action": {
    "en": "Same force ({target_kg}), new set-up: {tempo_from} → {tempo_to} s per direction, pauses at the turnarounds {pause_to} s - a strength goal keeps a short, defined turnaround; longer pauses restore nothing worth mentioning. Or two repetitions more instead. The comparison basis starts anew.",
@@ -1532,8 +1532,8 @@
  },
  "fatigue_glossary": {
   "meaning": {
-   "en": "Fatigue in the set = the force lost from the strongest stretch of the set to its last repetitions. Deep (20 % and more) means close to failure - the full stimulus for muscle size; medium (10-19 %) is a real load but half the stimulus; light (under 10 %) is technique or a strength test.",
-   "de": "Ermüdung im Satz = der Kraftverlust vom stärksten Abschnitt des Satzes bis zu den letzten Wiederholungen. Tief (ab 20 %) heißt nahe am Versagen - der volle Reiz für Muskelaufbau; mittel (10-19 %) ist eine echte Belastung, aber nur der halbe Reiz; leicht (unter 10 %) ist Technik oder Krafttest."
+   "en": "Fatigue in the set = the force lost from the strongest stretch of the set to its last repetitions. Deep (20 % and more) means close to failure - the full stimulus for muscle size; medium (10-19 %) is a real load, the full stimulus starts at 20 %; light (under 10 %) is technique or a strength test.",
+   "de": "Ermüdung im Satz = der Kraftverlust vom stärksten Abschnitt des Satzes bis zu den letzten Wiederholungen. Tief (ab 20 %) heißt nahe am Versagen - der volle Reiz für Muskelaufbau; mittel (10-19 %) ist eine echte Belastung, der volle Reiz beginnt bei 20 %; leicht (unter 10 %) ist Technik oder Krafttest."
   },
   "action": {
    "en": "Your goal asks for {level} - at least {target_pct} in every set that counts.",
@@ -1628,6 +1628,186 @@
   "action": {
    "en": "Inroad Mode {machine_pct} % - end the set when the zone is missed; stay there until the strength is back, then try a step down again.",
    "de": "Inroad-Modus {machine_pct} % - beende den Satz, sobald die Zone verfehlt wird; dort bleiben, bis die Kraft zurück ist, dann wieder eine Stufe probieren."
+  }
+ },
+ "side_next_rest": {
+  "meaning": {
+   "en": "Rest today - the muscles build now. On again on {next_date}.",
+   "de": "Heute Erholung - die Muskeln bauen jetzt. Weiter am {next_date}."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_break": {
+  "meaning": {
+   "en": "Back after {days} days - ease in, hold the numbers.",
+   "de": "Nach {days} Tagen wieder da - locker rein, Zahlen halten."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_repeat": {
+  "meaning": {
+   "en": "{exercises}: still open - everything from rep one.",
+   "de": "{exercises}: noch offen - ab Wiederholung eins alles."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_effort": {
+  "meaning": {
+   "en": "{exercise}: the target sits {gap_pct} higher - all-out from rep one.",
+   "de": "{exercise}: das Ziel liegt {gap_pct} höher - ab Wiederholung eins alles."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_step": {
+  "meaning": {
+   "en": "{n} exercises, {step_pct} above last time - the step that works.",
+   "de": "{n} Übungen, {step_pct} über letztes Mal - der Schritt, der wirkt."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_second_set": {
+  "meaning": {
+   "en": "Two sets of {exercise} - that completes the stimulus.",
+   "de": "Zwei Sätze {exercise} - so wird der Reiz voll."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_last_chance": {
+  "meaning": {
+   "en": "One more session - and the week is complete.",
+   "de": "Eine Einheit noch - und die Woche ist voll."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_window": {
+  "meaning": {
+   "en": "{minutes} minutes are enough: {exercises}.",
+   "de": "{minutes} Minuten reichen: {exercises}."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_pb_hold": {
+  "meaning": {
+   "en": "A best mark on {exercise} - today hold it, no topping.",
+   "de": "Bestmarke {exercise} - heute halten, nicht toppen."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_next_ready": {
+  "meaning": {
+   "en": "{n} exercises, ≈ {minutes} min - your plan is ready.",
+   "de": "{n} Übungen, ≈ {minutes} min - dein Plan ist bereit."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_open": {
+  "meaning": {
+   "en": "Once more right now? {exercises} - your call.",
+   "de": "Jetzt gleich nochmal? {exercises} - deine Wahl."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_back": {
+  "meaning": {
+   "en": "First session after {days} days - that is what counts.",
+   "de": "Erste Einheit nach {days} Tagen - genau das zählt."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_pb": {
+  "meaning": {
+   "en": "Best mark on {exercise} - {hit} of {n} at the fatigue target.",
+   "de": "Bestmarke {exercise} - {hit} von {n} am Ermüdungsziel."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_pb_only": {
+  "meaning": {
+   "en": "Best mark on {exercise} - stronger than ever.",
+   "de": "Bestmarke {exercise} - stärker als je zuvor."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_full": {
+  "meaning": {
+   "en": "All {n} exercises at the fatigue target - full stimulus.",
+   "de": "Alle {n} Übungen am Ermüdungsziel - voller Reiz."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_part": {
+  "meaning": {
+   "en": "{hit} of {n} at the fatigue target - the rest catches up next time.",
+   "de": "{hit} von {n} am Ermüdungsziel - der Rest holt's nächstes Mal."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_careful": {
+  "meaning": {
+   "en": "Went easy as planned - cleanly done.",
+   "de": "Geschont wie geplant - sauber gemacht."
+  },
+  "action": {
+   "en": "",
+   "de": ""
+  }
+ },
+ "side_last_logged": {
+  "meaning": {
+   "en": "{n} exercises in the book - judged from four repetitions on.",
+   "de": "{n} Übungen im Buch - gewertet wird ab vier Wiederholungen."
+  },
+  "action": {
+   "en": "",
+   "de": ""
   }
  }
 }

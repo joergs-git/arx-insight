@@ -77,6 +77,8 @@ HOLD_MIN_PAUSE_S, HOLD_REL_MIN = 2.0, 0.25        # a programmed hold that was n
 UNSTEADY_FACTOR, UNSTEADY_MIN = 2.0, 3
 PACING_DEFICIT_PCT, UNDERLOAD_INROAD = 15, 10
 HIT_RATE_MIN_SETS, HIT_RATE_LOW = 8, 0.30
+ADHERENCE_WEEKS = 8            # the plan rate shown next to a missed weekly target is judged over this many full weeks (v0.25.0)
+SIDE_BACK_DAYS = 14            # a first session after this many days is greeted as the return that counts (v0.25.0)
 NEGLECTED_DAYS = 14
 FINDINGS_TOP, FINDINGS_PER_EXERCISE = 6, 2
 SEVERITY_SCORE = {"warn": 3.0, "good": 2.0, "info": 1.0}
@@ -549,8 +551,13 @@ def build_findings(exercises: list[dict], work: list[dict], progress: dict, ev: 
                                              "target_pct": ov["effort_target_inroad"]}, n=ov["effort_sets"])
     full = [w for w in windows["weeks"] if not w["partial"]]
     if full and not full[-1]["target_met"]:
-        add("missed_weekly_target", "info", {"sessions": full[-1]["training_days"], "target": full[-1]["target_sessions"], "week": full[-1]["label"]},
-            day=full[-1]["end"])
+        # v0.25.0: judged against real norms - the plan rate of the last weeks, and 60-80 % is what adults reach
+        recent = full[-ADHERENCE_WEEKS:]
+        planned = sum(w["target_sessions"] for w in recent) or 1
+        # a week above its target counts as met, not as credit for a missed one (else 4 + 2 of 3 + 3 would read "100 %")
+        rate = round(100.0 * sum(min(w["training_days"], w["target_sessions"]) for w in recent) / planned)
+        add("missed_weekly_target", "info", {"sessions": full[-1]["training_days"], "target": full[-1]["target_sessions"], "week": full[-1]["label"],
+                                             "weeks": len(recent), "rate_pct": rate}, day=full[-1]["end"])
     last_target: dict = {}
     for s in work:
         for m, role in _muscle_roles(s, catalog).items():
@@ -721,3 +728,76 @@ def goal_progress(target: dict | None, exercises: list[dict], progress: dict, bo
     out["status"] = code.replace("target_", "")
     out["interp"] = item(code, params, cfg)
     return out
+
+
+# =============================================================================
+# The two one-liners of the compact column (v0.25.0)
+# =============================================================================
+# Engine facts in one sentence each, no AI: what the next session brings, what the last one was. Rules from the
+# verified evidence (science.json topic adherence_and_motivation): gain frame (what a set gains, never what a miss
+# costs), the athlete's OWN last set as the reference, a reachable step, the repeat as an offer, positive first and
+# true to what the rule measured. Texts live in meanings.json (side_next_* / side_last_*); tests/test_motivation.py
+# lints them for loss words and length.
+SIDE_BORDERLINE = 2            # the same tolerance the page and the effort rule use (arx_detail.BORDERLINE)
+
+
+def side_lines(plan: dict | None, last_session: dict | None, cfg: dict) -> dict:
+    """{next, last}: one item each (or None when there is nothing to say)."""
+    return {"next": _side_next(plan or {}, last_session, cfg), "last": _side_last(last_session, cfg)}
+
+
+def _side_next(plan: dict, ls: dict | None, cfg: dict) -> dict | None:
+    s = plan.get("next_session")
+    if not s:
+        return None
+    if (plan.get("today") or {}).get("rest_today"):
+        return item("side_next_rest", {"next_date": s["date"]}, cfg)
+    brk = plan.get("training_break")
+    if brk:
+        return item("side_next_break", {"days": brk["days"]}, cfg)
+    if s.get("repeat_note"):
+        return item("side_next_repeat", {"exercises": list((s["repeat_note"].get("params") or {}).get("exercises") or [])}, cfg)
+    rows = s.get("exercises") or []
+    for r in rows:                                    # a missed fatigue target: the gap as a number, the intent as the way
+        p = (r.get("interp") or {}).get("params") or {}
+        if r.get("target_rule") in ("hold_reach_effort", "effort_reset") and p.get("last_pct") is not None and p.get("effort_pct"):
+            gap = p["effort_pct"] - p["last_pct"]
+            if gap > 0:
+                return item("side_next_effort", {"exercise": r["name"], "gap_pct": gap}, cfg)
+    step = next((r for r in rows if r.get("target_rule") == "step"), None)
+    if step:
+        return item("side_next_step", {"n": len(rows), "step_pct": step.get("step_pct")}, cfg)
+    two = next((r for r in rows if r.get("target_rule") == "plateau_add_set"), None)
+    if two:
+        return item("side_next_second_set", {"exercise": two["name"]}, cfg)
+    if any((w or {}).get("code") == "date_week_last_chance" for w in s.get("why_this_date") or []):
+        return item("side_next_last_chance", {}, cfg)
+    tw = s.get("time_window") or {}
+    if (tw.get("interp") or {}).get("code") == "window_applied":
+        return item("side_next_window", {"minutes": tw.get("minutes"), "exercises": [r["name"] for r in rows]}, cfg)
+    pb = [x["name"] for x in ((ls or {}).get("exercises") or []) if x.get("is_pb")]
+    if pb:
+        return item("side_next_pb_hold", {"exercise": pb[0]}, cfg)
+    return item("side_next_ready", {"n": len(rows), "minutes": s.get("est_minutes")}, cfg)
+
+
+def _side_last(ls: dict | None, cfg: dict) -> dict | None:
+    if not ls or not ls.get("date"):
+        return None
+    rows = ls.get("exercises") or []
+    if ls.get("open") and ls.get("repeat_now"):
+        return item("side_last_open", {"exercises": list(ls["repeat_now"])}, cfg)
+    if (ls.get("gap_days") or 0) >= SIDE_BACK_DAYS:
+        return item("side_last_back", {"days": ls["gap_days"]}, cfg)
+    judged = [x for x in rows if x.get("inroad") is not None and not x.get("effort_capped") and x.get("restriction") != "careful"]
+    hit = [x for x in judged if x["inroad"] >= (x.get("inroad_target") or 0) - SIDE_BORDERLINE]
+    pb = [x["name"] for x in rows if x.get("is_pb")]
+    if pb:
+        return item("side_last_pb", {"exercise": pb[0], "hit": len(hit), "n": len(judged)}, cfg) if judged else item("side_last_pb_only", {"exercise": pb[0]}, cfg)
+    if judged and len(hit) == len(judged):
+        return item("side_last_full", {"n": len(judged)}, cfg)
+    if judged:
+        return item("side_last_part", {"hit": len(hit), "n": len(judged)}, cfg)
+    if rows and all(x.get("restriction") == "careful" or x.get("effort_capped") for x in rows):
+        return item("side_last_careful", {}, cfg)
+    return item("side_last_logged", {"n": len(rows)}, cfg)

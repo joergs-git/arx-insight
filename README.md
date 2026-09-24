@@ -174,6 +174,7 @@ app's CSV export is all it takes to map them (see the FAQ).
 |---|---|
 | `arx_report.py` | Read-only engine: opens a **copy** of the Firebird DB, assembles the report, optionally calls Claude |
 | `arx_base.py` | Shared base: data directory, units, read-only DB access (one short-lived shared snapshot for the app) |
+| `meanings.json` (`side_*`) | The compact column's two one-liners (v0.25.0): gain-framed engine facts with your own reference; `tests/test_motivation.py` lints them for loss words and length |
 | `arx_sources.py` | Where the sets come from (v0.24.0): the original's database, arx-free's recordings (its SQLite file, opened read-only and copied into memory), or both - every set from the software that recorded it, never twice; who is who by the e-mail address first |
 | `arx_detail.py` | What happened **inside** a set: phases per rep, time-weighted means, effort v3 (cached per set) |
 | `arx_evidence.py` | Context of every set (fresh / pre-loaded / repeat), your measured order / repeat / limiter / rest effects with n |
@@ -681,6 +682,17 @@ ARX Insight's pages inside its own window - arx-free's touch kiosk: both start a
 them may open the kiosk browser. ARX Insight then runs quietly in the background (its console window stays, as
 always: closing it stops the app), and a second start just points to the running instance. `--no-browser` and
 `ARX_NO_BROWSER=1` do the same for one start.
+
+**Why does the compact column talk to me in one line - and why so positively?**
+Since v0.25.0 each box of the compact column (left of the report on a wide screen, on top on a phone) carries ONE
+engine-made line: what the last session was ("2 of 3 at the fatigue target - the rest catches up next time") and what
+the next one brings ("Pull Down: the target sits 10 % higher - all-out from rep one"). No AI is involved; the lines
+come from the same facts as the report. Their wording follows the verified evidence on motivation (see the science
+appendix, topic *adherence and motivation*): what a set gains is named, never what a miss costs; the comparison is
+always your own last set; a repeat is an offer, not an order; a missed weekly target is judged against what adults
+actually reach (60-80 % of planned sessions), not against 100 %. The same rules bind the AI coach. Every report and
+plan-ledger entry carries a `features` stamp of the wording generation, so your own data can say later whether a
+text generation changed anything.
 
 **My arx-free sessions are missing from the report.**
 ARX Insight reads the original's database by default. ⚙ Settings → *Where the sets come from* → **both** adds the
