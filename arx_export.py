@@ -152,6 +152,19 @@ def range_line(row) -> dict:
             "confirmed": bool(confirmed), "source_rom_id": str(rid), "created_at": _iso(created)}
 
 
+def person_line(row: dict, person=None) -> dict:
+    """A person ARX Insight knows from arx-free's file alone (contract arx-export-6, arx-free's request 9) - NEVER an
+    `athlete` line (that kind is the original's users; arx-free's importer would create a duplicate athlete from an id
+    it does not know). The key is arx-free's own athlete id (plus the e-mail when it is known); `source_user_id` is
+    the id ARX Insight answers `/api/report?user_id=` with (derived, contract arx-free-sets-3); with `person`
+    (person_facts) what ARX Insight knows about the person - language, units, e-mail, coaching, fatigue target."""
+    ids = row.get("arx_free_ids") or []
+    line = {"kind": "person", "arx_free_id": str(ids[0]) if ids else None, "source_user_id": str(row["id"])}
+    if person is not None:
+        line.update(person(row["id"]))
+    return line
+
+
 def athlete_line(row, person=None) -> dict:
     """The athlete as the original knows them - plus, when `person` (see person_facts) is given, what ARX Insight
     knows about the person: language and display units, only when known."""
@@ -182,12 +195,14 @@ def set_line(row: dict) -> dict:
     }
 
 
-def export(con, out_path: str, version: str = "", since: str | None = None, person=None) -> dict:
+def export(con, out_path: str, version: str = "", since: str | None = None, person=None, persons=None) -> dict:
     """Write the export from an open connection. Returns the counts. Sets are streamed row by row - the blobs of a
     long history do not fit into memory comfortably on the machine PC. With `since` (a normalised `started_at`
     text, see parse_since) only the sets that began strictly after it are written; the athletes always all - each
-    with what ARX Insight knows about the person when `person` (person_facts) is given."""
-    counts = {"athletes": 0, "ranges": 0, "sets": 0, "skipped": 0}
+    with what ARX Insight knows about the person when `person` (person_facts) is given - and, after them, a `person`
+    line for everybody ARX Insight knows from arx-free's file alone (`persons` = arx_sources.people_of rows; v0.28.0).
+    The SETS stay the original's: what arx-free recorded itself never comes back to it."""
+    counts = {"athletes": 0, "persons": 0, "ranges": 0, "sets": 0, "skipped": 0}
     cur = con.cursor()
     with gzip.open(out_path, "wt", encoding="utf-8", compresslevel=6) as out:
         def write(line: dict) -> None:
@@ -199,6 +214,9 @@ def export(con, out_path: str, version: str = "", since: str | None = None, pers
         for row in cur.fetchall():
             write(athlete_line(row, person))
             counts["athletes"] += 1
+        for row in persons or []:                 # the persons known from arx-free alone, after the athletes (arx-export-6)
+            write(person_line(row, person))
+            counts["persons"] += 1
         cur.execute(RANGE_SQL)                    # the current ranges, after the athletes and before the sets (v0.27.0)
         for row in cur.fetchall():
             write(range_line(row))
@@ -221,5 +239,5 @@ def export(con, out_path: str, version: str = "", since: str | None = None, pers
             except (ValueError, OSError, KeyError, TypeError) as exc:            # one unreadable blob must not end the export
                 counts["skipped"] += 1
                 print(f"set {row[0]} skipped: {type(exc).__name__}", file=sys.stderr)
-        write({"kind": "footer", "athletes": counts["athletes"], "ranges": counts["ranges"], "sets": counts["sets"]})
+        write({"kind": "footer", "athletes": counts["athletes"], "persons": counts["persons"], "ranges": counts["ranges"], "sets": counts["sets"]})
     return counts

@@ -15,11 +15,13 @@ database - so a device setting says what ARX Insight reads (config.json `sources
   * `both`      - the Firebird database + arx-free's OWN recordings; the copies are skipped, they ARE the original's
                   sets. No set is ever read twice: each set from the software that recorded it.
 
-Persons always come from the original's `User` table (Insight owns the person). WHO IS WHO across the two products
-is decided by the e-mail address first - the only unique world key (owner 2026-09-24; it will carry into a cloud with
-the data of many machines) - and by the technical link arx-free's import wrote (`source = 'arx-original'`,
-`source_user_id` = the original's user id) second. Names never identify anyone. An athlete that exists only in
-arx-free and matches no e-mail is not shown (counted in the settings window) until an e-mail matches.
+Persons: the original's `User` table, and since v0.28.0 (contract arx-free-sets-3, arx-free's request 9) the athletes
+that exist only in arx-free's file - listed like everybody with a STABLE id derived from arx-free's athlete uuid
+(`derived_uid`: FREE_UID_BASE + a hash, never an id of the original; nothing is stored, so the CLI, the app and a copy
+of the file agree). WHO IS WHO across the two products is decided by the e-mail address first - the only unique world
+key (owner 2026-09-24; it will carry into a cloud with the data of many machines) - by the technical link arx-free's
+import wrote (`source = 'arx-original'`, `source_user_id` = the original's user id) second, and only then by the
+derived id. An original user always wins the same e-mail. Names never identify anyone.
 
 How the file is read: opened read-only and copied INTO MEMORY with SQLite's backup API - one consistent snapshot
 that sees the WAL (the recent sets live there; a plain copy of the main file would miss them), the file handle is
@@ -33,8 +35,8 @@ same way (arx_detail.decode_lists, arx_report.curve_from). Imports arx_base and 
 GPL-3.0-or-later (see LICENSE). No warranty. Not medical advice.
 """
 from __future__ import annotations
-import os, json, gzip, time, sqlite3, threading
-from datetime import datetime, timedelta
+import os, json, gzip, time, sqlite3, threading, hashlib
+from datetime import datetime, timedelta, date
 from pathlib import Path
 
 import arx_base as core
@@ -49,7 +51,7 @@ SCHEMA_VERSION = 4                    # arx-free's PRAGMA user_version this read
 SNAPSHOT_TTL_S = 30                   # a snapshot is reused this long while the file looks unchanged
 # the columns the reader relies on - contract arx-free-sets-1 (a file without them has an unknown layout)
 NEEDED = {
-    "athletes": ("id", "email", "source", "source_user_id", "deleted_at"),
+    "athletes": ("id", "email", "source", "source_user_id", "deleted_at", "first_name", "last_name", "gender", "birth_date", "created_at"),
     "sets": ("id", "athlete_id", "session_id", "exercise_code", "started_at", "mode", "protocol", "protocol_value",
              "config_json", "elapsed_s", "junk", "intensity_lb", "max_lb", "max_c_lb", "max_e_lb", "source",
              "source_set_id", "updated_at", "deleted_at"),
@@ -60,6 +62,75 @@ NEEDED = {
 PROTOCOL_CODES = {"Reps": 3, "Countdown": 1, "Inroad": 0, "FatigueTarget": 4}
 DB_NAME = "arx-free.sqlite"
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# --- persons that exist only in arx-free (v0.28.0, contract arx-free-sets-3, arx-free's request 9) ------------------
+FREE_UID_BASE = 1_000_000             # their Insight ids start here - the original's ids are small, these never collide with them
+FREE_UID_SPAN = 1_000_000_000         # ... and stay below FREE_UID_BASE + this (Firebird INTEGER for the queries, 2^53 for the page)
+
+
+def derived_uid(athlete_id) -> int:
+    """The stable Insight id of an arx-free athlete that matches none of the original's users: derived from
+    arx-free's uuid, so it is the same on every start, in the CLI and the app, on a copy of the file - nothing is
+    stored, nothing can drift, and every file keyed by a user id (profile, ledger, boards, access codes) just works."""
+    digest = hashlib.sha256(str(athlete_id).encode("utf-8")).hexdigest()[:8]
+    return FREE_UID_BASE + int(digest, 16) % FREE_UID_SPAN
+
+
+def assign_ids(athletes: list[dict]) -> dict:
+    """{athlete id: derived uid} for these athletes - deterministic even when two uuids hash alike (odds about
+    n^2 / 2e9): the athletes are walked in the order created_at, id and a later one probes upward from its own value,
+    so the earlier athlete keeps the id it always had."""
+    taken, out = set(), {}
+    for a in sorted(athletes, key=lambda a: (str(a.get("created_at") or ""), str(a["id"]))):
+        uid = derived_uid(a["id"])
+        while uid in taken:
+            uid += 1
+        taken.add(uid)
+        out[a["id"]] = uid
+    return out
+
+
+def emails_from_goals(path: str | None = None) -> dict:
+    """{Insight user id: e-mail} of every profile in goals.json that carries one - the key that tells which arx-free
+    athlete is which of our persons (owner 2026-09-24: the e-mail is the only unique key across products). The app
+    and the CLI read the same file, so both map the same persons."""
+    path = path or os.path.join(core.data_dir(), "goals.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            goals = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for uid, rec in (goals.items() if isinstance(goals, dict) else []):
+        mail = core.clean_email(rec.get("email")) if isinstance(rec, dict) else None
+        if mail and str(uid).isdigit():
+            out[int(uid)] = mail
+    return out
+
+
+def person_sex(gender) -> str | None:
+    """arx-free's gender text (its form is free: m / f / male / female / männlich / weiblich, mostly nothing) ->
+    male | female | None - the same reading the original's column gets in arx_base.user_profile."""
+    g = str(gender or "").strip().lower()
+    return {"m": "male", "f": "female", "w": "female"}.get(g[:1]) if g else None
+
+
+def person_birth(text) -> date | None:
+    """arx-free's birth_date TEXT (ISO date) as a date - None for nothing or garbage."""
+    try:
+        return date.fromisoformat(str(text)[:10]) if text else None
+    except ValueError:
+        return None
+
+
+def person_of(a: dict, uid: int) -> dict:
+    """The person behind an arx-free-only athlete, in the shapes the app needs: the user-list row's keys (id, name,
+    gender, birthdate, created), what user_profile needs (sex, birth) and the link back (arx_free_id)."""
+    first, last = str(a.get("first_name") or "").strip(), str(a.get("last_name") or "").strip()
+    return {"id": uid, "name": f"{first} {last}".strip() or f"User {uid}", "first": first, "last": last,
+            "gender": str(a.get("gender") or "").strip(), "sex": person_sex(a.get("gender")),
+            "birth": person_birth(a.get("birth_date")), "birthdate": str(a.get("birth_date") or "")[:10] or None,
+            "created": str(a.get("created_at") or "")[:10] or None, "arx_free_id": str(a["id"]), "source": FREE_NAME}
 
 
 class SourceError(Exception):
@@ -163,27 +234,37 @@ class FreeSnapshot:
 
     # --- who is who --------------------------------------------------------------------------------------------
     def athletes(self) -> list[dict]:
-        return self._rows("select id, email, source, source_user_id from athletes where deleted_at is null")
+        return self._rows("select id, email, source, source_user_id, first_name, last_name, gender, birth_date, created_at "
+                          "from athletes where deleted_at is null")
 
-    def user_map(self, emails: dict | None) -> tuple[dict, int]:
-        """({arx-free athlete id: Insight user id}, athletes that map to nobody). Order of the rule (contract
-        arx-free-sets-1): the e-mail first (case-insensitive, `emails` = {Insight user id: e-mail} from the
-        profiles), then arx-free's import link (source = the original, source_user_id = the original's id)."""
+    def user_map(self, emails: dict | None, derive: bool = True) -> tuple[dict, int, dict]:
+        """({arx-free athlete id: Insight user id}, athletes that map to nobody, {derived id: person}). Order of the
+        rule (contract arx-free-sets-3): the e-mail first (case-insensitive, `emails` = {Insight user id: e-mail} from
+        the profiles; an original user wins over a derived one carrying the same address), then arx-free's import link
+        (source = the original, source_user_id = the original's id), then - with `derive` - an id of its own derived
+        from the athlete's uuid: the person exists only in arx-free and is listed like everybody (v0.28.0). Without
+        `derive` (the original-only mode's status line) such athletes are only counted."""
+        pairs = sorted((int(uid), core.clean_email(mail)) for uid, mail in (emails or {}).items() if str(uid).isdigit())
         by_email = {}
-        for uid, mail in (emails or {}).items():
-            mail = core.clean_email(mail)
+        for uid, mail in pairs:                      # ascending: a Firebird id beats a derived one with the same e-mail
             if mail:
-                by_email[mail] = int(uid)
-        mapped, unmapped = {}, 0
+                by_email.setdefault(mail, uid)
+        mapped, own, persons = {}, [], {}
         for a in self.athletes():
             uid = by_email.get(core.clean_email(a.get("email")) or "")
             if uid is None and a.get("source") == FREE_SOURCE and str(a.get("source_user_id") or "").isdigit():
                 uid = int(a["source_user_id"])
             if uid is None:
-                unmapped += 1
+                own.append(a)
             else:
                 mapped[a["id"]] = uid
-        return mapped, unmapped
+        if not derive:
+            return mapped, len(own), persons
+        for athlete_id, uid in assign_ids(own).items():
+            mapped[athlete_id] = uid
+        for a in own:
+            persons[mapped[a["id"]]] = person_of(a, mapped[a["id"]])
+        return mapped, 0, persons
 
     # --- the sets ----------------------------------------------------------------------------------------------
     @staticmethod
@@ -317,15 +398,26 @@ class Connection:
     """The Firebird connection (everything it has is passed through) plus, when the setting asks for it, arx-free's
     snapshot: `free` (None when nothing is read from arx-free), `mode` (the EFFECTIVE mode - `arx-free` without a
     usable file falls back to the original with a note), `by_user` {Insight user id: [arx-free athlete ids]},
-    `unmapped` (athletes of arx-free that belong to nobody here) and `note` {code, path} when the file is not usable."""
+    `unmapped` (athletes of arx-free that belong to nobody here - 0 since v0.28.0, they become persons), `persons`
+    {derived id: person} for the athletes that exist only in arx-free (v0.28.0) and `note` {code, path} when the file
+    is not usable."""
 
     def __init__(self, fb, free: FreeSnapshot | None, mode: str, by_user: dict, unmapped: int, note: dict | None, path: str | None,
-                 wanted: str):
+                 wanted: str, persons: dict | None = None):
         self._fb, self.free, self.mode, self.by_user, self.unmapped, self.note, self.path, self.wanted = \
             fb, free, mode, by_user, unmapped, note, path, wanted
+        self.persons = persons or {}
 
     def __getattr__(self, name):                 # cursor(), close(), ... of the Firebird connection
         return getattr(self._fb, name)
+
+    def person(self, user_id) -> dict | None:
+        """The person behind an id that exists only in arx-free's file (v0.28.0; keys see person_of) - None for the
+        original's users, so arx_base.user_profile falls through to the "User" table for them."""
+        try:
+            return self.persons.get(int(user_id))
+        except (TypeError, ValueError):
+            return None
 
     def free_ids(self, user_id) -> list:
         return self.by_user.get(int(user_id), []) if self.free is not None else []
@@ -349,11 +441,11 @@ def attach(fb, cfg: dict | None, emails: dict | None = None) -> Connection:
         snap = shared(path)
     except SourceError as exc:
         return Connection(fb, None, "original", {}, 0, {"code": exc.code, "path": path, "detail": exc.detail}, path, wanted)
-    mapped, unmapped = snap.user_map(emails)
+    mapped, unmapped, persons = snap.user_map(emails)
     by_user: dict = {}
     for athlete_id, uid in mapped.items():
         by_user.setdefault(uid, []).append(athlete_id)
-    return Connection(fb, snap, wanted, by_user, unmapped, None, path, wanted)
+    return Connection(fb, snap, wanted, by_user, unmapped, None, path, wanted, persons)
 
 
 def describe(con, sets: list[dict] | None = None) -> dict:
@@ -364,6 +456,7 @@ def describe(con, sets: list[dict] | None = None) -> dict:
     note = getattr(con, "note", None)
     return {"mode": getattr(con, "mode", DEFAULT_MODE), "wanted": getattr(con, "wanted", DEFAULT_MODE),
             "arx_free": {"found": free is not None, "own_sets": own, "unmapped_athletes": getattr(con, "unmapped", 0),
+                         "own_persons": len(getattr(con, "persons", None) or {}),     # persons known from arx-free alone (v0.28.0)
                          "note": {"code": note["code"]} if note else None,
                          "schema": free.user_version if free is not None else None}}
 
@@ -374,7 +467,7 @@ def status(cfg: dict | None, emails: dict | None = None) -> dict:
     mode = mode_of(cfg)
     path, configured = find_arx_free_db(cfg)
     out = {"mode": mode, "path": path, "configured": configured, "found": False, "unmapped_athletes": 0, "note": None,
-           "own_sets": 0}
+           "own_sets": 0, "own_persons": 0}
     if not path:
         out["note"] = {"code": "missing", "path": None}
         return out
@@ -383,7 +476,19 @@ def status(cfg: dict | None, emails: dict | None = None) -> dict:
     except SourceError as exc:
         out["note"] = {"code": exc.code, "path": path, "detail": exc.detail}
         return out
-    mapped, out["unmapped_athletes"] = snap.user_map(emails)
+    mapped, out["unmapped_athletes"], persons = snap.user_map(emails, derive=mode != "original")   # original-only: counted, not persons
     out["found"] = True
+    out["own_persons"] = len(persons)
     out["own_sets"] = int(snap._rows("select count(*) as n from sets where source is null and deleted_at is null")[0]["n"])
+    return out
+
+
+def people_of(con) -> list[dict]:
+    """The persons that exist only in arx-free's file as rows of the app's user list (arx_app.search_users, v0.28.0):
+    the keys of a row of the original's User table plus `source` and `arx_free_ids` (the link arx-free resolves its
+    athlete by, contract arx-free-sets-3). Empty on a plain connection and in the original-only mode."""
+    out = []
+    for uid, p in sorted((getattr(con, "persons", None) or {}).items()):
+        out.append({"id": uid, "name": p["name"], "first": p["first"], "last": p["last"], "gender": p["gender"],
+                    "birthdate": p["birthdate"], "created": p["created"], "source": FREE_NAME, "arx_free_ids": [p["arx_free_id"]]})
     return out

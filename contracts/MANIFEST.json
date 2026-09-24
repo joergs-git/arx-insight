@@ -6,22 +6,22 @@
  "contracts": [
   {
    "name": "arx-export",
-   "version": 5,
+   "version": 6,
    "owner": "arx-insight",
-   "what": "history of the original software for arx-free - the file, and since v2 the route GET /api/export?since= on Insight's local listener (same lines; the header's format name stays arx-export-1 because no line changed); v3 the e-mail, v4 the coaching block, v5 (2026-09-24) the goal's fatigue_target_pct on the athlete line and the original's current range_of_motion lines (footer ranges); v4 stays listed until arx-free adopts v5",
+   "what": "history of the original software for arx-free - the file, and since v2 the route GET /api/export?since= on Insight's local listener (same lines; the header's format name stays arx-export-1 because no line changed); v3 the e-mail, v4 the coaching block, v5 the goal's fatigue_target_pct on the athlete line and the original's current range_of_motion lines (footer ranges); v6 (2026-09-24) the line kind `person` for everybody Insight knows from arx-free's file alone (arx_free_id + the derived Insight id + the person fields, footer persons, header persons=; arx-free's request 9); v5 stays listed until arx-free adopts v6",
    "files": {
-    "arx-export-4.md": "a462294d6b0a13101197d784d0694e8e9f6e6139ac8836605227d402cb463d96",
-    "arx-export-5.md": "43ee8214b88a607d81cc6bffb0239ce964bb672412a2ad2d00fc09b8f3d7d38d"
+    "arx-export-5.md": "43ee8214b88a607d81cc6bffb0239ce964bb672412a2ad2d00fc09b8f3d7d38d",
+    "arx-export-6.md": "ba493441ff5ad7ab1c45092d9d3987521f46468dd543033cb2f853f9691ff5e5"
    }
   },
   {
    "name": "arx-free-sets",
-   "version": 2,
+   "version": 3,
    "owner": "arx-insight",
-   "what": "what ARX Insight reads from arx-free's SQLite database (tables, columns, meanings: source NULL = arx-free's own recording, 'arx-original' = a copy; the curve format), the three settings original / arx-free / both without duplicates, who is who (e-mail first, import link second, names never); v2 (2026-09-24): the live coach's notes sets.coach_json (schema 5) and what Insight computes from them (coach_effects); v1 stays listed until arx-free adopts v2",
+   "what": "what ARX Insight reads from arx-free's SQLite database (tables, columns, meanings: source NULL = arx-free's own recording, 'arx-original' = a copy; the curve format), the three settings original / arx-free / both without duplicates, who is who (e-mail first, import link second, names never); v2 (2026-09-24): the live coach's notes sets.coach_json (schema 5) and what Insight computes from them (coach_effects); v3 (2026-09-24, arx-free's request 9): an athlete that exists only in arx-free is a person of Insight - five person columns, a stable id derived from arx-free's athlete id, /api/users rows with source + arx_free_ids, arx-free resolves any athlete through them; v2 stays listed until arx-free adopts v3",
    "files": {
-    "arx-free-sets-1.md": "d43d6017bbf502999357e695abf8cd033eee324459dc8fdba9302a4ac7c98ce5",
-    "arx-free-sets-2.md": "e0fcf074105f49eaadfebf5561738f66b5f363f2c81ec428accbd2937a3c6f18"
+    "arx-free-sets-2.md": "e0fcf074105f49eaadfebf5561738f66b5f363f2c81ec428accbd2937a3c6f18",
+    "arx-free-sets-3.md": "0a13029d8132a58e7cb20c90e25745c7703729d24021733a74910aba65f6ab6f"
    }
   },
   {

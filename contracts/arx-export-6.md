@@ -1,14 +1,29 @@
-# Contract `arx-export-4` - history of the original software for arx-free
+# Contract `arx-export-6` - history of the original software for arx-free
 
-Version 4 (2026-09-24, ARX Insight v0.26.0) - supersedes `arx-export-3` (2026-09-24). What is new: the `athlete` line
-carries the person's **`coaching`** block when ARX Insight knows it - the three one-tap answers of the motivational
+Version 6 (2026-09-24, ARX Insight v0.28.0) - supersedes `arx-export-5` (2026-09-24). What is new (arx-free's
+request 9): a new line kind **`person`** for everybody ARX Insight knows from arx-free's file alone (contract
+`arx-free-sets-3`) - written after the `athlete` lines, always all of them (a state like the athletes), with what ARX
+Insight knows about the person (e-mail, language, display units, coaching, fatigue target) and the ids that tie the two
+products together; the footer gains `persons`, the route's header `persons=N`. NEVER as an `athlete` line: that kind is
+the original's users, and an importer that does not know the id would create a duplicate athlete. Additive: an importer
+ignores line kinds and footer keys it does not know, the other lines are unchanged and the format name in the header
+stays `arx-export-1`. `arx-export-5.md` stays in both folders until arx-free has adopted this file.
+
+Version 5 (2026-09-24, ARX Insight v0.27.0) added, for arx-free's requests 4 and 5: (a) the `athlete` line's
+**`fatigue_target_pct`** - the fatigue target the athlete's goal in ARX Insight asks for on the effort-v3 scale (10 =
+medium, 20 = deep; `EFFORT_TARGETS[goal_effort(goal)].inroad_min`), only when the athlete has a goal; arx-free's
+importer takes it like language ("Insight wins for the person" - unless the athlete set a target by hand at the
+machine); (b) the line kind **`range_of_motion`** - the original's CURRENT range per athlete, exercise and range type,
+written after the athlete lines and before the sets, always all of them (a state, not a history: `since` filters sets
+only); the footer gained `ranges`.
+
+Version 4 (2026-09-24, ARX Insight v0.26.0) added the `athlete` line's **`coaching`** block when ARX Insight knows it - the three one-tap answers of the motivational
 profile "How do you tick?" (`compare`: `self` | `others` | `none`, `tone`: `push` | `numbers` | `calm`, `drive`:
 `gain` | `keep` | `nudge`; motivation-plan-2026-09-24, research-age-types.md section 3). arx-free reads them for its
 cue choice (F11): the `drill` style only for `tone = push`, the numbers line for `numbers`, voice off by default and
 one closing sentence for `calm`, partner-comparison cues only ever for `compare = others`, "holds your strength"
 verdicts for `drive = keep`. Additive: one optional object, an importer ignores fields it does not know, the lines are
-otherwise unchanged and the format name in the header stays `arx-export-1`. `arx-export-3.md` stays in both folders
-until arx-free has adopted this file.
+otherwise unchanged and the format name in the header stays `arx-export-1`.
 
 Version 3 (2026-09-24, ARX Insight v0.24.0) added the person's **`email`** when ARX Insight knows it - the e-mail address is THE key of a person across arx-free,
 ARX Insight and any future cloud (owner 2026-09-24: "the only unique world key"; contract `arx-free-sets-1` maps
@@ -44,7 +59,7 @@ the way: configuration, events and samples travel **verbatim**.
      importer and never sends anything back. `since` for the next call = the newest `started_at` of the sets that came
      from this source.
    * ARX Insight writes the answer to a temporary file in its data folder, streams it and removes it whatever happens
-     (a start removes what a crash left behind). Response header `X-ARX-Export: athletes=N; sets=N; skipped=N`.
+     (a start removes what a crash left behind). Response header `X-ARX-Export: athletes=N; persons=N; ranges=N; sets=N; skipped=N`.
 
 ## Lines
 
@@ -52,8 +67,10 @@ gzip, UTF-8, one JSON object per line, in this order:
 
 1. one `header`
 2. all `athlete` lines
-3. all `set` lines, **ordered by `source_set_id`** (a set may refer to an earlier one)
-4. one `footer`
+3. all `person` lines (v6)
+4. all `range_of_motion` lines (v5)
+5. all `set` lines, **ordered by `source_set_id`** (a set may refer to an earlier one)
+6. one `footer`
 
 The file contains names and training data of real people: it stays on the owner's machines, is never committed and
 never leaves the local network.
@@ -74,7 +91,7 @@ the filter this answer was made with, `null` for a complete export.
 {"kind": "athlete", "source_user_id": "17", "first_name": "...", "last_name": "...", "gender": "m|f|null",
  "birth_date": "1980-05-17|null", "created_at": "2024-03-01T10:00:00|null",
  "language": "de", "display_units": "metric", "email": "name@example.com",
- "coaching": {"compare": "self", "tone": "push", "drive": "gain"}}
+ "coaching": {"compare": "self", "tone": "push", "drive": "gain"}, "fatigue_target_pct": 20}
 ```
 
 Only these fields leave the original database (it holds no e-mail column). No password or token columns, no cloud
@@ -84,10 +101,11 @@ ids, no waiver. The sentinel date `0001-01-01` of the original is exported as `n
 **What ARX Insight knows about the person** (owner's decision 2026-09-23, "Insight wins for the person, arx-free
 wins for the machine"): `language` (`de` | `en`) = the person's own choice in ARX Insight's profile, else the device's
 language when it is set; `display_units` (`metric` | `imperial`) = the device's units when they are set (ARX Insight
-keeps units per device); `email` (`arx-export-4`) = the address typed into the person's ARX Insight profile, trimmed
-and lower-cased - THE key of the person across the products (contract `arx-free-sets-1`); `coaching` (`arx-export-4`) =
-the answers of the motivational profile, only the agreed words, only the keys that were answered. All four are
-**optional and present only when known**. Never `photos_enabled` - ARX Insight does not know it, it stays arx-free's. An importer
+keeps units per device); `email` (`arx-export-5`) = the address typed into the person's ARX Insight profile, trimmed
+and lower-cased - THE key of the person across the products (contract `arx-free-sets-1`); `coaching` (`arx-export-5`) =
+the answers of the motivational profile, only the agreed words, only the keys that were answered; `fatigue_target_pct`
+(`arx-export-5`) = 10 or 20, the goal's fatigue target (contract `vocabulary-2`: medium / deep), only with a goal. All
+five are **optional and present only when known**. Never `photos_enabled` - ARX Insight does not know it, it stays arx-free's. An importer
 ignores fields it does not know.
 
 Import rule (one user basis): arx-free takes the four at creation AND on every later import and shows them read-only
@@ -96,6 +114,36 @@ its cue chooser reads it); an athlete
 without the fields keeps arx-free's own values and stays editable there. Everything machine-side (coach switches, on-ramp, fatigue targets, positions,
 remembered settings) stays arx-free's and is never overwritten. A value that is not one of the agreed words is ignored.
 Editing the person (name, language, units) happens in ONE place: ARX Insight.
+
+### person (v6)
+
+```json
+{"kind": "person", "arx_free_id": "<arx-free athlete id>", "source_user_id": "1234567890",
+ "email": "name@example.com", "language": "de", "display_units": "metric",
+ "coaching": {"compare": "self", "tone": "push", "drive": "gain"}, "fatigue_target_pct": 20}
+```
+
+One line per person ARX Insight knows from arx-free's file alone (contract `arx-free-sets-3`: an athlete that matches
+none of the original's users by e-mail or import link). `arx_free_id` = arx-free's own athlete id - THE key of the
+line; `source_user_id` = the id ARX Insight derived for the person (what `/api/report?user_id=` and `/api/users` use;
+never an id of the original). The five person fields are the same as on the `athlete` line and present only when
+known ("Insight wins for the person"). No name, no birth date, no gender: arx-free has them - it created the athlete.
+arx-free's importer matches the line to its athlete by `arx_free_id`, takes the person fields like from an `athlete`
+line and NEVER creates an athlete from it. Counted in the footer as `persons`. An importer that does not know the kind
+skips it.
+
+### range_of_motion (v5)
+
+```json
+{"kind": "range_of_motion", "source_user_id": "1", "exercise_code": 11, "range_type": "Automatic",
+ "start_in": 21.7, "end_in": 33.0, "confirmed": true, "source_rom_id": "812", "created_at": "2026-09-19T19:06:08"}
+```
+
+The original keeps the athlete's current range in its own table `"RangeOfMotion2"` (append-only: `STARTPOSITION`,
+`ENDPOSITION` in inches, `RANGETYPE` `Automatic` | `Static`, `CONFIRMED`, `DATECREATED`; no deleted flag). One line per
+user + exercise + range type = the row with the highest id. arx-free takes an `Automatic` line as the stored positions
+of that athlete and exercise unless the athlete confirmed a range at the machine (`range_confirmed_on`); travel times,
+holds, repetitions and the countdown keep coming from the latest set. Counted in the footer as `ranges`.
 
 ### set
 
@@ -131,7 +179,7 @@ Editing the person (name, language, units) happens in ONE place: ARX Insight.
 ### footer
 
 ```json
-{"kind": "footer", "athletes": 12, "sets": 2381}
+{"kind": "footer", "athletes": 12, "persons": 2, "ranges": 40, "sets": 2381}
 ```
 
 The counts of what is in THIS file or answer (with `since`: the sets after it). The importer refuses a file whose

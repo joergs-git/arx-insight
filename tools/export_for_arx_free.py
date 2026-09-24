@@ -23,8 +23,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import arx_base as core  # noqa: E402
+import arx_sources as sources  # noqa: E402
 from arx_export import (FORMAT, SOURCE, USER_SQL, SET_SQL, RANGE_SQL, _iso, _number, _json_blob, samples_of, range_line, fatigue_target_of,  # noqa: E402,F401  (the names the tests and older scripts use)
-                        athlete_line, set_line, parse_since, person_facts, export)
+                        athlete_line, person_line, set_line, parse_since, person_facts, export)
 
 
 def _settings(name: str) -> dict:
@@ -55,13 +56,16 @@ def main(argv=None) -> int:
         version = ""
     con, tmp = core.open_readonly(args.db)
     try:
-        counts = export(con, args.out, version, since=since, person=person_facts(_settings("config.json"), _settings("goals.json")))
+        free = sources.attach(con, _settings("config.json"), sources.emails_from_goals())     # the persons known from arx-free alone (v0.28.0)
+        counts = export(con, args.out, version, since=since, person=person_facts(_settings("config.json"), _settings("goals.json")),
+                        persons=sources.people_of(free))
     finally:
         try:
             con.close()
         finally:
             shutil.rmtree(tmp, ignore_errors=True)                                # the copy holds private data: never leave it behind
-    print(f"{args.out}: {counts['athletes']} athletes, {counts['ranges']} ranges, {counts['sets']} sets" + (f", {counts['skipped']} skipped" if counts["skipped"] else "")
+    print(f"{args.out}: {counts['athletes']} athletes, {counts['persons']} persons from arx-free, {counts['ranges']} ranges, {counts['sets']} sets"
+          + (f", {counts['skipped']} skipped" if counts["skipped"] else "")
           + (f" (after {since})" if since else ""))
     return 0
 
